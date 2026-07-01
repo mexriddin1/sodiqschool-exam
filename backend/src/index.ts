@@ -1,0 +1,55 @@
+import express from "express";
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
+
+import { config } from "./config.js";
+import { errorMiddleware } from "./middleware/error.js";
+import { adminAuthRouter } from "./routes/admin.auth.js";
+import { studentsRouter } from "./routes/admin.students.js";
+import { examsRouter } from "./routes/admin.exams.js";
+import { resultsRouter } from "./routes/admin.results.js";
+import { publicResultRouter } from "./routes/public.result.js";
+import { adminUsersRouter } from "./routes/admin.users.js";
+import { auditRouter } from "./routes/admin.audit.js";
+import { templatesRouter } from "./routes/admin.templates.js";
+import { testTemplatesRouter } from "./routes/admin.testtemplates.js";
+import { statsRouter } from "./routes/admin.stats.js";
+
+const app = express();
+
+app.use(helmet());
+app.use(
+  cors({
+    origin: config.corsOrigins,
+    credentials: true,
+  }),
+);
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+// Generic admin rate limit; tighten login separately if abuse appears.
+const adminLimiter = rateLimit({ windowMs: 60_000, max: 240 });
+app.use("/api/admin", adminLimiter);
+
+app.use("/api/admin/auth", adminAuthRouter);
+app.use("/api/admin/students", studentsRouter);
+app.use("/api/admin/exams", examsRouter);
+app.use("/api/admin/results", resultsRouter);
+app.use("/api/admin/users", adminUsersRouter);
+app.use("/api/admin/audit-logs", auditRouter);
+app.use("/api/admin/templates", templatesRouter);
+app.use("/api/admin/test-templates", testTemplatesRouter);
+app.use("/api/admin/stats", statsRouter);
+app.use("/api/result", publicResultRouter);
+
+app.use(errorMiddleware);
+
+app.listen(config.port, () => {
+  console.log(`[backend] http://localhost:${config.port} (env=${config.env})`);
+});

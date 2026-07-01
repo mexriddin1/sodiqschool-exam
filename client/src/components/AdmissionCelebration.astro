@@ -1,0 +1,308 @@
+---
+// Harvard-style admission celebration — confetti + a banner + a soft fanfare
+// when the student is admitted. Fires once on page load and stops itself.
+//
+// Props:
+//   verdictLabel: the composite verdict as an ALL-CAPS string. We only
+//     celebrate on the two positive outcomes:
+//       - "QABUL TAVSIYA ETILADI" (STRONG ADMIT)
+//       - "QABUL QILINSIN" (ADMIT)
+//   studentName: shown once inside the banner.
+
+interface Props {
+  verdictLabel: string;
+  studentName: string;
+}
+const { verdictLabel, studentName } = Astro.props as Props;
+const isAdmit =
+  verdictLabel === "QABUL TAVSIYA ETILADI" ||
+  verdictLabel === "QABUL QILINSIN" ||
+  // Legacy English labels still stored in older snapshots.
+  verdictLabel === "STRONG ADMIT" ||
+  verdictLabel === "ADMIT";
+if (!isAdmit) return null;
+
+const celebrationTitle = verdictLabel === "QABUL TAVSIYA ETILADI" || verdictLabel === "STRONG ADMIT"
+  ? "TABRIKLAYMIZ!"
+  : "TABRIKLAYMIZ!";
+const celebrationSub = verdictLabel === "QABUL TAVSIYA ETILADI" || verdictLabel === "STRONG ADMIT"
+  ? "Sodiq School'ga qabul qilindingiz — yuqori daraja bilan!"
+  : "Sodiq School'ga qabul qilindingiz!";
+---
+
+<div id="celebration-banner" class="celebration">
+  <div class="celebration-inner">
+    <img class="celebration-seal" src="/graduation-cap.png" alt="Bitiruv qalpog'i" width="112" height="112" />
+    <div class="celebration-eyebrow">Sodiq School · Academic Assessment Office</div>
+    <h2 class="celebration-title">{celebrationTitle}</h2>
+    <div class="celebration-name">{studentName}</div>
+    <p class="celebration-sub">{celebrationSub}</p>
+    <button type="button" id="celebration-close" class="celebration-close" aria-label="Yopish">Yopish ✕</button>
+  </div>
+  <canvas id="celebration-canvas" aria-hidden="true"></canvas>
+</div>
+
+<style>
+  .celebration {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(6, 17, 60, 0.55) 0%, rgba(6, 17, 60, 0.92) 100%);
+    animation: fadeIn 0.3s ease both;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .celebration.dismissed {
+    animation: fadeOut 0.35s ease forwards;
+    pointer-events: none;
+  }
+  @keyframes fadeOut { to { opacity: 0; transform: scale(0.98); } }
+
+  .celebration-inner {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    max-width: 520px;
+    padding: 32px 24px;
+    color: white;
+    animation: bannerIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes bannerIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.94); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .celebration-seal {
+    display: block;
+    width: 112px;
+    height: 112px;
+    margin: 0 auto 12px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 24px rgba(255, 138, 50, 0.55));
+    animation: sealPop 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  }
+  @media (max-width: 480px) {
+    .celebration-seal { width: 92px; height: 92px; }
+  }
+  @keyframes sealPop {
+    0% { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+    60% { transform: scale(1.08) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+
+  .celebration-eyebrow {
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 12px;
+  }
+
+  .celebration-title {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin: 0 0 6px;
+    background: linear-gradient(135deg, #FFB874 0%, #FF8A32 55%, #FFD199 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 4px 30px rgba(255, 138, 50, 0.35);
+  }
+
+  .celebration-name {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: white;
+    margin: 4px 0 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .celebration-sub {
+    font-size: 1.05rem;
+    color: rgba(255, 255, 255, 0.88);
+    margin: 0 0 24px;
+    line-height: 1.4;
+  }
+
+  .celebration-close {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    background: #ffffff;
+    border: 0;
+    border-radius: 999px;
+    color: #06113C;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .celebration-close:hover { background: #FF8A32; color: #ffffff; box-shadow: 0 8px 24px rgba(255, 138, 50, 0.45); }
+  .celebration-close:active { transform: scale(0.97); }
+
+  #celebration-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  @media print { .celebration { display: none !important; } }
+</style>
+
+<script>
+  // ---------------- Confetti + firework burst engine ----------------
+  //
+  // Physics-lite pipeline: a bag of particles drifts under gravity + air drag,
+  // with periodic "fireworks" that spawn an outward radial burst from a random
+  // point. Ends after ~7 seconds so the banner can be dismissed and the report
+  // scrolled without a running rAF loop hogging the CPU.
+
+  const canvas = document.getElementById('celebration-canvas') as HTMLCanvasElement | null;
+  const banner = document.getElementById('celebration-banner') as HTMLDivElement | null;
+  const closeBtn = document.getElementById('celebration-close') as HTMLButtonElement | null;
+  if (!canvas || !banner) throw new Error('celebration mount missing');
+  // Fire once per browser session so navigating back to /summary doesn't
+  // relaunch the fireworks. Cleared on tab close.
+  const KEY = 'sodiq-celebration-seen';
+  if (sessionStorage.getItem(KEY)) {
+    banner.remove();
+    throw new Error('celebration already shown this session');
+  }
+  sessionStorage.setItem(KEY, '1');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('celebration canvas ctx');
+
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const COLORS = ['#FF8A32', '#FFB874', '#FFD199', '#3266C9', '#7AB8FF', '#2F9E6B', '#87E0B5', '#FFFFFF'];
+
+  interface P {
+    x: number; y: number; vx: number; vy: number; g: number;
+    life: number; maxLife: number; size: number; rot: number; vr: number;
+    color: string; kind: 'confetti' | 'streak';
+  }
+  const parts: P[] = [];
+
+  function spawnConfettiFromTop(count: number) {
+    const w = window.innerWidth;
+    for (let i = 0; i < count; i++) {
+      parts.push({
+        x: Math.random() * w,
+        y: -20 - Math.random() * 100,
+        vx: (Math.random() - 0.5) * 2.2,
+        vy: 1.5 + Math.random() * 2.5,
+        g: 0.05 + Math.random() * 0.04,
+        life: 0, maxLife: 260 + Math.random() * 200,
+        size: 6 + Math.random() * 6,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.25,
+        color: COLORS[(Math.random() * COLORS.length) | 0]!,
+        kind: 'confetti',
+      });
+    }
+  }
+
+  function spawnFirework(x: number, y: number, n: number) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.05;
+      const speed = 4 + Math.random() * 4;
+      parts.push({
+        x, y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        g: 0.08,
+        life: 0, maxLife: 60 + Math.random() * 60,
+        size: 2.5 + Math.random() * 1.8,
+        rot: 0, vr: 0,
+        color: COLORS[(Math.random() * COLORS.length) | 0]!,
+        kind: 'streak',
+      });
+    }
+  }
+
+  // Kick things off: an opening top-of-screen confetti fall, then 4 firework
+  // bursts spread across the first 3 seconds.
+  spawnConfettiFromTop(160);
+  const w0 = window.innerWidth, h0 = window.innerHeight;
+  setTimeout(() => spawnFirework(w0 * 0.30, h0 * 0.35, 42), 300);
+  setTimeout(() => spawnFirework(w0 * 0.72, h0 * 0.28, 48), 800);
+  setTimeout(() => spawnFirework(w0 * 0.20, h0 * 0.55, 46), 1500);
+  setTimeout(() => spawnFirework(w0 * 0.80, h0 * 0.60, 50), 2100);
+  setTimeout(() => spawnConfettiFromTop(90), 1200);
+  setTimeout(() => spawnConfettiFromTop(90), 2600);
+
+  let raf = 0;
+  const t0 = performance.now();
+  const HARD_STOP_MS = 7000;
+
+  function tick(now: number) {
+    const elapsed = now - t0;
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]!;
+      p.life += 1;
+      p.vy += p.g;
+      p.vx *= 0.995;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      const fade = Math.max(0, 1 - p.life / p.maxLife);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = p.color;
+      if (p.kind === 'confetti') {
+        // Rectangle "ribbon" tumbling around its centre.
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        ctx.restore();
+      } else {
+        // Streak: small circle with a soft tail.
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (p.life > p.maxLife || p.y > window.innerHeight + 40) parts.splice(i, 1);
+    }
+    ctx.globalAlpha = 1;
+    if (elapsed < HARD_STOP_MS && parts.length > 0) {
+      raf = requestAnimationFrame(tick);
+    }
+  }
+  raf = requestAnimationFrame(tick);
+
+  function dismiss() {
+    cancelAnimationFrame(raf);
+    banner!.classList.add('dismissed');
+    setTimeout(() => banner!.remove(), 400);
+  }
+  closeBtn?.addEventListener('click', dismiss);
+  // Auto-dismiss after 6 seconds so the report is fully interactive.
+  setTimeout(dismiss, 6000);
+  // Click on backdrop (outside the inner card) also closes.
+  banner.addEventListener('click', (e) => { if (e.target === banner) dismiss(); });
+</script>

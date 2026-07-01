@@ -1,0 +1,300 @@
+---
+export const prerender = false;
+// Cross-subject SUMMARY dashboard — combines the three diagnostic reports
+// (Matematika, Ingliz tili, Tanqidiy fikrlash) into one at-a-glance page.
+// New structure: composite hero -> 3-subject triptych -> cross-cutting insights.
+import Layout from '../layouts/Layout.astro';
+import AdmissionCelebration from '../components/AdmissionCelebration.astro';
+import { fetchMyResult } from '../lib/session';
+import { pickSubject, resolveOverrides, resolveVerdict } from '../lib/client-data';
+import { computeReport, BAND_COLORS, scoreBand } from '@sodiq/compute/compute';
+
+const me = await fetchMyResult(Astro);
+if (!me) return Astro.redirect('/login');
+const mathData = pickSubject(me, 'MATH');
+const englishData = pickSubject(me, 'ENGLISH');
+const ctData = pickSubject(me, 'CRITICAL_THINKING');
+const overrides = resolveOverrides(me);
+import { strandDonut, scoreScale } from '../lib/svg.js';
+
+// Per-subject CFG — strength/growthLabel/rank come from manualContent per
+// subject; never hardcoded narrative.
+const CFG = [
+  { name: 'Matematika', eyebrow: 'Fan 1', data: mathData, ov: overrides.math, href: '/' },
+  { name: 'Ingliz tili', eyebrow: 'Fan 2', data: englishData, ov: overrides.english, href: '/english' },
+  { name: 'Tanqidiy fikrlash', eyebrow: 'Fan 3', data: ctData, ov: overrides.criticalThinking, href: '/critical-thinking' },
+];
+const subjects = CFG.map((c) => {
+  const r = computeReport(c.data);
+  return {
+    name: c.name, eyebrow: c.eyebrow, href: c.href,
+    strength: c.ov.strength ?? '—',
+    growthLabel: c.ov.growthLabel ?? '—',
+    rank: c.ov.cohort.rank,
+    total: c.ov.cohort.total,
+    percent: r.percent, potential: r.potential, adjusted: r.adjusted, band: r.band,
+    techPct: r.lostTotal ? Math.round((r.technicalLost / r.lostTotal) * 100) : 0,
+  };
+});
+const avg = (a) => Math.round(a.reduce((x, y) => x + y, 0) / a.length);
+const composite = avg(subjects.map((s) => s.percent));
+const compPotential = avg(subjects.map((s) => s.potential));
+const compAdjusted = avg(subjects.map((s) => s.adjusted));
+const compBand = scoreBand(composite);
+const avgTechPct = avg(subjects.map((s) => s.techPct));
+const topSubj = [...subjects].sort((a, b) => b.percent - a.percent)[0];
+const lowSubj = [...subjects].sort((a, b) => a.percent - b.percent)[0];
+// Verdict — auto from composite potential, or admin override.
+const verdictBand = scoreBand(compPotential);
+const verdict = resolveVerdict(
+  {
+    label: (verdictBand.admission ?? verdictBand.label).toUpperCase(),
+    sub: verdictBand.tavsif ?? verdictBand.label,
+    color: verdictBand.color,
+  },
+  overrides.summary.verdictOverride,
+);
+
+// Summary-level overrides (overallRank/overallPct/crossStrength/gradeLabel).
+const sumOv = overrides.summary;
+const overallRank = sumOv.overallRank;
+const overallTotal = sumOv.overallTotal;
+const overallPct = sumOv.overallPct;
+const hasOverall = overallRank != null && overallTotal != null && overallPct != null;
+const crossStrength = sumOv.crossStrength;
+
+const compCi = { low: Math.max(0, composite - 3), high: Math.min(100, composite + 3) };
+const m = {
+  ...mathData.meta,
+  subject: 'Umumiy xulosa',
+  gradeLabel: sumOv.gradeLabel ?? `${mathData.meta.grade}-sinfga nomzod · 3 fan`,
+};
+const chip = (c) => `background:${c}1A;color:${c};border-color:${c}55`;
+const growthList = subjects.filter((s) => s.growthLabel !== '—').map((s) => `${s.name.toLowerCase()} - ${s.growthLabel}`).join('; ');
+// AI narrative for §4 Umumiy manzara + §5 Yakuniy tavsiya. Falls back to
+// deterministic short blurbs when generation hasn't run yet.
+import { aiParagraphs, hasAiText } from '../lib/ai-md';
+const aiCross = me.aiNarrative?.summary?.crossCutting ?? null;
+const aiFinal = me.aiNarrative?.summary?.finalRecommendation ?? null;
+
+// If admin manualContent didn't set strength/growthLabel we still show them
+// on the subject cards — derive them from the computed report so the cards
+// never show a bare em-dash. Kuchli = highest-scoring strand; Zaif = weakest
+// topic (with at least 2 questions) or, failing that, the lowest strand.
+function autoStrength(rep) {
+  const strand = [...(rep.byStrand ?? [])].sort((a, b) => b.percent - a.percent)[0];
+  return strand ? strand.name.toLowerCase() : null;
+}
+function autoWeak(rep) {
+  const topics = [...(rep.topics ?? [])].filter((t) => t.n >= 2).sort((a, b) => a.percent - b.percent);
+  if (topics[0]) return topics[0].name.toLowerCase();
+  const strand = [...(rep.byStrand ?? [])].sort((a, b) => a.percent - b.percent)[0];
+  return strand ? strand.name.toLowerCase() : null;
+}
+// Backfill '—' fields on the subjects list computed above with auto derivations.
+subjects.forEach((s, i) => {
+  const data = [mathData, englishData, ctData][i];
+  const rep = computeReport(data);
+  if (s.strength === '—' || !s.strength) s.strength = autoStrength(rep) ?? '—';
+  if (s.growthLabel === '—' || !s.growthLabel) s.growthLabel = autoWeak(rep) ?? '—';
+});
+---
+<Layout title={`Sodiq School — Umumiy diagnostik xulosa`} meta={m}>
+  <AdmissionCelebration verdictLabel={verdict.label} studentName={m.candidate} />
+  {/* ============================== COVER ============================== */}
+  <header class="cover">
+    <div class="wrap">
+      <div class="brandline">
+        <img class="brand-logo" src="/logo-white.png" width="1920" height="700" alt={m.school} />
+        <span class="brand-div"></span>
+        <div>
+          <div class="eyebrow">{m.office}</div>
+          <div class="slogan">{m.slogan}</div>
+        </div>
+      </div>
+      <h1>Umumiy diagnostik xulosa</h1>
+      <div class="subtitle">Uch kirish imtihoni — matematika, ingliz tili va tanqidiy fikrlash — bir sahifada</div>
+      <div class="meta">
+        <div><b>Nomzod:</b> {m.candidate}</div>
+        <div><b>Sinf:</b> {m.gradeLabel}</div>
+        <div><b>Imtihonlar:</b> <span class="num">3</span> fan · har biri <span class="num">100</span> ball</div>
+      </div>
+
+      <div class="hero-instrument">
+        <div>
+          <div class="hero-readout">
+            <span class="big">{composite}</span><span class="slash">/100</span>
+            <span class="ci">3 fan o'rtachasi</span>
+          </div>
+          <div class="hero-mini">
+            {subjects.map((s) => (
+              <div class="metric"><div class="metric-value sm num">{s.percent}</div><div class="metric-label">{s.name}</div></div>
+            ))}
+          </div>
+          <div class="hero-rank">
+            {hasOverall && (
+              <>
+                <div class="metric"><div class="metric-value sm num">{overallRank}<span class="u">/{overallTotal}</span></div><div class="metric-label">Umumiy reyting</div></div>
+                <div class="metric"><div class="metric-value sm num">{overallPct}<span class="u">-foiz</span></div><div class="metric-label">Persentil</div></div>
+              </>
+            )}
+            <div class="metric"><div class="metric-value sm num">{compPotential}</div><div class="metric-label">Salohiyat o'rt.</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="hero-verdict" style={`background:${verdict.color}`}>
+            <div class="hv-seal">✓</div>
+            <div class="hv-label">{verdict.label}</div>
+            <small>{verdict.sub}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    {/* ---- short narrative ---- */}
+    <section class="section" id="sec1">
+      <header class="sec-head">
+        <div class="eyebrow">01</div>
+        <h2>Bir qarashda</h2>
+      </header>
+      <div class="story">
+        <p>
+          Farzandingiz uch kirish imtihonida o'rtacha <b>{composite}/100</b> ball oldi —
+          <b>{compBand.label.toLowerCase()}</b> ({compBand.tavsif?.toLowerCase()}).
+          Eng yuqori natija — <b>{topSubj.name.toLowerCase()}</b> ({topSubj.percent}).
+        </p>
+        {crossStrength && (
+          <p>
+            Cross-fan eng kuchli tomoni — <b>{crossStrength}</b>.{' '}
+            Yo'qotilgan ballarning <b>~{avgTechPct}% i e'tiborsizlik (texnik) xatosi</b>,
+            bilmaslik emas. Tuzatilgan o'rtacha — ~{compAdjusted}.
+          </p>
+        )}
+        {growthList && (
+          <p>
+            O'sish yo'nalishlari: <b>{growthList}</b>.{' '}
+            Salohiyat o'rtachasi <b>{compPotential}</b>; tavsiya — <b>{verdict.label.toLowerCase()}</b>.
+          </p>
+        )}
+      </div>
+    </section>
+
+    {/* ---- overall band scale (toifa) ---- */}
+    <section class="section" id="sec2">
+      <header class="sec-head">
+        <div class="eyebrow">02</div>
+        <h2>Umumiy daraja</h2>
+        <p class="lead">O'rtacha ball qaysi <b>toifada</b> — va e'tiborsizliksiz qayergacha yetadi.</p>
+      </header>
+      <div class="statcards">
+        <div class="statcard">
+          <div class="sl">O'rtacha ball</div>
+          <span class="toifa-badge" style={`background:${compBand.color}`}>{compBand.label}</span>
+          <div class="sv" style={`color:${compBand.color}`}>{composite}<span class="unit">/100</span></div>
+          <div class="rule" style={`background:${compBand.color}`}></div>
+          <div class="sd">Uch fan o'rtachasi</div>
+        </div>
+        <div class="statcard">
+          <div class="sl">Taxmin oralig'i</div>
+          <div class="sv">{compCi.low}–{compCi.high}</div>
+          <div class="rule" style="background:#6B7385"></div>
+          <div class="sd">Haqiqiy daraja shu oraliqda</div>
+        </div>
+        <div class="statcard">
+          <div class="sl">Tuzatilgan baho</div>
+          <div class="sv" style="color:var(--pos)">~{compAdjusted}</div>
+          <div class="rule" style="background:#2F9E6B"></div>
+          <div class="sd">{compAdjusted > composite ? "E'tiborsizlik xatolari va yarim javoblar tuzatilsa erishiladigan daraja" : "Xato yo'q — hozirgi daraja to'liq"}</div>
+        </div>
+      </div>
+      <div class="scale-connect" set:html={scoreScale(composite, compAdjusted, compCi, { joriy: compBand.color, taxmin: '#6B7385', tuzatilgan: '#2F9E6B' })} />
+    </section>
+
+    {/* ---- three subjects triptych ---- */}
+    <section class="section" id="sec3">
+      <header class="sec-head">
+        <div class="eyebrow">03</div>
+        <h2>Uch fan bo'yicha</h2>
+        <p class="lead">Har bir fan — ball, reyting, salohiyat va asosiy yo'nalishlar. To'liq tahlil uchun fanni oching.</p>
+      </header>
+      <div class="subj-trip">
+        {subjects.map((s) => (
+          <a class="subj-card" href={s.href} style={`--bc:${s.band.color}`}>
+            <div class="subj-head">
+              <span class="subj-eyebrow">{s.eyebrow}</span>
+              <span class="band-chip" style={chip(s.band.color)}>{s.band.label}</span>
+            </div>
+            <h3 class="subj-name">{s.name}</h3>
+            <div class="subj-donut" set:html={strandDonut(s.percent, s.percent, 100, s.band.color)} />
+            <div class="subj-rows">
+              {s.rank != null && s.total != null && (
+                <div class="subj-row"><span class="k">Reyting</span><span class="v num">{s.rank}<span class="u">/{s.total}</span></span></div>
+              )}
+              <div class="subj-row"><span class="k">Salohiyat</span><span class="v num">{s.potential}</span></div>
+              <div class="subj-row top"><span class="k">Kuchli</span><span class="v">{s.strength}</span></div>
+              <div class="subj-row weak"><span class="k">Zaif</span><span class="v">{s.growthLabel}</span></div>
+            </div>
+            <span class="subj-link">To'liq hisobot →</span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    {/* ---- cross-cutting insights ---- */}
+    <section class="section" id="sec4">
+      <header class="sec-head">
+        <div class="eyebrow">04</div>
+        <h2>Umumiy manzara</h2>
+        <p class="lead">Uch fanni birga ko'rganda chiqadigan asosiy xulosalar.</p>
+      </header>
+      {hasAiText(aiCross) ? (
+        <div class="ai-narrative">
+          {aiParagraphs(aiCross).map((h) => (<p set:html={h} />))}
+        </div>
+      ) : (
+        <div class="insight-grid">
+          {crossStrength && (
+            <div class="insight">
+              <h4>Eng kuchli umumiy tomon</h4>
+              <p><b>{crossStrength}.</b> Matematika ({subjects[0].percent}), ingliz tili ({subjects[1].percent}) va tanqidiy fikrlash ({subjects[2].percent}) bo'yicha umumiy manzara.</p>
+            </div>
+          )}
+          <div class="insight">
+            <h4>Asosiy o'sish yo'nalishlari</h4>
+            <ul class="ticks">
+              {subjects.map((s) => (<li><b>{s.name}:</b> {s.growthLabel}</li>))}
+            </ul>
+          </div>
+          <div class="insight">
+            <h4>Xato tahlili (uch fan)</h4>
+            <p>Yo'qotilgan ballarning <b>~{avgTechPct}%</b> i e'tiborsizlik (texnik) xatosi — bilmaslik emas. Diqqat va <b>javobni tekshirish</b> odati uch fanda ham tez natija beradi.</p>
+          </div>
+        </div>
+      )}
+    </section>
+
+    {/* ---- final recommendation ---- */}
+    <section class="section" id="sec5">
+      <header class="sec-head">
+        <div class="eyebrow">05</div>
+        <h2>Yakuniy tavsiya</h2>
+      </header>
+      {hasAiText(aiFinal) ? (
+        <div class="ai-narrative note pos">
+          {aiParagraphs(aiFinal).map((h) => (<p set:html={h} />))}
+        </div>
+      ) : (
+        <div class="note pos sum-final">
+          <b>Umumiy xulosa.</b> Uch fan bo'yicha o'rtacha ball <b>{composite}</b>, salohiyat o'rtachasi <b>{compPotential}</b> ({compBand.label.toLowerCase()} daraja).
+          E'tiborsizlik xatolari kamaytirilsa va har fandagi tor o'sish yo'nalishi ustida ishlansa, natija sezilarli ko'tariladi.
+          Tavsiya — <b>{verdict.label.toLowerCase()}</b>.
+        </div>
+      )}
+      <div class="report-links">
+        {subjects.map((s) => (<a class="report-link" href={s.href} style={`--bc:${s.band.color}`}><b>{s.name}</b><span>to'liq hisobot →</span></a>))}
+      </div>
+    </section>
+  </div>
+</Layout>

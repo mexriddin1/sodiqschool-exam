@@ -1,0 +1,176 @@
+// Sodiq School exam result schema.
+// Per-question data lives on SubjectResult.questions (JSON) — the structure
+// is the source of truth for the diagnostic engine and modelling it
+// relationally would explode for no benefit.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  ADMIN
+  EDITOR
+}
+
+enum ExamStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ResultStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubjectKey {
+  MATH
+  ENGLISH
+  CRITICAL_THINKING
+}
+
+enum StudentSex {
+  MALE
+  FEMALE
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  fullName     String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(EDITOR)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model Student {
+  id            String     @id @default(uuid())
+  fullName      String
+  studentNumber String?    @unique
+  phone         String?
+  sex           StudentSex?
+  birthDate     DateTime?
+  grade         Int
+  groupName     String?
+  metadata      Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  results Result[]
+
+  @@index([grade])
+}
+
+model Exam {
+  id                   String     @id @default(uuid())
+  title                String
+  description          String?
+  examDate             DateTime
+  academicYear         String?
+  status               ExamStatus @default(DRAFT)
+  grade                Int
+  admissionThresholds  Json       // { "5": { math, ct, en }, ... }
+  gradingConfiguration Json       // band labels & cutoffs (optional overrides)
+  cohortSize           Int?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  results Result[]
+
+  @@index([grade, status])
+}
+
+model Result {
+  id                  String       @id @default(uuid())
+  studentId           String
+  examId              String
+  publicCode          String       @unique
+  accessPasswordHash  String
+  // Plain password stored for admin display. Hash remains the source of truth
+  // for public-site authentication.
+  accessPassword      String       @default("")
+  status              ResultStatus @default(DRAFT)
+  manualContent       Json         // narratives, overrides, cohort overrides
+  calculatedSnapshot  Json?        // frozen at publish: { math, english, ct, composite }
+  // AI-generated per-student narrative for §I Diagnostika, §II Tahlil,
+  // §III Rivojlanish yo'li + summary §4/§5. Shape: {
+  //   math:   { diagnostika, tahlil, growth },
+  //   english,ct: same,
+  //   summary: { crossCutting, finalRecommendation }
+  // }
+  aiNarrative         Json?
+  // Token accounting for the DeepSeek runs that produced aiNarrative. Shape:
+  // { model, promptTokens, completionTokens, totalTokens, costUsd, generatedAt,
+  //   runs: [{ section, promptTokens, completionTokens, ms, ts }] }
+  aiUsage             Json?
+  publishedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  student  Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  exam     Exam            @relation(fields: [examId], references: [id], onDelete: Restrict)
+  subjects SubjectResult[]
+
+  @@index([examId, status])
+  @@index([studentId])
+}
+
+model SubjectResult {
+  id             String     @id @default(uuid())
+  resultId       String
+  subject        SubjectKey
+  totalQuestions Int
+  totalMarks     Int
+  questions      Json       // array of Question objects (see @sodiq/compute types)
+  realData       Json?      // { percentile, cohortAverage, avgTimeSec }
+  manualNotes    Json?      // { strength, growthLabel }
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  result Result @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@unique([resultId, subject])
+}
+
+// Static test template: the question STRUCTURE (id, marks, difficulty, strand,
+// topic, ...) for a given (subject, grade). Per-result outcomes (result,
+// earned, errorType, evidence) live on SubjectResult.questions — admin
+// imports the template and overlays outcomes per student.
+model TestTemplate {
+  id        String     @id @default(uuid())
+  subject   SubjectKey
+  grade     Int
+  name      String
+  questions Json
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([subject, grade])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  adminUserId  String?
+  action       String
+  entityType   String
+  entityId     String
+  prev         Json?
+  next         Json?
+  createdAt    DateTime @default(now())
+
+  adminUser AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

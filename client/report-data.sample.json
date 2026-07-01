@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "school": "Sodiq School",
+    "slogan": "Biz ilmga sodiqmiz",
+    "grade": 5,
+    "subject": "Matematika",
+    "totalQuestions": 25,
+    "totalMarks": 100,
+    "brand": { "navy": "#06113C", "orange": "#FF8A32" }
+  },
+  "questions": [
+    { "id": "Q1", "marks": 3, "difficulty": "Oson", "strand": "Son va amallar",
+      "topic": "Joy qiymati", "subTopic": "Katta sonlarni o'qish", "skill": "Konseptual tushunish",
+      "bloom": "Tushunish", "reasoning": null, "gradeLevel": "5-sinf", "framework": "TIMSS: Number",
+      "result": "To'g'ri", "earned": 3, "errorType": null, "evidence": "Joy qiymatini mustahkam tushunadi" },
+    { "id": "Q7", "marks": 3, "difficulty": "Oson", "strand": "Son va amallar",
+      "topic": "Kasr amallari", "subTopic": "Kasrlarni nurda tartiblash", "skill": "Protsedural ravonlik",
+      "bloom": "Qo'llash", "reasoning": null, "gradeLevel": "5-sinf", "framework": "TIMSS: Number",
+      "result": "Noto'g'ri", "earned": 0, "errorType": "Texnik", "evidence": "Biladi; tartiblashda adashgan" },
+    { "id": "Q11", "marks": 4, "difficulty": "O'rta", "strand": "Son va amallar",
+      "topic": "Kasr amallari", "subTopic": "Noto'g'ri<->aralash kasr", "skill": "Protsedural ravonlik",
+      "bloom": "Qo'llash", "reasoning": null, "gradeLevel": "5-sinf", "framework": "TIMSS: Number",
+      "result": "Noto'g'ri", "earned": 0, "errorType": "Bilim bo'shlig'i", "evidence": "Aralash kasrga aylantira olmadi" },
+    { "id": "Q19", "marks": 4, "difficulty": "O'rta", "strand": "Mantiq va muammo yechish",
+      "topic": "Qonuniyat", "subTopic": "Fibonachchi qoidasi", "skill": "Mantiqiy xulosa",
+      "bloom": "Tahlil", "reasoning": "Induktiv", "gradeLevel": "5-sinf", "framework": "Kangaroo: Mantiq",
+      "result": "Noto'g'ri", "earned": 0, "errorType": "Bilim bo'shlig'i", "evidence": "Yashirin qoidani topa olmadi" },
+    { "id": "Q25", "marks": 6, "difficulty": "Qiyin", "strand": "Geometriya va o'lchov",
+      "topic": "Geometriya", "subTopic": "Murakkab shakl yuzi", "skill": "Fazoviy fikrlash",
+      "bloom": "Tahlil", "reasoning": "Fazoviy", "gradeLevel": "5-sinf", "framework": "TIMSS: Geometry",
+      "result": "To'g'ri", "earned": 6, "errorType": null, "evidence": "Qism hisobi bilan uddaladi" }
+  ],
+  "_note": "Faqat 5 namuna savol. To'liq 25 ta — Sodiq_Savol_Labellari_SHABLON.xlsx dan eksport qilinadi.",
+  "expectedComputed": {
+    "rawScore": 79, "correct": 20, "percent": 79,
+    "tiers": { "Oson": {"n":10,"correct":9,"pct":90}, "O'rta": {"n":10,"correct":7,"pct":70}, "Qiyin": {"n":5,"correct":4,"pct":80} },
+    "kdi": 78, "mastery": "Yaxshi (Proficient)",
+    "adjusted": 88, "potential": 82,
+    "percentile": null, "cohortAverage": null, "avgTimeSec": null
+  }
+}

@@ -1,0 +1,594 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import StageDetail from '../components/StageDetail.astro';
+import { fetchMyResult } from '../lib/session';
+import {
+  pickSubject, resolveOverrides, applyBloomFallback, gradeLevelFallback, resolveVerdict,
+  BLOOM_FALLBACK_ENGLISH, SKILL_RADAR_FALLBACK_ENGLISH,
+} from '../lib/client-data';
+import { computeReport, BAND_COLORS, pctColor, scoreBand } from '@sodiq/compute/compute';
+
+const me = await fetchMyResult(Astro);
+if (!me) return Astro.redirect('/login');
+const student = pickSubject(me, 'ENGLISH');
+const overrides = resolveOverrides(me);
+const ov = overrides.english;
+import { buildEnglishPrograms } from '../lib/programs-en.js';
+import { tierUnits, strandDonut, bloomLadder, topicDots, skillRadarChart, heroInstrument, scoreScale, growthDumbbell, skillRoad } from '../lib/svg.js';
+
+const r = computeReport(student);
+import { adjustedSubtitle } from '../lib/adjusted-label';
+import { buildBloomBars } from '../lib/bloom-fill';
+// AI narrative injected into subject sections. Falls back to deterministic
+// text when generation hasn't run.
+import { aiParagraphs, hasAiText } from '../lib/ai-md';
+const aiSubj = me.aiNarrative?.english ?? null;
+const m = r.meta;
+const programs = buildEnglishPrograms(r);
+// roadmap stops (essentials only) + the journey's end-goal label
+const roadStops = programs.map((p, i) => ({ n: i + 1, range: p.range, label: p.road.label, gain: p.road.gain, note: p.road.note, color: p.priority.color }));
+const roadFinishVal = r.growthForecast[r.growthForecast.length - 1].v;
+// Cohort — from admin override (manualContent.english.cohort).
+const studentSex = overrides.studentSex;
+const cohort = ov.cohort;
+const hasCohort = cohort.rank != null && cohort.total != null && cohort.percentile != null;
+
+// ---- derived narrative bits (all computed, never hand-set) -----------------
+const weakestTopic = r.weakestTopic;
+const strongTopics = r.strongTopics;
+// Bloom levels — real % from r.byBloom where measured; per-key admin override
+// (or shipped default) for any lowConfidence group.
+const bloomLevels = applyBloomFallback(ov.bloomFallback, BLOOM_FALLBACK_ENGLISH);
+const bloomData = buildBloomBars(r).map((b) => ({ key: b.key, gloss: b.gloss, percent: b.percent }));
+// Skill radar — admin override wins, else shipped fallback.
+const skillRadar = ov.skillRadar?.length ? ov.skillRadar : SKILL_RADAR_FALLBACK_ENGLISH;
+// §12 growth matrix — every 0-100 measure with a transparent diminishing-returns
+// projection (weaker areas gain more, capped ~95). Mirrors §6/§7/§8 numbers.
+const proj = (v) => Math.max(v, Math.min(96, Math.round(v + (96 - v) * 0.5)));
+const growthGroups = [
+  { title: 'Umumiy', rows: [{ name: 'Umumiy ball', from: r.percent, to: roadFinishVal }] },
+  { title: "Bo'limlar", rows: r.byStrand.map((g) => ({ name: g.name, from: g.percent, to: proj(g.percent) })) },
+  { title: 'CEFR darajalari', rows: r.byGradeLevel.map((g) => ({ name: g.name, from: g.percent, to: proj(g.percent) })) },
+  { title: 'Fikrlash darajalari (Bloom)', rows: bloomData.map((b) => ({ name: b.key, from: b.percent, to: proj(b.percent) })) },
+  { title: "Asosiy ko'nikmalar", rows: skillRadar.map((s) => ({ name: s.name, from: s.value, to: proj(s.value) })) },
+];
+// §1 story helpers — strongest/weakest across the displayed dimensions
+const topStrand = [...r.byStrand].filter((s) => s.name !== "Qo'shimcha mashq").sort((a, b) => b.percent - a.percent)[0];
+const lowSkill = [...skillRadar].sort((a, b) => a.value - b.value)[0];
+const lowBloom = [...bloomData].sort((a, b) => a.percent - b.percent)[0];
+const a1lvl = r.byGradeLevel.find((x) => x.name === 'A1');
+const a2lvl = r.byGradeLevel.find((x) => x.name === 'A2');
+const a1pct = a1lvl ? a1lvl.percent : gradeLevelFallback(ov.gradeLevelFallback, 'A1', 94);
+const a2pct = a2lvl ? a2lvl.percent : gradeLevelFallback(ov.gradeLevelFallback, 'A2', 75);
+const topPct = hasCohort && cohort.percentile != null ? 100 - cohort.percentile : null;
+const SKILL_HELP_DEFAULT = [
+  { t: 'Grammatik aniqlik', d: `gaplarni to'g'ri tuzish va grammatik qoidalarni qo'llash — kuchli bo'lsa til ishonchli.` },
+  { t: "Lug'at boyligi", d: `so'z zaxirasi va ularni o'rinli ishlatish — o'qish va yozishning poydevori.` },
+  { t: "O'qib tushunish", d: `matndan aniq ma'lumot va asosiy g'oyani anglash.` },
+  { t: 'Xulosa chiqarish', d: `matndagi yashirin ma'noni topish (inference) — chuqur o'qish belgisi.` },
+  { t: 'Tanqidiy fikrlash', d: `fakt va fikrni ajratish, mantiqiy baholash.` },
+  { t: 'Funksional til', d: `kundalik vaziyatlarda (belgi, murojaat) tilni ishlatish.` },
+  { t: 'Yozuv', d: `matn asosida qisqa, mazmunli javob yozish — eng yuqori talab.` },
+];
+const BLOOM_HELP_DEFAULT = [
+  { t: 'Eslab qolish', d: `so'z, qoida va faktlarni yodda saqlash (eng oddiy daraja).` },
+  { t: 'Tushunish', d: `ma'noni anglash, o'z so'zi bilan aytish.` },
+  { t: "Qo'llash", d: `qoidani yangi gap yoki vaziyatda ishlatish.` },
+  { t: 'Tahlil', d: `matnni qismlarga ajratib, xulosa chiqarish.` },
+  { t: 'Baholash', d: `fakt va fikrni ajratib, asoslab baho berish.` },
+  { t: 'Yaratish', d: `matn asosida yangi yozma javob tuzish (eng yuqori daraja).` },
+];
+const skillHelp = ov.glossary.skillHelp?.length ? ov.glossary.skillHelp : SKILL_HELP_DEFAULT;
+const bloomHelp = ov.glossary.bloomHelp?.length ? ov.glossary.bloomHelp : BLOOM_HELP_DEFAULT;
+const coverTitle = ov.narrative.coverTitle ?? 'Akademik diagnostika hisoboti';
+const coverSubtitle = ov.narrative.coverSubtitle ?? `Farzandingiz natijalarining sodda va batafsil tahlili — ${m.subject}`;
+const adminStory = ov.narrative.story && ov.narrative.story.length > 0 ? ov.narrative.story : null;
+// Verdict — auto from potential, or admin override.
+const verdictBand = scoreBand(r.potential);
+const verdict = resolveVerdict(
+  {
+    label: (verdictBand.admission ?? verdictBand.label).toUpperCase(),
+    sub: verdictBand.tavsif ?? verdictBand.label,
+    color: verdictBand.color,
+  },
+  overrides.summary.verdictOverride,
+);
+// Strength label — admin override wins; else use the top-strand name when known.
+const topStrandName = topStrand?.name?.toLowerCase() ?? '';
+const strengthLabel = ov.strength ?? (topStrandName ? `${topStrandName} kuchli` : 'asosiy ko\'nikmalar');
+const technicalPctOfLost = r.lostTotal ? Math.round((r.technicalLost / r.lostTotal) * 100) : 0;
+const potentialBand = scoreBand(r.potential); // band for the POTENTIAL (not today's score)
+
+// css token color for a 0–100 performance value (HTML side; SVG uses pctColor)
+const band = (p) => (p >= 80 ? 'var(--pos)' : p >= 65 ? 'var(--warn)' : 'var(--neg)');
+
+const palette = { ink: '#0F1629', muted: '#6B7385', faint: '#9AA1B2', grid: '#EEF0F4', border: '#E8EAEF', navy: '#06113C', accent: '#FF8A32', pos: '#2F9E6B', warn: '#C98A12', neg: '#D2503F', info: '#3266C9', mono: "'Space Mono', monospace" };
+const chartData = {
+  growth: r.growthForecast,
+  palette,
+};
+
+// Dynamic Mundarija — sections are driven by the ACTUAL question labels,
+// not by admin fallbacks. If the test doesn't carry a dimension (skill,
+// bloom, topic, difficulty…), that section is dropped and the rest are
+// renumbered so the TOC only lists what the test measures.
+const hasTopic     = r.topics.length > 0;
+const hasSkillTag  = r.bySkill.length > 0;
+const hasBloomTag  = r.byBloom.length > 0;
+const hasDifficulty = r.tiers['Oson'].n + r.tiers["O'rta"].n + r.tiers['Qiyin'].n > 0;
+const perfectScore = r.percent >= 95;
+const rawSections = [
+  { id: 'sec1',  t: 'Bir qarashda — eng muhimi',    show: true },
+  { id: 'sec2',  t: 'Umumiy natija va xatolar',    show: true },
+  { id: 'sec3',  t: 'Har bir savol (batafsil)',    show: r.questions.length > 0 },
+  { id: 'sec4',  t: 'Xato turini aniqlash usuli',  show: r.errorRoster.length > 0 },
+  { id: 'sec5',  t: 'Bilim chuqurligi',            show: hasDifficulty },
+  { id: 'sec6',  t: "Mavzular bo'yicha",           show: hasTopic },
+  { id: 'sec7',  t: "Ko'nikmalar profili",         show: hasSkillTag },
+  { id: 'sec8',  t: 'Fikrlash darajalari',         show: hasBloomTag },
+  { id: 'sec9',  t: "Rivojlanish yo'li (yo'l xaritasi)", show: programs.length > 0 },
+  { id: 'sec10', t: "O'sish imkoniyati",           show: growthGroups.length > 0 },
+  { id: 'sec11', t: 'Kelajak prognozi',            show: r.growthForecast.length > 0 },
+];
+const sections = rawSections.filter((s) => s.show).map((s, i) => ({ ...s, n: i + 1 }));
+const showSection = (id) => sections.some((s) => s.id === id);
+const nn = (id) => {
+  const found = sections.find((s) => s.id === id);
+  return found ? String(found.n).padStart(2, '0') : '';
+};
+---
+
+<Layout title={`Sodiq School — ${m.subject} diagnostika`} meta={m}>
+  {/* ============================== COVER ============================== */}
+  <header class="cover">
+    <div class="wrap">
+      <div class="brandline">
+        <img class="brand-logo" src="/logo-white.png" width="1920" height="700" alt={m.school} />
+        <span class="brand-div"></span>
+        <div>
+          <div class="eyebrow">{m.office}</div>
+          <div class="slogan">{m.slogan}</div>
+        </div>
+      </div>
+      <h1>{coverTitle}</h1>
+      <div class="subtitle">{coverSubtitle}</div>
+      <div class="meta">
+        <div><b>Nomzod:</b> {m.candidate}</div>
+        <div><b>Sinf:</b> {m.gradeLabel}</div>
+        <div><b>Imtihon:</b> {m.subject} · <span class="num">{m.totalQuestions}</span> savol · <span class="num">{m.totalMarks}</span> ball</div>
+      </div>
+
+      <div class="hero-instrument">
+        <div>
+          <div class="hero-readout">
+            <span class="big">{r.percent}</span><span class="slash">/100</span>
+            <span class="ci">taxminan {r.ci.low}–{r.ci.high}</span>
+          </div>
+          <div set:html={heroInstrument(r.percent, r.ci)} />
+          <div class="hero-mini">
+            <div class="metric"><div class="metric-value sm num">~{r.adjusted}</div><div class="metric-label">Tuzatilgan</div></div>
+            <div class="metric"><div class="metric-value sm num">{r.potential}</div><div class="metric-label">Salohiyat</div></div>
+            <div class="metric"><div class="metric-value sm num">{r.correctCount}/{r.totalQuestions}</div><div class="metric-label">To'g'ri</div></div>
+          </div>
+          {hasCohort && (
+            <div class="hero-rank">
+              <div class="metric"><div class="metric-value sm num">{cohort.percentile}<span class="u">-foiz</span></div><div class="metric-label">Persentil</div></div>
+              <div class="metric"><div class="metric-value sm num">{cohort.rank}<span class="u">/{cohort.total}</span></div><div class="metric-label">Umumiy reyting</div></div>
+              {studentSex === 'male' && cohort.maleRank != null && cohort.maleTotal != null && (
+                <div class="metric"><div class="metric-value sm num">{cohort.maleRank}<span class="u">/{cohort.maleTotal}</span></div><div class="metric-label">Yigitlar orasida</div></div>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <div class="hero-verdict" style={`background:${verdict.color}`}>
+            <div class="hv-seal">✓</div>
+            <div class="hv-label">{verdict.label}</div>
+            <small>{verdict.sub}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    {/* ============================== TOC ============================== */}
+    <section class="section" id="toc">
+      <header class="sec-head">
+        <div class="eyebrow">Mundarija</div>
+        <h2>Bo'limlar</h2>
+        <p class="lead">Eng muhimi — boshida (1-bo'lim). Qolgan bo'limlar batafsil tahlil.</p>
+      </header>
+      <div class="toc"><ol>
+        {sections.map((s) => (
+          <li><span class="nn">{s.n}</span><span class="t"><a href={`#${s.id}`}>{s.t}</a></span><span class="dots"></span><span class="pg">✓</span></li>
+        ))}
+      </ol></div>
+    </section>
+
+    {/* ===================== PART I ===================== */}
+    <div class="part"><span class="pn">I</span><span class="pt">Diagnostika</span><span class="pr"></span><span class="pe">§1–5</span></div>
+
+    {/* 1 · SNAPSHOT */}
+    <section class="section" id="sec1">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec1')}</div>
+        <h2>Bir qarashda</h2>
+        <p class="lead">Butun hisobotning sodda, hikoya tarzidagi xulosasi.</p>
+      </header>
+      <div class="story">
+        {adminStory ? adminStory.map((p) => <p set:html={p} />) : hasAiText(aiSubj?.diagnostika) ? (
+          aiParagraphs(aiSubj.diagnostika).map((h) => (<p set:html={h} />))
+        ) : <>
+        <p>
+          Farzandingiz ingliz tili kirish imtihonida 100 balldan <b>{r.percent}</b> ball oldi —
+          natija <b>{r.band.label.toLowerCase()}</b> ({r.band.tavsif?.toLowerCase()}).
+          {hasCohort && (
+            <>{' '}Bu {cohort.total} nafar nomzod orasida <b>yuqori ~{topPct}%</b> natija ({cohort.rank}-o'rin){studentSex === 'male' && cohort.maleRank != null && <>, yigitlar orasida esa <b>{cohort.maleRank}-o'rin</b></>}.</>
+          )}
+        </p>
+        <p>
+          Eng kuchli tomonlari — <b>{strengthLabel}</b> hamda {topStrand.name.toLowerCase()} (<b>{topStrand.percent}%</b>).
+          Asosiy (CEFR A1) darajadagi savollarni <b>{a1pct}%</b> uddalaydi — bu {m.grade}-sinf ingliz tili uchun <b>mustahkam poydevor</b>.
+          Bola gaplarni to'g'ri tuzadi, so'z boyligi yaxshi va oddiy matnlardan aniq ma'lumotni topadi.
+        </p>
+        <p>
+          Eng muhim jihat — yo'qotilgan ballarning <b>{technicalPctOfLost}% i e'tiborsizlik (texnik) xatosi</b>, bilmaslik emas.
+          Bola materialni biladi, ammo shoshqaloqlik yoki javobni tekshirmaslik tufayli ball boy beradi. Shuning uchun haqiqiy darajasi ko'ringan {r.percent} balldan yuqori:
+          salohiyat bahosi <b>{r.potential}</b>, e'tiborsizlik xatolari tuzatilsa esa ball <b>~{r.adjusted}</b> ga yetadi.
+        </p>
+        <p>
+          O'sish uchun asosiy yo'nalish — <b>{weakestTopic ? weakestTopic.name.toLowerCase() : "o'qishda xulosa"}</b>{weakestTopic && <> ({weakestTopic.percent}%)</>}:
+          matndagi yashirin ma'noni topish (inference) hali shakllanmoqda. Shuningdek, {lowSkill.name.toLowerCase()} ({lowSkill.value}%), tanqidiy fikrlash
+          va <b>yozma javob</b> mustahkamlanishi, yuqori (CEFR A2, hozir {a2pct}%) darajadagi savollar esa rivojlanishi foydali.
+          Bular kamchilik emas — aniq va erishsa bo'ladigan o'sish nuqtalari.
+        </p>
+        <p>
+          Quyidagi uch bosqichli, 12 oylik yo'l xaritasi aynan shu yo'nalishlarni qadam-baqadam mustahkamlaydi.
+          Reja izchil bajarilsa, umumiy ball {r.percent} dan <b>~{roadFinishVal}</b> ga ko'tariladi va barcha ko'nikmalar — o'qishdan tortib yozuvgacha — o'sadi.
+          Umuman, farzandingizning ingliz tilidagi kelajagi <b>{potentialBand.label.toLowerCase()}</b>; tavsiya — <b>{verdict.label.toLowerCase()}</b>.
+        </p>
+        </>}
+      </div>
+    </section>
+
+    {/* 2 · OVERALL + ERROR */}
+    <section class="section" id="sec2">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec2')}</div>
+        <h2>Umumiy natijalar</h2>
+      </header>
+      <div class="statcards">
+        <div class="statcard">
+          <div class="sl">Ball</div>
+          <span class="toifa-badge" style={`background:${r.band.color}`}>{r.band.label}</span>
+          <div class="sv" style={`color:${r.band.color}`}>{r.percent}<span class="unit">/100</span></div>
+          <div class="rule" style={`background:${r.band.color}`}></div>
+          <div class="sd">Bugungi imtihon natijasi</div>
+        </div>
+        <div class="statcard">
+          <div class="sl">Taxmin oralig'i</div>
+          <div class="sv">{r.ci.low}–{r.ci.high}</div>
+          <div class="rule" style="background:#6B7385"></div>
+          <div class="sd">Bitta test taxminiy — haqiqiy daraja shu oraliqda</div>
+        </div>
+        <div class="statcard">
+          <div class="sl">Tuzatilgan baho</div>
+          <div class="sv" style="color:var(--pos)">~{r.adjusted}</div>
+          <div class="rule" style="background:#2F9E6B"></div>
+          <div class="sd">{adjustedSubtitle(r)}</div>
+        </div>
+      </div>
+      <div class="scale-connect" set:html={scoreScale(r.percent, r.adjusted, r.ci, { joriy: r.band.color, taxmin: '#6B7385', tuzatilgan: '#2F9E6B' })} />
+      {hasAiText(aiSubj?.tahlil) && (
+        <div class="ai-narrative">
+          {aiParagraphs(aiSubj.tahlil).map((h) => (<p set:html={h} />))}
+        </div>
+      )}
+    </section>
+
+    {/* 3 · PER-QUESTION */}
+    {showSection('sec3') && (
+    <section class="section" id="sec3">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec3')}</div>
+        <h2>Har bir savol</h2>
+      </header>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th class="col-icon"></th><th>Mavzu</th><th>Ko'nikma</th><th>Bloom</th><th>Qiy.</th><th class="col-num">Ball</th><th class="col-num">Yechganlar</th></tr></thead>
+        <tbody>
+          {r.questions.map((q) => {
+            const ok = q.result === "To'g'ri";
+            const solved = typeof q.peerSolveRate === 'number' ? `${q.peerSolveRate}%` : '—';
+            return (
+              <tr class={ok ? '' : 'miss'}>
+                <td class="q">{q.id}</td>
+                <td class={`col-icon ${ok ? 'res-ok' : 'res-no'}`}>{ok ? '✓' : '✗'}</td>
+                <td>{q.subTopic || q.topic}</td>
+                <td>{q.skill}</td>
+                <td><span class="tag">{q.bloom}</span></td>
+                <td>{q.difficulty}</td>
+                <td class="col-num">{q.earned}</td>
+                <td class="col-num">{solved}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table></div>
+    </section>
+    )}
+
+    {/* 4 · ERROR-TYPE METHODOLOGY */}
+    {showSection('sec4') && (
+    <section class="section" id="sec4">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec4')}</div>
+        <h2>Texnik xato va haqiqiy bilim bo'shlig'ini qanday ajratamiz</h2>
+        <p class="lead">"Bilmadi"mi yoki "biladi-yu e'tibor bermadi"mi — buni qanday aniqlaganimiz.</p>
+      </header>
+      {r.errorRoster.length === 0 ? (
+        <div class="note pos">
+          <b>Xatolar yo‘q.</b> Farzandingiz barcha savollarni to‘g‘ri yechdi —
+          tahlil qilinadigan xato mavjud emas.
+        </div>
+      ) : (
+        <>
+          <div class="note"><b>Usuli sodda.</b> Yechilmagan savol uchun tekshiramiz: bola xuddi shu ko'nikmali, lekin <b>qiyinroq</b> savolni yechganmi? Yechgan bo'lsa — bu <b>texnik (e'tiborsizlik)</b> xatosi; yechmagan bo'lsa — haqiqiy <b>bilim bo'shlig'i</b>.</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Savol</th><th>Mavzu</th><th>Qiyinroq yechilgan?</th><th>Xulosa</th><th>Izoh</th></tr></thead>
+            <tbody>
+              {r.errorRoster.map((e) => (
+                <tr>
+                  <td class="q">{e.id}</td>
+                  <td>{e.topic} <span class="muted num">({e.marks})</span></td>
+                  <td class="muted">{e.harderSolvedIds.length ? `${e.harderSolvedIds.join(', ')} — yechgan` : "Yo'q — qiyinrog'i yo'q"}</td>
+                  <td><span class={`status ${e.isTechnical ? 'info' : 'neg'}`}>{e.isTechnical ? 'Texnik xato' : "Bilim bo'shlig'i"}</span></td>
+                  <td class="muted">{e.evidence}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </>
+      )}
+    </section>
+    )}
+
+    {/* 5 · KNOWLEDGE DEPTH */}
+    {showSection('sec5') && (
+    <section class="section" id="sec5">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec5')}</div>
+        <h2>Bilim chuqurligi</h2>
+      </header>
+      <div class="tier-units" set:html={tierUnits(r.tiers)} />
+      <div class="helper" style="margin-top:var(--s2);text-align:center">
+        <span class="dot" style="background:var(--pos)"></span> To'g'ri yechilgan ·
+        <span class="dot" style="background:#EEF0F4;border:1px solid var(--border)"></span> Xato — har bir katak bitta savol
+      </div>
+    </section>
+    )}
+
+    {/* ===================== PART II ===================== */}
+    <div class="part"><span class="pn">II</span><span class="pt">Tahlil</span><span class="pr"></span><span class="pe">§6–8</span></div>
+
+    {/* 6 · TOPICS */}
+    {showSection('sec6') && (
+    <section class="section" id="sec6">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec6')}</div>
+        <h2>Mavzular bo'yicha</h2>
+        <p class="lead">Har bir mavzu — yuqori foiz kuchli tomon, past foiz — o'sish nuqtasi.</p>
+      </header>
+      <div class="topic-chart" set:html={topicDots(r.topics)} />
+    </section>
+    )}
+
+    {/* 8 · SKILLS */}
+    {(showSection('sec7') || showSection('sec8')) && (
+    <div class="section-pair">
+      {showSection('sec7') && (
+      <section class="section" id="sec7">
+        <header class="sec-head">
+          <div class="eyebrow">{nn('sec7')}</div>
+          <div class="h2row"><h2>Ko'nikmalar profili</h2><button class="info-btn" type="button" aria-expanded="false" aria-controls="help-skill" aria-label="Atamalar izohi" title="Atamalar izohi">i</button></div>
+          <p class="lead">Yetti asosiy ingliz tili ko'nikmasi bo'yicha kuch-quvvat xaritasi.</p>
+        </header>
+        <div class="term-help" id="help-skill" hidden>
+          <div class="th-label">Atamalar — ma'no va ahamiyati</div>
+          <dl>{skillHelp.map((x) => (<div><dt>{x.t}</dt><dd>{x.d}</dd></div>))}</dl>
+        </div>
+        <div class="skill-radar" set:html={skillRadarChart(skillRadar)} />
+        <p class="caption" style="text-align:center">Shakl qanchalik tekis bo'lsa, ko'nikmalar shunchalik muvozanatli; bir tomonga cho'zilgan bo'lsa — o'sha ko'nikma ustun.</p>
+        {hasAiText(aiSubj?.skills) && (
+          <div class="ai-narrative">
+            {aiParagraphs(aiSubj.skills).map((h) => (<p set:html={h} />))}
+          </div>
+        )}
+      </section>
+      )}
+
+      {/* 9 · BLOOM */}
+      {showSection('sec8') && (
+      <section class="section" id="sec8">
+        <header class="sec-head">
+          <div class="eyebrow">{nn('sec8')}</div>
+          <div class="h2row"><h2>Fikrlash darajalari</h2><button class="info-btn" type="button" aria-expanded="false" aria-controls="help-bloom" aria-label="Atamalar izohi" title="Atamalar izohi">i</button></div>
+          <p class="lead">Bola fikrlashi qaysi <b>darajada</b> ishlaydi (Bloom — pastdan yuqoriga murakkablashadi).</p>
+        </header>
+        <div class="term-help" id="help-bloom" hidden>
+          <div class="th-label">Bloom darajalari — ma'no va ahamiyati</div>
+          <dl>{bloomHelp.map((x) => (<div><dt>{x.t}</dt><dd>{x.d}</dd></div>))}</dl>
+        </div>
+        <div set:html={bloomLadder(bloomData)} />
+        {hasAiText(aiSubj?.bloom) && (
+          <div class="ai-narrative">
+            {aiParagraphs(aiSubj.bloom).map((h) => (<p set:html={h} />))}
+          </div>
+        )}
+      </section>
+      )}
+    </div>
+    )}
+
+    {/* ===================== PART III ===================== */}
+    <div class="part"><span class="pn">III</span><span class="pt">Rivojlanish yo'li</span><span class="pr"></span><span class="pe">§9–10</span></div>
+
+    {/* 9 · THE ROADMAP — a road with three stops */}
+    {showSection('sec9') && (
+    <section class="section" id="sec9">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec9')}</div>
+        <h2>Rivojlanish yo'li</h2>
+        <p class="lead"><b>Hozir</b>dan <b>maqsad</b> sari uch bosqichli yo'l — har biri oldingisining davomi. Sahifani pastga suring: velosiped yo'l bo'ylab yuradi.</p>
+      </header>
+      <div class="skill-road" set:html={skillRoad(roadStops, { finish: 'Maqsad', finishSub: `umumiy ball ~${roadFinishVal}` })} />
+      <p class="road-hint">Bosqich tafsilotini ko'rish uchun yo'ldagi <b>raqamni</b> yoki quyidagi tugmani bosing.</p>
+      <div class="stage-tabs" role="tablist" aria-label="Bosqichlar">
+        {programs.map((p, i) => (
+          <button class="stage-tab" type="button" role="tab" data-stage={i} aria-selected={i === 0 ? 'true' : 'false'}>
+            <span class="st-n">{i + 1}</span><span class="st-t"><b>{i + 1}-bosqich</b> · {p.range}</span>
+          </button>
+        ))}
+      </div>
+      <div class="stage-details">
+        {programs.map((p, i) => <StageDetail program={p} idx={i + 1} />)}
+      </div>
+    </section>
+    )}
+
+    {/* 10 · SKILL GROWTH (payoff of the roadmap) */}
+    {showSection('sec10') && (
+    <section class="section" id="sec10">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec10')}</div>
+        <h2>O'sish imkoniyati</h2>
+        <p class="lead">Har bir o'lchanadigan ko'rsatkich (100 balldan) — <b>hozir</b> va reja bajarilgach <b>kutilayotgan daraja</b>. Eng zaif joylar eng ko'p o'sadi.</p>
+      </header>
+      <div class="growth-dumbbell" set:html={growthDumbbell(growthGroups)} />
+      <p class="caption center">Bu nimani ko'rsatadi: bo'sh nuqta — hozirgi daraja; rangli bo'laklar — 3, 6 va 12 oylik bosqichlardagi o'sish; to'q (navy) nuqta — reja so'ngida kutilayotgan daraja. Proyeksiya shaffof qoida bilan hisoblanadi (zaif joy ko'proq o'sadi, yuqori chegara ~95) — kafolat emas, yo'nalish.</p>
+      {hasAiText(aiSubj?.growth) && (
+        <div class="ai-narrative">
+          {aiParagraphs(aiSubj.growth).map((h) => (<p set:html={h} />))}
+        </div>
+      )}
+    </section>
+    )}
+
+    {/* ===================== PART IV ===================== */}
+    <div class="part"><span class="pn">IV</span><span class="pt">Xulosa</span><span class="pr"></span><span class="pe">§11</span></div>
+
+    {/* 11 · OUTLOOK */}
+    {showSection('sec11') && (
+    <section class="section" id="sec11">
+      <header class="sec-head">
+        <div class="eyebrow">{nn('sec11')}</div>
+        <h2>Kelajak prognozi</h2>
+        <p class="lead">
+          {perfectScore
+            ? "Farzandingiz allaqachon eng yuqori darajada — endilikda maqsad shu darajani saqlab qolish."
+            : "Reja bajarilsa, qanday o'sish kutiladi (mezonlarga asoslangan taxmin — aniq kafolat emas)."}
+        </p>
+      </header>
+      {perfectScore ? (
+        <div class="perfect-card">
+          <h3>Barcha ko'rsatkichlar juda a'lo darajada</h3>
+          <p>
+            Farzandingiz til bo'yicha materialni to'liq egallagan va topshiriqni
+            kutilgandan yuqori bajardi. Bu bosqichda o'sish emas, <b>saqlab
+            qolish</b> muhim: muntazam o'qish, yozuv mashqi va yangi lug'at
+            orqali darajani doim faol tuting.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div id="growth" class="chart" style="width:100%;height:240px"></div>
+          <p class="caption center">Chiziq — hozir → 3 oy → 6 oy → 12 oy davomida kutilayotgan ball. Bu taxminiy yo'nalish, kafolat emas.</p>
+        </>
+      )}
+    </section>
+    )}
+  </div>
+
+  {/* chart payload + init (one shared theme) */}
+  <script type="application/json" id="chart-data" set:html={JSON.stringify(chartData)} />
+  <script>
+    import * as echarts from 'echarts';
+    const data = JSON.parse(document.getElementById('chart-data').textContent);
+    const P = data.palette;
+    const base = {
+      textStyle: { fontFamily: 'Hanken Grotesk, system-ui, sans-serif', color: P.muted },
+      grid: { left: 36, right: 14, top: 20, bottom: 26 },
+    };
+    const axisLabel = { color: P.faint, fontSize: 9.5, fontFamily: P.mono };
+    const splitLine = { lineStyle: { color: P.grid } };
+
+    // Perfect-score case: §11 renders a celebration card instead of the chart.
+    const growthEl = document.getElementById('growth');
+    const growth = growthEl ? echarts.init(growthEl) : null;
+    if (growth) {
+      // tight y-axis: start score sits at the bottom, 12-month value at the top
+      const gv = data.growth.map((g) => g.v);
+      const gyMin = Math.min(...gv);
+      const gyMax = Math.max(...gv) > gyMin ? Math.max(...gv) : gyMin + 1;
+      const gInt = Math.max(1, Math.ceil((gyMax - gyMin) / 3));
+      growth.setOption({
+        ...base,
+        tooltip: { trigger: 'axis', formatter: (p) => `${p[0].name}: ${p[0].value}/100` },
+        xAxis: { type: 'category', boundaryGap: false, data: data.growth.map((g) => g.label), axisLine: { lineStyle: { color: P.border } }, axisTick: { show: false }, axisLabel: { color: P.muted, fontSize: 11 } },
+        yAxis: { type: 'value', min: gyMin, max: gyMax, interval: gInt, splitLine, axisLabel },
+        series: [{ type: 'line', smooth: true, data: data.growth.map((g) => g.v), symbolSize: 8, lineStyle: { color: P.accent, width: 2.5 }, itemStyle: { color: P.accent, borderColor: '#fff', borderWidth: 2 }, areaStyle: { color: 'rgba(255,138,50,.12)' }, label: { show: true, position: 'top', fontFamily: P.mono, fontWeight: 700, fontSize: 11, color: P.pos } }],
+      });
+    }
+
+    const all = growth ? [growth] : [];
+    window.addEventListener('resize', () => all.forEach((c) => c.resize()));
+
+    // cyclist rides the road as the section scrolls through the viewport
+    const road = document.querySelector('.skill-road');
+    const path = document.getElementById('roadPath');
+    const bike = document.getElementById('roadBike');
+    if (road && path && bike && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const L = path.getTotalLength();
+      let ticking = false;
+      const place = () => {
+        const rc = road.getBoundingClientRect();
+        const vh = window.innerHeight || document.documentElement.clientHeight;
+        const prog = Math.max(0, Math.min(1, (vh * 0.55 - rc.top) / rc.height));
+        const pt = path.getPointAtLength(prog * L);
+        bike.setAttribute('transform', `translate(${pt.x} ${pt.y})`);
+        ticking = false;
+      };
+      const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(place); } };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      place();
+    }
+
+    // stage detail: tabs + clickable road stops reveal one panel at a time
+    const tabs = [...document.querySelectorAll('.stage-tab')];
+    const panels = [...document.querySelectorAll('.stage-detail')];
+    const hits = [...document.querySelectorAll('.road-stop-hit')];
+    if (tabs.length && panels.length) {
+      const select = (i) => {
+        tabs.forEach((t, k) => t.setAttribute('aria-selected', k === i ? 'true' : 'false'));
+        panels.forEach((pn, k) => { pn.hidden = k !== i; });
+        hits.forEach((s, k) => s.classList.toggle('is-active', k === i));
+      };
+      tabs.forEach((t, i) => t.addEventListener('click', () => select(i)));
+      hits.forEach((s, i) => s.addEventListener('click', () => { select(i); panels[i].scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+      select(0);
+    }
+
+    // info buttons: toggle a term-definitions panel (each prints in the PDF)
+    document.querySelectorAll('.info-btn').forEach((btn) => {
+      const panel = document.getElementById(btn.getAttribute('aria-controls'));
+      if (!panel) return;
+      btn.addEventListener('click', () => {
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!open));
+        panel.hidden = open;
+      });
+    });
+  </script>
+</Layout>

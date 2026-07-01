@@ -1,0 +1,92 @@
+/* ==========================================================================
+   Sodiq School — design tokens (the single source of truth).
+   Modern-premium / instrument aesthetic. Everything downstream reads from here.
+   Typeface roles (self-hosted, swap to licensed Pragmatica by editing 3 vars):
+     display = Space Grotesk  · text = Hanken Grotesk · mono = Space Mono
+   ========================================================================== */
+
+/* ---- self-hosted faces (latin subset) ---- */
+@font-face { font-family:'Space Grotesk'; font-style:normal; font-weight:500; font-display:swap; src:url('/fonts/SpaceGrotesk-500.woff2') format('woff2'); }
+@font-face { font-family:'Space Grotesk'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/SpaceGrotesk-700.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/HankenGrotesk-400.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:500; font-display:swap; src:url('/fonts/HankenGrotesk-500.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:600; font-display:swap; src:url('/fonts/HankenGrotesk-600.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/HankenGrotesk-700.woff2') format('woff2'); }
+@font-face { font-family:'Space Mono'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/SpaceMono-400.woff2') format('woff2'); }
+@font-face { font-family:'Space Mono'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/SpaceMono-700.woff2') format('woff2'); }
+/* Brand body face — Pragmatica. Only a Regular master is available, so we declare
+   weight 400 ONLY: the browser then SYNTHESIZES bold for <b> (visible emphasis).
+   Provide a real Pragmatica Bold .woff2 + a 700 @font-face to replace the faux-bold. */
+@font-face { font-family:'Pragmatica'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/Pragmatica-400.woff2') format('woff2'); }
+
+:root {
+  /* ---- type families ---- */
+  /* PREVIEW: headings on Pragmatica Regular (faux-bold until Pragmatica Slab/Bold supplied) */
+  --font-display: 'Pragmatica', 'Space Grotesk', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-text: 'Pragmatica', 'Hanken Grotesk', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* ---- type scale (modular, base 15px) ---- */
+  --fs-2xs: 10px;
+  --fs-xs: 11.5px;
+  --fs-sm: 13px;
+  --fs-body: 15px;
+  --fs-h3: 15px;
+  --fs-h2: 19px;
+  --fs-h1: 26px;
+  --fs-display: 34px;
+  --fs-hero: 48px;
+  --lh-body: 1.55;
+  --lh-tight: 1.22;
+  --lh-hero: 1.02;
+  --track-eyebrow: 0.16em;
+  --track-label: 0.06em;
+  --track-tight: -0.01em;
+
+  /* ---- color: text ---- */
+  --ink: #0F1629;     /* headings / primary */
+  --text: #3A4256;    /* body */
+  --muted: #6B7385;   /* captions / secondary */
+  --faint: #9AA1B2;   /* axis ticks / disabled */
+
+  /* ---- color: surfaces ---- */
+  --bg: #F6F7F9;
+  --surface: #FFFFFF;
+  --inset: #FAFBFC;       /* subtle insets / table stripe */
+  --border: #E8EAEF;      /* hairlines */
+  --border-strong: #D7DAE3;
+
+  /* ---- color: brand ---- */
+  --navy: #06113C;        /* near-ink anchor, used sparingly */
+  --navy-soft: #1A2550;
+  --accent: #FF8A32;      /* THE single accent */
+  --accent-ink: #B1521F;  /* accent as readable text on light */
+  --accent-weak: #FFF1E6; /* faint accent surface */
+
+  /* ---- color: data semantics (charts / status ONLY) ---- */
+  --pos: #2F9E6B;  --pos-weak: #EAF6F0;
+  --warn: #C98A12; --warn-weak: #FBF3E0;
+  --neg: #D2503F;  --neg-weak: #FBEDEB;
+  --info: #3266C9; --info-weak: #EAF0FB;
+
+  /* ---- spacing (8px grid, 4px half-step) ---- */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  /* ---- radius (3 steps + pill) ---- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* ---- elevation (soft, 3 steps) ---- */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 2px 8px -2px rgba(16, 24, 40, 0.06), 0 4px 16px -4px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 12px 32px -10px rgba(6, 17, 60, 0.12);
+
+  /* ---- motion ---- */
+  --ease: 0.5s cubic-bezier(0.22, 0.61, 0.18, 1);
+
+  /* ---- layout ---- */
+  --measure: 1080px;
+}

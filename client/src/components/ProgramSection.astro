@@ -1,0 +1,116 @@
+---
+// One roadmap STATION (§11/12/13). Action-first: leads with concrete steps
+// (what to do + how often), then the monthly path, who-does-what, and how we
+// measure it. Driven by a program object from src/lib/programs.js.
+const { program: p, idx } = Astro.props;
+
+// monthly-checkpoint timeline (SVG)
+const n = p.checkpoints.length;
+const W = 660, x0 = 40, x1 = 620;
+const cx = (i) => x0 + ((x1 - x0) * i) / Math.max(1, n - 1);
+const MONO = "'Space Mono', monospace";
+const SANS = "'Hanken Grotesk', sans-serif";
+---
+<section id={`sec${p.num}`} class="rm-station">
+  <div class="rm-rail" aria-hidden="true">
+    <div class="rm-node">{idx}</div>
+    <div class="rm-range">{p.range}</div>
+  </div>
+
+  <article class="rm-card" style={`border-top-color:${p.priority.color}`}>
+    {/* ---- station header: where this stage takes the child ---- */}
+    <header class="rm-head">
+      <div class="rm-phase">{p.phase}</div>
+      <h3 class="rm-title">{p.title}</h3>
+      <p class="rm-mission">{p.mission}</p>
+      <div class="rm-tags">
+        <span class="rm-target">
+          <span class="t-lab">{p.baseline.label}</span>
+          <span class="num">{p.baseline.val}</span>
+          <span class="arr">→</span>
+          <span class="num to" style={`color:${p.target.color}`}>{p.target.val}</span>
+        </span>
+        <span class="rm-prio" style={`background:${p.priority.color}`}>{p.priority.label} ustuvorlik</span>
+        <span class="rm-load">Umumiy ball {p.overall.from} → {p.overall.to}</span>
+        <span class="rm-load">{p.weeklyHours}/hafta · jami {p.totalHours}</span>
+      </div>
+    </header>
+
+    {/* ---- 1 · THE ACTIONS (the core of the roadmap) ---- */}
+    <div class="rm-sec rm-do">
+      <h5 class="rm-h"><span class="rm-h-ic">▶</span> Bu bosqichda nima qilamiz</h5>
+      <ul class="action-list">
+        {p.actions.map((a) => (
+          <li><span class="act-do">{a.do}</span><span class="act-dose">{a.dose}</span></li>
+        ))}
+      </ul>
+    </div>
+
+    {/* ---- 2 · MONTHLY PATH ---- */}
+    <div class="rm-sec">
+      <h5 class="rm-h">Oylik yo'l</h5>
+      <ol class="rm-timeline">
+        {p.weekPlan.map((w) => (
+          <li>
+            <span class="tl-when">{w.period}</span>
+            <span class="tl-body"><b>{w.focus}</b><span class="tl-task">{w.task}</span></span>
+          </li>
+        ))}
+      </ol>
+    </div>
+
+    {/* ---- 3 · WHO DOES WHAT ---- */}
+    <div class="rm-sec">
+      <h5 class="rm-h">Kim nima qiladi</h5>
+      <div class="roles">
+        <div class="role par"><div class="rh">Ota-ona</div><ul>{p.roles.parent.map((x) => <li>{x}</li>)}</ul></div>
+        <div class="role tea"><div class="rh">O'qituvchi</div><ul>{p.roles.teacher.map((x) => <li>{x}</li>)}</ul></div>
+        <div class="role stu"><div class="rh">O'quvchi</div><ul>{p.roles.student.map((x) => <li>{x}</li>)}</ul></div>
+      </div>
+    </div>
+
+    {/* ---- 4 · CHECKPOINTS + HOW WE MEASURE ---- */}
+    <div class="rm-sec">
+      <h5 class="rm-h">Nazorat va o'lchov</h5>
+      <svg class="rm-checks" width={W} height="86" viewBox={`0 0 ${W} 86`} style="max-width:100%" role="img" aria-label="Nazorat nuqtalari">
+        <line x1={x0} y1="30" x2={x1} y2="30" stroke="#E8EAEF" stroke-width="2"></line>
+        {p.checkpoints.map((c, i) => (
+          <>
+            <circle cx={cx(i)} cy="30" r="6" fill="#FF8A32" stroke="#fff" stroke-width="2"></circle>
+            <text x={cx(i)} y="17" text-anchor="middle" font-size="11" font-weight="700" fill="#0F1629" font-family={MONO}>{c.label}</text>
+            {c.lines.map((ln, j) => (
+              <text x={cx(i)} y={48 + j * 12} text-anchor="middle" font-size="9.5" fill="#6B7385" font-family={SANS}>{ln}</text>
+            ))}
+          </>
+        ))}
+      </svg>
+      <div class="rm-measure">
+        <div><div class="mh">Maqsad (boshlang'ich → maqsad)</div><ul class="ticks">{p.kpis.map((x) => <li>{x}</li>)}</ul></div>
+        <div><div class="mh">Muvaffaqiyat belgisi</div><ul class="ticks">{p.criteria.map((x) => <li>{x}</li>)}</ul></div>
+      </div>
+    </div>
+
+    {/* ---- 5 · TOPICS / SKILLS / RESOURCES (reference, condensed) ---- */}
+    <div class="rm-sec rm-split">
+      <div><h6 class="rm-h6">Mavzular</h6><div class="chips">{p.topics.map((t) => <span class="chip">{t}</span>)}</div></div>
+      <div><h6 class="rm-h6">Ko'nikmalar</h6><div class="chips">{p.skills.map((s) => <span class="chip alt">{s}</span>)}</div></div>
+    </div>
+    <div class="rm-sec rm-res-sec">
+      <h6 class="rm-h6">Resurslar</h6>
+      <div class="rm-res">
+        <span><b>Mashq:</b> {p.resources.exercises.join(' · ')}</span>
+        <span><b>Kitob:</b> {p.resources.books.join(' · ')}</span>
+        <span><b>Platforma:</b> {p.resources.platforms.join(' · ')}</span>
+        <span><b>Video:</b> {p.resources.videos.join(' · ')}</span>
+      </div>
+    </div>
+
+    {/* ---- 6 · WATCH-OUTS + STAGE RESULT ---- */}
+    <div class="rm-foot">
+      <p class="rm-risk"><b>Diqqat:</b> {p.risks.map((rk, i) => (
+        <span>{i > 0 ? '  ·  ' : ''}<b class="rk">{rk.risk}</b> → {rk.mitigation}</span>
+      ))}</p>
+      <div class="note pos"><b>Bosqich natijasi.</b> {p.closing} <span class={`status ${p.confidence.label === 'Yuqori' ? 'pos' : 'warn'}`}>Ishonch: {p.confidence.label}</span></div>
+    </div>
+  </article>
+</section>

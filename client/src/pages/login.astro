@@ -1,0 +1,328 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import { fetchMyResult, getSessionToken, SESSION_COOKIE } from '../lib/session';
+
+if (getSessionToken(Astro.cookies)) {
+  const me = await fetchMyResult(Astro);
+  if (me) return Astro.redirect('/summary');
+  Astro.cookies.delete(SESSION_COOKIE, { path: '/' });
+}
+
+const m = {
+  school: 'Sodiq School',
+  slogan: "Biz ilmga sodiqmiz",
+  office: 'Academic Assessment Office',
+  candidate: '',
+  grade: 0,
+  gradeLabel: '',
+  subject: 'Kirish',
+  totalQuestions: 0,
+  totalMarks: 0,
+  brand: { navy: '#06113C', orange: '#FF8A32' },
+};
+---
+
+<Layout title="Sodiq School — Natijaga kirish" meta={m}>
+  <main class="login-shell">
+    <div class="login-bg" aria-hidden="true">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
+
+    <img src="/logo-light.png" alt="Sodiq School" class="brand-logo" />
+
+    <form id="loginForm" class="login-card">
+      <h1>Natijaga kirish</h1>
+      <p class="hint">Ota-ona sifatida farzandingizning diagnostika hisobotini ko'rish uchun 6 belgili kirish kodi va parolni kiriting.</p>
+
+      <label class="lbl">Kirish kodi</label>
+      <div id="otp" class="otp" role="group" aria-label="Kirish kodi">
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="0" />
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="1" />
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="2" />
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="3" />
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="4" />
+        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="5" />
+      </div>
+      <input id="code" name="code" type="hidden" required />
+
+      <label class="lbl" for="password">Parol</label>
+      <div class="password-wrap">
+        <input id="password" name="password" type="password" required autocomplete="current-password" />
+        <button type="button" id="pwToggle" class="pw-toggle" aria-label="Parolni ko'rsatish" title="Ko'rsatish">
+          <svg id="pwIconShow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <svg id="pwIconHide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.09 20.09 0 0 1 5.06-5.94" />
+            <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a20.09 20.09 0 0 1-3.16 4.19" />
+            <path d="m1 1 22 22" />
+            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+          </svg>
+        </button>
+      </div>
+
+      <p class="err" id="err" hidden></p>
+      <button type="submit" class="btn">Kirish</button>
+    </form>
+  </main>
+</Layout>
+
+<style>
+  /* Full-viewport container so the animated background can reach every edge
+     without the outer .wrap footer eating space. Card + logo stack vertically. */
+  .login-shell {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 24px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #F7F8FC 60%, #EDEFF7 100%);
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* Soft floating gradient blobs — pure CSS, no runtime cost. Tuned for a
+     light background so they read as subtle color washes rather than glare. */
+  .login-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.35; }
+  .blob-1 {
+    width: 500px; height: 500px; background: #FF8A32;
+    top: -160px; right: -140px; animation: drift-a 22s ease-in-out infinite;
+  }
+  .blob-2 {
+    width: 420px; height: 420px; background: #06113C;
+    bottom: -120px; left: -120px; animation: drift-b 18s ease-in-out infinite;
+    opacity: 0.22;
+  }
+  .blob-3 {
+    width: 300px; height: 300px; background: #FF8A32;
+    top: 55%; left: 25%; opacity: 0.18; animation: drift-c 26s ease-in-out infinite;
+  }
+  @keyframes drift-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px, 40px) scale(1.06); } }
+  @keyframes drift-b { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px, -30px) scale(1.08); } }
+  @keyframes drift-c { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-30px, 20px); } }
+  @media (prefers-reduced-motion: reduce) { .blob { animation: none; } }
+
+  .login-card {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    max-width: 420px;
+    width: 100%;
+    padding: 32px 28px;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(6, 17, 60, 0.15), 0 4px 12px rgba(6, 17, 60, 0.08);
+    display: grid;
+    gap: 14px;
+    box-sizing: border-box;
+    animation: card-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  /* Standalone brand logo sitting above the card — no container/pill. */
+  .brand-logo {
+    width: 220px;
+    max-width: 60vw;
+    height: auto;
+    display: block;
+    animation: logo-in 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes logo-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 400px) { .brand-logo { width: 180px; } }
+
+  h1 { color: #06113C; margin: 4px 0 0; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .hint { color: #4A5060; font-size: 0.9rem; margin: 0 0 4px; line-height: 1.45; }
+  .lbl { font-size: 0.78rem; font-weight: 600; color: #444; margin-bottom: -4px; text-transform: uppercase; letter-spacing: 0.03em; }
+  input { padding: 11px 12px; border: 1.5px solid #d8dbe4; border-radius: 10px; font: inherit; outline: none;
+    background: white; color: #0F1629; box-sizing: border-box; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; }
+  input:focus { border-color: #06113C; box-shadow: 0 0 0 3px rgba(6, 17, 60, 0.15); }
+
+  /* ---- OTP grid ---- */
+  /* `minmax(0, 1fr)` stops the tracks from ballooning past their flex share
+     when the input has content wider than the intrinsic minimum. */
+  .otp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+  .otp-cell {
+    text-align: center;
+    padding: 10px 0;
+    font-family: 'Space Mono', ui-monospace, monospace;
+    font-size: 1.15rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #06113C;
+    letter-spacing: 0;
+    caret-color: #FF8A32;
+    min-width: 0;   /* prevent flex/grid overflow */
+  }
+  .otp-cell:focus { border-color: #06113C; box-shadow: 0 0 0 2px #FF8A3244; background: #FF8A320A; }
+  .otp-cell.filled { background: #06113C08; border-color: #06113C55; }
+  @media (max-width: 400px) {
+    .otp { gap: 4px; }
+    .otp-cell { font-size: 1rem; padding: 8px 0; }
+  }
+
+  /* ---- Password with toggle ---- */
+  .password-wrap { position: relative; }
+  .password-wrap input { width: 100%; padding-right: 40px; box-sizing: border-box; }
+  .pw-toggle {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: 40px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 0; color: #6B7385; cursor: pointer; padding: 0;
+  }
+  .pw-toggle:hover { color: #06113C; }
+
+  .btn {
+    background: linear-gradient(135deg, #06113C 0%, #1a2b7a 100%);
+    color: white;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(6, 17, 60, 0.25);
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(6, 17, 60, 0.35); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .err {
+    color: #D2503F;
+    background: #D2503F10;
+    border: 1px solid #D2503F33;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    margin: 0;
+  }
+</style>
+
+<script>
+  const form = document.getElementById('loginForm') as HTMLFormElement;
+  const err = document.getElementById('err') as HTMLParagraphElement;
+  const hidden = document.getElementById('code') as HTMLInputElement;
+  const cells = Array.from(document.querySelectorAll<HTMLInputElement>('.otp-cell'));
+  const pw = document.getElementById('password') as HTMLInputElement;
+  const pwToggle = document.getElementById('pwToggle') as HTMLButtonElement;
+  const pwIconShow = document.getElementById('pwIconShow') as unknown as SVGSVGElement;
+  const pwIconHide = document.getElementById('pwIconHide') as unknown as SVGSVGElement;
+
+  // Only accept A-Z, 0-9 minus O/0/I/1 — same alphabet as the backend
+  // generator, so users don't try to type an ambiguous glyph.
+  const ALPHABET = /[A-HJ-NP-Z2-9]/;
+
+  function syncHidden() {
+    hidden.value = cells.map((c) => c.value).join('');
+  }
+  function updateFilled() {
+    cells.forEach((c) => c.classList.toggle('filled', !!c.value));
+  }
+
+  cells.forEach((cell, i) => {
+    cell.addEventListener('input', (e) => {
+      const el = e.target as HTMLInputElement;
+      const v = el.value.toUpperCase();
+      // Filter out disallowed characters.
+      const clean = v.split('').find((ch) => ALPHABET.test(ch)) ?? '';
+      el.value = clean;
+      updateFilled();
+      syncHidden();
+      if (clean && i < cells.length - 1) cells[i + 1].focus();
+    });
+
+    cell.addEventListener('keydown', (e) => {
+      const el = e.target as HTMLInputElement;
+      if (e.key === 'Backspace' && !el.value && i > 0) {
+        cells[i - 1].focus();
+        cells[i - 1].value = '';
+        updateFilled();
+        syncHidden();
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft' && i > 0) {
+        cells[i - 1].focus();
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight' && i < cells.length - 1) {
+        cells[i + 1].focus();
+        e.preventDefault();
+      }
+    });
+
+    cell.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData?.getData('text') ?? '').toUpperCase();
+      const chars = text.split('').filter((ch) => ALPHABET.test(ch));
+      for (let k = 0; k < chars.length && i + k < cells.length; k++) {
+        cells[i + k].value = chars[k];
+      }
+      updateFilled();
+      syncHidden();
+      const next = Math.min(i + chars.length, cells.length - 1);
+      cells[next].focus();
+    });
+
+    cell.addEventListener('focus', () => cell.select());
+  });
+
+  // Autofocus first cell on load
+  cells[0]?.focus();
+
+  // Password show/hide
+  pwToggle.addEventListener('click', () => {
+    const isText = pw.type === 'text';
+    pw.type = isText ? 'password' : 'text';
+    pwIconShow.style.display = isText ? '' : 'none';
+    pwIconHide.style.display = isText ? 'none' : '';
+    pwToggle.setAttribute('aria-label', isText ? "Parolni ko'rsatish" : 'Parolni yashirish');
+    pwToggle.title = isText ? "Ko'rsatish" : 'Yashirish';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+
+    syncHidden();
+    const code = hidden.value;
+    const password = pw.value;
+    if (code.length !== 6) {
+      err.textContent = 'Kirish kodi to\'liq 6 belgi bo\'lishi kerak';
+      err.hidden = false;
+      return;
+    }
+    if (!password) {
+      err.textContent = 'Parolni kiriting';
+      err.hidden = false;
+      return;
+    }
+    const btn = form.querySelector('button[type=submit]') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code, password }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        err.textContent = j.error ?? "Kod yoki parol noto'g'ri";
+        // Fall through to `return` — no cleanup needed on failure.
+        err.hidden = false;
+        return;
+      }
+      // Clear the celebration "seen" flag so a fresh login fires fireworks
+      // again on /summary. Same-session navigation still keeps the flag so
+      // going back to /summary from a subject page doesn't relaunch it.
+      sessionStorage.removeItem('sodiq-celebration-seen');
+      window.location.href = '/summary';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>

@@ -1,0 +1,25 @@
+{
+  "name": "ss-exam-reports",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Sodiq School — per-student academic diagnostic report (web + A4 PDF).",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "export:pdf": "node scripts/export-pdf.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^8.3.4",
+    "@sodiq/compute": "*",
+    "astro": "^4.16.18",
+    "echarts": "^5.5.1"
+  },
+  "devDependencies": {
+    "@astrojs/tailwind": "^5.1.4",
+    "playwright": "^1.49.1",
+    "tailwindcss": "^3.4.17"
+  }
+}

@@ -1,0 +1,142 @@
+---
+import '../styles/global.css';
+import { getSessionToken } from '../lib/session';
+
+const { title = 'Sodiq School — Diagnostika hisoboti', meta = {} } = Astro.props;
+const isLoggedIn = !!getSessionToken(Astro.cookies);
+const isLoginPage = Astro.url.pathname === '/login';
+const path = Astro.url.pathname;
+
+// Navigation tabs shown on report pages when logged in.
+const TABS = [
+  { href: '/summary', label: 'Umumiy' },
+  { href: '/', label: 'Matematika' },
+  { href: '/english', label: 'Ingliz tili' },
+  { href: '/critical-thinking', label: 'Tanqidiy fikrlash' },
+];
+
+function isActive(href: string): boolean {
+  if (href === '/') return path === '/';
+  return path === href;
+}
+---
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content="Sodiq School akademik diagnostika hisoboti" />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Pragmatica-400.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/SpaceGrotesk-700.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/SpaceMono-700.woff2" crossorigin />
+  </head>
+  <body>
+    {isLoggedIn && !isLoginPage && (
+      <nav class="topnav" aria-label="Asosiy navigatsiya">
+        <div class="topnav-inner">
+          <div class="tabs" role="tablist">
+            {TABS.map((t) => (
+              <a
+                href={t.href}
+                class={`tab ${isActive(t.href) ? 'is-active' : ''}`}
+                aria-current={isActive(t.href) ? 'page' : undefined}
+              >
+                {t.label}
+              </a>
+            ))}
+          </div>
+          <form action="/api/logout" method="POST" class="logout-form">
+            <button type="submit" class="logout-btn" aria-label="Chiqish" title="Chiqish">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Chiqish</span>
+            </button>
+          </form>
+        </div>
+      </nav>
+    )}
+    <slot />
+    {!isLoginPage && (
+      <div class="wrap">
+        <footer>
+          {meta.school || 'Sodiq School'} · Academic Assessment Office · {meta.slogan || 'Biz ilmga sodiqmiz'}
+          <br />Har bir ko'rsatkich savol yorliqlaridan hisoblangan · kriteriyaga asoslangan.
+        </footer>
+      </div>
+    )}
+
+    <style>
+      /* Top navigation bar shown on every authenticated page (not on login).
+         Sticky at top; horizontally scrollable on narrow viewports. */
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: saturate(180%) blur(8px);
+        -webkit-backdrop-filter: saturate(180%) blur(8px);
+        border-bottom: 1px solid rgba(6, 17, 60, 0.08);
+      }
+      .topnav-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex: 1;
+      }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6B7385;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background 0.15s, color 0.15s;
+      }
+      .tab:hover { color: #06113C; background: rgba(6, 17, 60, 0.05); }
+      .tab.is-active { color: white; background: #06113C; }
+
+      .logout-form { margin: 0; flex-shrink: 0; }
+      .logout-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        background: white;
+        color: #06113C;
+        border: 1px solid rgba(6, 17, 60, 0.15);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .logout-btn:hover { background: #D2503F; color: white; border-color: #D2503F; }
+      .logout-btn:active { transform: scale(0.97); }
+
+      @media (max-width: 520px) {
+        .logout-btn span { display: none; }  /* icon-only on narrow screens */
+      }
+      @media print {
+        .topnav { display: none !important; }
+      }
+    </style>
+  </body>
+</html>

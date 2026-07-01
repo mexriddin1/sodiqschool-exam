@@ -1,0 +1,17 @@
+{
+  "name": "sodiq-exam",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "admin",
+    "client",
+    "e2e"
+  ],
+  "scripts": {
+    "build:compute": "npm --workspace @sodiq/compute run build",
+    "dev:backend": "npm --workspace backend run dev",
+    "seed:backend": "npm --workspace backend run seed"
+  }
+}

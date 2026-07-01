@@ -1,0 +1,20 @@
+# dependencies / build
+node_modules/
+dist/
+.astro/
+.vercel/
+
+# env / local
+.env
+.env.*
+*.local
+.DS_Store
+npm-debug.log*
+
+# confidential exam source material & reference (not part of the app)
+*.pdf
+*.docx
+/reference/
+/*.png
+
+.vercel

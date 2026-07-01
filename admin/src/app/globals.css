@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #f7f7fa;
+  color: #1a1a1f;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition;
+  }
+  .btn-primary {
+    @apply btn bg-navy text-white hover:bg-navy/90 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply btn bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply btn bg-bad text-white hover:opacity-90 disabled:opacity-50;
+  }
+  .input {
+    @apply block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-navy focus:ring-1 focus:ring-navy outline-none;
+  }
+  .label {
+    @apply block text-xs font-medium text-gray-700 mb-1;
+  }
+  .card {
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm;
+    /* Prevents rich content (long tables, wide inputs) from bulging the card
+       past its parent on narrow screens. Each table should still wrap itself
+       in <div class="overflow-x-auto"> for horizontal scroll. */
+    max-width: 100%;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+}

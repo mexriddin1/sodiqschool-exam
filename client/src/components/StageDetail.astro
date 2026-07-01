@@ -1,0 +1,58 @@
+---
+// Full detail for ONE roadmap stage. Shown on demand (one at a time) under the
+// road on web; all panels print in the PDF. Driven by a program object.
+const { program: p, idx } = Astro.props;
+---
+<div class="stage-detail" data-stage={idx - 1} hidden={idx !== 1} style={`--sc:${p.priority.color}`}>
+  <header class="sd-head">
+    <span class="sd-num">{idx}</span>
+    <div class="sd-headmain">
+      <div class="sd-eyebrow">{p.phase}</div>
+      <h3 class="sd-title">{p.title}</h3>
+      <p class="sd-mission">{p.mission}</p>
+    </div>
+    <div class="sd-target">
+      <span class="sd-t-lab">{p.baseline.label}</span>
+      <span class="sd-t-val"><b class="num">{p.baseline.val}</b> <span class="arr">→</span> <b class="num to">{p.target.val}</b></span>
+      <span class="sd-t-load">{p.weeklyHours}/hafta · jami {p.totalHours}</span>
+    </div>
+  </header>
+
+  <div class="sd-grid">
+    <section class="sd-block">
+      <h5 class="sd-h"><span class="sd-h-ic">▶</span> Bu bosqichda nima qilamiz</h5>
+      <ul class="action-list">{p.actions.map((a) => (<li><span class="act-do">{a.do}</span><span class="act-dose">{a.dose}</span></li>))}</ul>
+    </section>
+    <section class="sd-block">
+      <h5 class="sd-h">Oylik reja</h5>
+      <ol class="sd-timeline">{p.weekPlan.map((w) => (<li><span class="tl-when">{w.period}</span><span class="tl-body"><b>{w.focus}</b><span class="tl-task">{w.task}</span></span></li>))}</ol>
+    </section>
+    <section class="sd-block">
+      <h5 class="sd-h">Natija va o'lchov</h5>
+      <div class="sd-measure">
+        <div><div class="sd-mh">Maqsad (boshlang'ich → maqsad)</div><ul class="ticks">{p.kpis.map((x) => <li>{x}</li>)}</ul></div>
+        <div><div class="sd-mh">Muvaffaqiyat belgisi</div><ul class="ticks">{p.criteria.map((x) => <li>{x}</li>)}</ul></div>
+      </div>
+    </section>
+    <section class="sd-block">
+      <h5 class="sd-h">Resurslar</h5>
+      <div class="sd-res">
+        <span><b>Mashq:</b> {p.resources.exercises.join(' · ')}</span>
+        <span><b>Kitob:</b> {p.resources.books.join(' · ')}</span>
+        <span><b>Platforma:</b> {p.resources.platforms.join(' · ')}</span>
+        <span><b>Video:</b> {p.resources.videos.join(' · ')}</span>
+      </div>
+    </section>
+  </div>
+
+  <section class="sd-roles-wrap">
+    <h5 class="sd-h">Kim nima qiladi</h5>
+    <div class="roles">
+      <div class="role par"><div class="rh">Ota-ona</div><ul>{p.roles.parent.map((x) => <li>{x}</li>)}</ul></div>
+      <div class="role tea"><div class="rh">O'qituvchi</div><ul>{p.roles.teacher.map((x) => <li>{x}</li>)}</ul></div>
+      <div class="role stu"><div class="rh">O'quvchi</div><ul>{p.roles.student.map((x) => <li>{x}</li>)}</ul></div>
+    </div>
+  </section>
+
+  <div class="note pos sd-result"><b>Bosqich natijasi.</b> {p.closing} <span class={`status ${p.confidence.label === 'Yuqori' ? 'pos' : 'warn'}`}>Ishonch: {p.confidence.label}</span></div>
+</div>

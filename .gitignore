@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.astro/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env / secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Prisma / DB
+backend/.pg-data/
+*.sqlite
+*.db
+
+# Playwright + browser data
+test-results/
+playwright-report/
+playwright/.cache/
+e2e-report/
+
+# Local dev artefacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.cache/
+
+# Editor / OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Coverage / reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Uploads (per-instance runtime data)
+uploads/
