@@ -246,54 +246,56 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
         {showPaste && <PasteBox text={pasteText} setText={setPasteText} err={pasteErr} onApply={applyPaste} />}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead className="bg-gray-50 text-gray-500 uppercase">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
               <tr>
-                <th className="p-1 text-left w-14">ID</th>
-                <th className="p-1 text-left w-14">Ball</th>
-                <th className="p-1 text-left w-16">Qiyinlik</th>
-                <th className="p-1 text-left">Bo'lim</th>
-                <th className="p-1 text-left">Mavzu</th>
-                <th className="p-1 text-left">Kichik mavzu</th>
-                <th className="p-1 text-left">Ko'nikma</th>
-                <th className="p-1 text-left w-24">Bloom</th>
-                <th className="p-1 text-left w-20">Fikrlash</th>
-                <th className="p-1 text-left w-16">Sinf</th>
-                <th className="p-1 text-left">Framework</th>
-                <th className="p-1 w-14"></th>
+                <th className="p-2 text-left w-16">ID</th>
+                <th className="p-2 text-left w-16">Ball</th>
+                <th className="p-2 text-left w-20">Qiyinlik</th>
+                <th className="p-2 text-left">Bo'lim</th>
+                <th className="p-2 text-left">Mavzu</th>
+                <th className="p-2 text-left">Kichik mavzu</th>
+                <th className="p-2 text-left">Ko'nikma</th>
+                <th className="p-2 text-left w-28">Bloom</th>
+                <th className="p-2 text-left w-24">Fikrlash</th>
+                <th className="p-2 text-left w-20">Sinf</th>
+                <th className="p-2 text-left">Framework</th>
+                <th className="p-2 w-20"></th>
               </tr>
             </thead>
             <tbody>
               {value.map((q, i) => (
                 <tr key={i} className="border-t align-top">
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.id} onChange={(e) => patch(i, { id: e.target.value })} /></td>
-                  <td className="p-0.5"><input type="number" min={0} className="input py-0.5 px-1 text-xs" value={q.marks} onChange={(e) => patch(i, { marks: Number(e.target.value) })} /></td>
-                  <td className="p-0.5">
-                    <select className="input py-0.5 px-1 text-xs" value={q.difficulty} onChange={(e) => patch(i, { difficulty: e.target.value as Difficulty })}>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.id} onChange={(e) => patch(i, { id: e.target.value })} /></td>
+                  <td className="p-1"><input type="number" min={0} className="input py-1.5 px-2 text-sm" value={q.marks} onChange={(e) => patch(i, { marks: Number(e.target.value) })} /></td>
+                  <td className="p-1">
+                    <select className="input py-1.5 px-2 text-sm" value={q.difficulty} onChange={(e) => patch(i, { difficulty: e.target.value as Difficulty })}>
                       {DIFF.map((d) => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.strand} onChange={(e) => patch(i, { strand: e.target.value })} /></td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.topic} onChange={(e) => patch(i, { topic: e.target.value })} /></td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.subTopic} onChange={(e) => patch(i, { subTopic: e.target.value })} /></td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.skill} onChange={(e) => patch(i, { skill: e.target.value })} /></td>
-                  <td className="p-0.5">
-                    <select className="input py-0.5 px-1 text-xs" value={q.bloom} onChange={(e) => patch(i, { bloom: e.target.value as Bloom })}>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.strand} onChange={(e) => patch(i, { strand: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.topic} onChange={(e) => patch(i, { topic: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.subTopic} onChange={(e) => patch(i, { subTopic: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.skill} onChange={(e) => patch(i, { skill: e.target.value })} /></td>
+                  <td className="p-1">
+                    <select className="input py-1.5 px-2 text-sm" value={q.bloom} onChange={(e) => patch(i, { bloom: e.target.value as Bloom })}>
                       {BLOOM.map((b) => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </td>
-                  <td className="p-0.5">
-                    <select className="input py-0.5 px-1 text-xs" value={q.reasoning ?? ""}
+                  <td className="p-1">
+                    <select className="input py-1.5 px-2 text-sm" value={q.reasoning ?? ""}
                       onChange={(e) => patch(i, { reasoning: (e.target.value || null) as Reasoning | null })}>
                       {REASON.map((r) => <option key={r} value={r}>{r || "—"}</option>)}
                     </select>
                   </td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
-                  <td className="p-0.5"><input className="input py-0.5 px-1 text-xs" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
-                  <td className="p-0.5 text-right space-x-1">
-                    <button type="button" onClick={() => moveRow(i, -1)} className="text-gray-400 hover:text-navy">↑</button>
-                    <button type="button" onClick={() => moveRow(i, +1)} className="text-gray-400 hover:text-navy">↓</button>
-                    <button type="button" onClick={() => delRow(i)} className="text-bad hover:underline">✕</button>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
+                  <td className="p-1 text-right">
+                    <div className="inline-flex items-center gap-1">
+                      <button type="button" onClick={() => moveRow(i, -1)} className="text-gray-400 hover:text-navy hover:bg-navy/5 inline-flex items-center justify-center h-8 w-8 rounded-md" title="Yuqoriga">↑</button>
+                      <button type="button" onClick={() => moveRow(i, +1)} className="text-gray-400 hover:text-navy hover:bg-navy/5 inline-flex items-center justify-center h-8 w-8 rounded-md" title="Pastga">↓</button>
+                      <button type="button" onClick={() => delRow(i)} className="text-bad hover:bg-bad/10 inline-flex items-center justify-center h-8 w-8 rounded-md" title="O'chirish">✕</button>
+                    </div>
                   </td>
                 </tr>
               ))}
