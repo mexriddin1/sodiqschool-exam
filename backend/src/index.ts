@@ -19,6 +19,12 @@ import { statsRouter } from "./routes/admin.stats.js";
 
 const app = express();
 
+// Behind nginx: honour X-Forwarded-For / X-Forwarded-Proto exactly one hop
+// deep so the rate-limiter, cookie `secure`, and req.ip see the real client
+// address instead of 127.0.0.1. Without this, express-rate-limit throws
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR and every login gets rejected.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 app.use(
   cors({
