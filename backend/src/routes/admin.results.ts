@@ -159,7 +159,11 @@ resultsRouter.post(
         publicCode,
         accessPasswordHash: passwordHash,
         accessPassword: plainPassword,
-        status: "DRAFT",
+        // Auto-publish on create so parents can log in immediately with the
+        // credentials shown to the admin. No separate "Nashr etish" step is
+        // required per operator preference.
+        status: "PUBLISHED",
+        publishedAt: new Date(),
         manualContent: json(data.manualContent),
         subjects: {
           create: subjectInputs.map((s) => ({
@@ -174,6 +178,24 @@ resultsRouter.post(
       },
       include: { subjects: true, student: true, exam: true },
     });
+    // Freeze the calculated snapshot right away so the client renders the
+    // report from the same numbers admin previewed.
+    try {
+      const snapshot = computeSnapshot(result);
+      await prisma.result.update({
+        where: { id: result.id },
+        data: { calculatedSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+      });
+      await recomputeCohortRanks(result.examId);
+      invalidateStats();
+      // Kick off narrative generation in the background — publish response
+      // returns immediately, admin isn't blocked by the DeepSeek run.
+      generateAndSaveNarrative(result.id).catch((e) =>
+        console.error("[ai] create-time generation failed for", result.id, e),
+      );
+    } catch (e) {
+      console.error("[create] auto-publish side-effects failed:", e);
+    }
     await audit(req.admin!.id, "create", "Result", result.id, null, { id: result.id, publicCode });
 
     ok(res, {
