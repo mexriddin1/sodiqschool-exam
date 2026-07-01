@@ -43,7 +43,10 @@ publicResultRouter.post(
       where: { publicCode: code },
       select: { id: true, publicCode: true, status: true, accessPasswordHash: true },
     });
-    if (!result || result.status !== "PUBLISHED") throw generic;
+    // Login is allowed regardless of DRAFT / PUBLISHED — the admin uses the
+     // same credentials to preview the result before publishing. Only ARCHIVED
+     // results block access.
+    if (!result || result.status === "ARCHIVED") throw generic;
     const matches = await bcrypt.compare(parsed.password, result.accessPasswordHash);
     if (!matches) throw generic;
 
@@ -80,7 +83,7 @@ publicResultRouter.get(
     // Defence-in-depth: session is scoped to this result id. Even if the
     // record was deleted between login and now, never reveal another.
     if (!result) throw notFound();
-    if (result.status !== "PUBLISHED")
+    if (result.status === "ARCHIVED")
       throw unauthorized("Result is no longer available");
 
     ok(res, {
