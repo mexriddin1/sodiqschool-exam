@@ -335,22 +335,22 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
       />
 
       {value.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t">
-          <span className="text-gray-500 font-medium">Barchasini:</span>
+        <div className="flex flex-wrap items-center gap-2 text-sm pt-2 border-t">
+          <span className="text-gray-600 font-medium">Barchasini:</span>
           <button type="button" onClick={() => markAll("To'g'ri")}
-            className="btn-secondary text-good hover:bg-good/10">
+            className="btn-secondary text-good hover:bg-good/10 px-3 py-1.5">
             To'g'ri
           </button>
           <button type="button" onClick={() => markAll("Noto'g'ri")}
-            className="btn-secondary text-bad hover:bg-bad/10">
+            className="btn-secondary text-bad hover:bg-bad/10 px-3 py-1.5">
             Noto'g'ri
           </button>
           <button type="button" onClick={() => markAll("Qisman")}
-            className="btn-secondary text-warn hover:bg-warn/10">
+            className="btn-secondary text-warn hover:bg-warn/10 px-3 py-1.5">
             Qisman
           </button>
           <button type="button" onClick={() => markAll("")}
-            className="btn-secondary inline-flex items-center gap-1.5">
+            className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5">
             <Icon name="refresh" size={14} /> Bo'sh
           </button>
         </div>
@@ -367,18 +367,18 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
       {showPaste && <PasteBox text={pasteText} setText={setPasteText} err={pasteErr} onApply={applyPaste} />}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead className="bg-gray-50 text-gray-500 uppercase">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
             <tr>
-              <th className="p-1 text-left w-12">ID</th>
-              <th className="p-1 text-left">Mavzu</th>
-              <th className="p-1 text-left w-16">Qiyinlik</th>
-              <th className="p-1 text-left w-12">Ball</th>
-              <th className="p-1 text-left w-20 text-good">Natija</th>
-              <th className="p-1 text-left w-14 text-good">Olgan</th>
-              <th className="p-1 text-left w-24 text-good">Xato turi</th>
-              <th className="p-1 text-left text-good">Izoh</th>
-              <th className="p-1 w-8"></th>
+              <th className="p-2 text-left w-14">ID</th>
+              <th className="p-2 text-left">Mavzu</th>
+              <th className="p-2 text-left w-20">Qiyinlik</th>
+              <th className="p-2 text-left w-14">Ball</th>
+              <th className="p-2 text-left w-24 text-good">Natija</th>
+              <th className="p-2 text-left w-16 text-good">Olgan</th>
+              <th className="p-2 text-left w-28 text-good">Xato turi</th>
+              <th className="p-2 text-left text-good">Izoh</th>
+              <th className="p-2 w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -388,15 +388,15 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
               const rowCls = unscored ? "bg-gray-50" : wrong ? "bg-bad/5" : "";
               return (
                 <tr key={i} className={`border-t align-top ${rowCls}`}>
-                  <td className="p-1 font-mono text-gray-700">{q.id}</td>
-                  <td className="p-1 text-gray-700">
+                  <td className="p-2 font-mono text-gray-700">{q.id}</td>
+                  <td className="p-2 text-gray-700">
                     <div className="font-medium">{q.subTopic || q.topic}</div>
-                    <div className="text-gray-400 text-[10px]">{q.strand} · {q.skill} · {q.bloom}</div>
+                    <div className="text-gray-400 text-[11px]">{q.strand} · {q.skill} · {q.bloom}</div>
                   </td>
-                  <td className="p-1 text-gray-700">{q.difficulty}</td>
-                  <td className="p-1 text-gray-700">{q.marks}</td>
-                  <td className="p-0.5">
-                    <select className={`input py-0.5 px-1 text-xs ${unscored ? "border-bad text-bad" : ""}`} value={q.result ?? ""}
+                  <td className="p-2 text-gray-700">{q.difficulty}</td>
+                  <td className="p-2 text-gray-700">{q.marks}</td>
+                  <td className="p-1">
+                    <select className={`input py-1.5 px-2 text-sm ${unscored ? "border-bad text-bad" : ""}`} value={q.result ?? ""}
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (!raw) {
@@ -423,13 +423,13 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                       {QRES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </td>
-                  <td className="p-0.5">
-                    <input type="number" min={0} max={q.marks} className="input py-0.5 px-1 text-xs"
+                  <td className="p-1">
+                    <input type="number" min={0} max={q.marks} className="input py-1.5 px-2 text-sm"
                       value={q.earned} onChange={(e) => patch(i, { earned: Number(e.target.value) })} />
                   </td>
-                  <td className="p-0.5">
+                  <td className="p-1">
                     <select
-                      className={`input py-0.5 px-1 text-xs ${!wrong ? "cursor-not-allowed bg-gray-100" : ""}`}
+                      className={`input py-1.5 px-2 text-sm ${!wrong ? "cursor-not-allowed bg-gray-100" : ""}`}
                       value={q.errorType ?? ""}
                       disabled={!wrong}
                       title={!wrong ? "Avval Natijani 'Noto'g'ri' yoki 'Qisman' qiling" : ""}
@@ -437,14 +437,16 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                       {ERR.map((r) => <option key={r} value={r}>{r || "—"}</option>)}
                     </select>
                   </td>
-                  <td className="p-0.5">
-                    <input className="input py-0.5 px-1 text-xs"
+                  <td className="p-1">
+                    <input className="input py-1.5 px-2 text-sm"
                       placeholder="o'qituvchi izohi"
                       value={q.evidence} onChange={(e) => patch(i, { evidence: e.target.value })} />
                   </td>
-                  <td className="p-0.5 text-right">
-                    <button type="button" onClick={() => delRow(i)} className="text-bad hover:text-bad/80 inline-flex items-center justify-center" aria-label="O'chirish" title="O'chirish">
-                      <Icon name="x" size={14} />
+                  <td className="p-1 text-right">
+                    <button type="button" onClick={() => delRow(i)}
+                      className="text-bad hover:bg-bad/10 inline-flex items-center justify-center h-8 w-8 rounded-md"
+                      aria-label="O'chirish" title="O'chirish">
+                      <Icon name="x" size={16} />
                     </button>
                   </td>
                 </tr>
