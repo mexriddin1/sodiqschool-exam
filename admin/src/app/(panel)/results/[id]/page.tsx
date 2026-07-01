@@ -45,7 +45,6 @@ export default function ResultDetailPage() {
   const [pending, setPending] = useState(false);
 
   const [delOpen, setDelOpen] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
   async function regenerateAi() {
@@ -59,37 +58,6 @@ export default function ResultDetailPage() {
       setError(e instanceof ApiException ? e.error.message : "AI matn yaratishda xato");
     } finally {
       setAiLoading(false);
-    }
-  }
-
-  async function downloadPdf() {
-    if (!r) return;
-    setPdfLoading(true);
-    setError(null);
-    try {
-      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const res = await fetch(`${base}/api/admin/results/${r.id}/pdf`, { credentials: "include" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error?.message ?? `PDF yaratishda xato (${res.status})`);
-      }
-      const blob = await res.blob();
-      // Read filename from Content-Disposition, else fall back.
-      const disp = res.headers.get("Content-Disposition") ?? "";
-      const m = disp.match(/filename="?([^"]+)"?/);
-      const filename = m ? m[1] : `Sodiq_${r.publicCode}.pdf`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename!;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "PDF yaratishda xato");
-    } finally {
-      setPdfLoading(false);
     }
   }
 
@@ -207,16 +175,6 @@ export default function ResultDetailPage() {
         <button className="btn-danger inline-flex items-center gap-2" disabled={pending} onClick={() => setDelOpen(true)}>
           <Icon name="delete" size={16} /> O'chirish
         </button>
-        {r.status === "PUBLISHED" && (
-          <button
-            className="btn-secondary inline-flex items-center gap-2"
-            disabled={pending || pdfLoading}
-            onClick={downloadPdf}
-            title="4 sahifali hisobotni PDF fayl sifatida yuklab olish. OG'IR AMAL: serverda taxminan 10–20 sekund vaqt oladi."
-          >
-            <Icon name="download" size={16} /> {pdfLoading ? "Tayyorlanmoqda…" : "PDF ko'chirib olish"}
-          </button>
-        )}
         <a
           className="btn-secondary inline-flex items-center gap-2"
           target="_blank"
@@ -247,19 +205,6 @@ export default function ResultDetailPage() {
               {new Date(r.aiUsage.generatedAt).toLocaleString()}
             </div>
           )}
-        </div>
-      )}
-
-      {r.status === "PUBLISHED" && (
-        <div className="card p-3 bg-warn/10 border-l-2 border-warn text-sm flex items-start gap-2">
-          <span className="text-warn shrink-0 mt-0.5"><Icon name="warning" size={16} /></span>
-          <div>
-            <b>PDF yaratish — og'ir amal.</b> Har bir PDF serverda Playwright orqali
-            to'liq brauzer ochib, 4 sahifani render qilib, PDF'ga birlashtiradi
-            (taxminan 10–20 sekund). Ota-onalarga havola orqali natijani jonli
-            saytda ko'rsatishni afzal ko'ring; PDF'ni faqat rasmiy hujjat kerak
-            bo'lganda (masalan, komissiya sabab imzolashi kerak bo'lganda) olib beringing.
-          </div>
         </div>
       )}
 
