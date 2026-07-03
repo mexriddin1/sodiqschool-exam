@@ -25,6 +25,7 @@ interface ResultDetail {
   student?: { grade?: number } | null;
   exam?: {
     admissionThresholds?: Record<string, { math: number; ct: number; en: number }>;
+    gradingConfiguration?: unknown;
   } | null;
   subjects: {
     subject: SubjectKey;
@@ -130,6 +131,7 @@ export default function ResultEditPage() {
           subjects={subjects}
           grade={r.student?.grade ?? null}
           admissionThresholds={r.exam?.admissionThresholds ?? null}
+          gradingConfiguration={r.exam?.gradingConfiguration}
           verdictOverride={manual.summary.verdictOverride}
           onVerdictOverrideChange={(next) =>
             setManual({ ...manual, summary: { ...manual.summary, verdictOverride: next } })

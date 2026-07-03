@@ -7,6 +7,7 @@ import {
   CompositeReport,
   computeReport,
   DEFAULT_ADMISSION_THRESHOLDS,
+  extractWeights,
   Question,
   SubjectInput,
   SubjectKey,
@@ -26,6 +27,9 @@ export interface ResultCalcInput {
   grade: number;
   thresholds?: AdmissionThresholds;
   subjects: SubjectCalcInput[];
+  // exam.gradingConfiguration — { weights: { math, english, criticalThinking } }.
+  // Composite weights derive from this; undefined → equal thirds fallback.
+  gradingConfiguration?: unknown;
 }
 
 export interface ResultCalcOutput {
@@ -43,10 +47,12 @@ export function calculateResult(input: ResultCalcInput): ResultCalcOutput {
     };
     perSubject[sub.subject] = computeReport(subjectInput);
   }
+  const { weights, source } = extractWeights(input.gradingConfiguration);
   const composite = computeComposite({
     reports: perSubject,
     grade: input.grade,
     thresholds: input.thresholds ?? DEFAULT_ADMISSION_THRESHOLDS,
+    weights: source === "exam" ? weights : undefined,
   });
   return { perSubject, composite };
 }

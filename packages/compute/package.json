@@ -21,10 +21,18 @@
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
+    },
+    "./roadmap-v2": {
+      "types": "./dist/roadmap-v2.d.ts",
+      "import": "./dist/roadmap-v2.js"
+    },
+    "./weak-areas": {
+      "types": "./dist/weak-areas.d.ts",
+      "import": "./dist/weak-areas.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node -e \"import('node:fs').then(fs=>{fs.mkdirSync('dist/data',{recursive:true});for(const f of fs.readdirSync('src/data'))fs.copyFileSync('src/data/'+f,'dist/data/'+f)})\"",
     "watch": "tsc -p tsconfig.json -w",
     "test": "node --test --import tsx test/*.test.ts"
   },

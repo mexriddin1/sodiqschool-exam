@@ -26,11 +26,20 @@ interface Exam {
   id: string;
   title: string;
   grade: number;
+  // New multi-grade columns. Older rows may not have them yet, so both are
+  // optional here and the display falls back to `grade` (single) if empty.
+  grades?: number[];
+  subjectKeys?: string[];
   examDate: string;
   academicYear?: string | null;
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   cohortSize: number | null;
+  _count?: { results: number; templates: number };
 }
+
+type SubjectKey = "MATH" | "ENGLISH" | "CRITICAL_THINKING";
+interface Subject { id: string; key: SubjectKey; name: string; active: boolean }
+const GRADE_OPTIONS = [5, 6, 7, 8, 9, 10, 11];
 
 const PAGE_TAKE = 10;
 
@@ -51,6 +60,14 @@ export default function ExamsPage() {
   const [status, setStatus] = useState<"" | "DRAFT" | "ACTIVE" | "ARCHIVED">("");
   const [academicYear, setAcademicYear] = useState<string>("");
   const [sort, setSort] = useState<"date-desc" | "date-asc" | "grade-asc" | "title-asc">("date-desc");
+  // Multi-grade + multi-subject picker state for the create form.
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [formGrades, setFormGrades] = useState<number[]>([5]);
+  const [formSubjects, setFormSubjects] = useState<SubjectKey[]>(["MATH", "ENGLISH", "CRITICAL_THINKING"]);
+
+  useEffect(() => {
+    api<Subject[]>("/api/admin/subjects").then((d) => setSubjects(d.filter((s) => s.active))).catch(() => undefined);
+  }, []);
 
   function refresh() {
     const qs = new URLSearchParams();
@@ -118,6 +135,8 @@ export default function ExamsPage() {
     setError(null);
     const fd = new FormData(e.currentTarget);
     try {
+      if (formGrades.length === 0) throw new Error("Kamida bitta sinf tanlang.");
+      if (formSubjects.length === 0) throw new Error("Kamida bitta fan tanlang.");
       await api("/api/admin/exams", {
         method: "POST",
         body: JSON.stringify({
@@ -126,13 +145,17 @@ export default function ExamsPage() {
           examDate: new Date(String(fd.get("examDate"))).toISOString(),
           academicYear: (fd.get("academicYear") as string) || null,
           status: String(fd.get("status")),
-          grade: Number(fd.get("grade")),
+          grades: formGrades,
+          grade: formGrades[0], // legacy column mirrors first grade
+          subjectKeys: formSubjects,
           admissionThresholds: DEFAULT_ADMISSION_THRESHOLDS,
           gradingConfiguration: {},
           cohortSize: fd.get("cohortSize") ? Number(fd.get("cohortSize")) : null,
         }),
       });
       setShowForm(false);
+      setFormGrades([5]);
+      setFormSubjects(["MATH", "ENGLISH", "CRITICAL_THINKING"]);
       refresh();
     } catch (e) {
       setError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
@@ -155,13 +178,23 @@ export default function ExamsPage() {
             <label className="label">Nomi</label>
             <input name="title" required className="input" />
           </div>
-          <div>
-            <label className="label">Sinf</label>
-            <select name="grade" defaultValue="5" className="input">
-              {[5, 6, 7, 8, 9, 10, 11].map((g) => (
-                <option key={g} value={g}>{g}-sinf</option>
-              ))}
-            </select>
+          <div className="col-span-4 space-y-4">
+            <MultiPickRow
+              label="Sinflar"
+              items={GRADE_OPTIONS.map((g) => ({ key: g, label: `${g}-sinf` }))}
+              selected={formGrades}
+              onChange={(next) => setFormGrades([...next].sort((a, b) => a - b))}
+              emptyHint="hech biri tanlanmagan"
+            />
+            <MultiPickRow
+              label="Fanlar"
+              items={subjects.map((s) => ({ key: s.key, label: s.name }))}
+              selected={formSubjects}
+              onChange={(next) => setFormSubjects(next as typeof formSubjects)}
+              emptyHint={subjects.length === 0
+                ? "Fanlar bo'limida hech qanday fan yo'q — /subjects sahifasiga o'ting"
+                : "hech biri tanlanmagan"}
+            />
           </div>
           <div>
             <label className="label">Holat</label>
@@ -268,7 +301,7 @@ export default function ExamsPage() {
                 onClick={() => router.push(`/exams/${e.id}`)}
               >
                 <td className="px-4 py-2 font-medium">{e.title}</td>
-                <td className="px-4 py-2">{e.grade}</td>
+                <td className="px-4 py-2">{e.grades && e.grades.length > 0 ? e.grades.join(", ") : e.grade}</td>
                 <td className="px-4 py-2">{new Date(e.examDate).toLocaleDateString()}</td>
                 <td className="px-4 py-2">{e.status}</td>
                 <td className="px-4 py-2">{e.cohortSize ?? "—"}</td>
@@ -300,6 +333,57 @@ export default function ExamsPage() {
         onCancel={() => setDelTarget(null)}
         onConfirm={onDelete}
       />
+    </div>
+  );
+}
+
+/**
+ * Compact multi-select row used by the exam create form. Renders labelled
+ * pill chips (rounded-full). The items array is generic over the key type
+ * so the same component handles both grade numbers and subject strings.
+ */
+function MultiPickRow<K extends string | number>(props: {
+  label: string;
+  items: { key: K; label: string }[];
+  selected: K[];
+  onChange: (next: K[]) => void;
+  emptyHint?: string;
+}) {
+  const { label, items, selected, onChange, emptyHint } = props;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <label className="label mb-0">{label}</label>
+        {items.length === 0 && emptyHint && (
+          <span className="text-xs text-gray-500">{emptyHint}</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => {
+          const on = selected.includes(item.key);
+          return (
+            <button
+              key={String(item.key)}
+              type="button"
+              onClick={() =>
+                onChange(on ? selected.filter((k) => k !== item.key) : [...selected, item.key])
+              }
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition
+                border
+                ${on
+                  ? "bg-navy text-white border-navy shadow-sm"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-navy hover:text-navy"}`}
+            >
+              {on && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

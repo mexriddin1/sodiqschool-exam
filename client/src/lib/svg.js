@@ -22,11 +22,14 @@ const txt = (x, y, s, { size = 11, fill = C.muted, w = 400, anchor = 'middle', m
 // ---- COVER HERO INSTRUMENT: score on a 0-100 scale, CI band, accent marker --
 // Rendered light-on-navy. The thesis of the whole report.
 export function heroInstrument(percent, ci) {
+  // ViewBox width is fixed; the SVG stretches to fill its parent (the hero
+  // card) via width:100%. preserveAspectRatio="xMidYMid meet" keeps proportions;
+  // the parent card is wide enough that the bar visually spans the full width.
   const w = 520, x0 = 14, x1 = 506, y = 56;
   const X = (v) => x0 + ((x1 - x0) * v) / 100;
   const line = 'rgba(255,255,255,.16)';
   const faint = 'rgba(255,255,255,.55)';
-  let s = `<svg width="${w}" height="92" viewBox="0 0 ${w} 92" style="max-width:100%" role="img" aria-label="Ball shkalasi ${percent}/100">`;
+  let s = `<svg viewBox="0 0 ${w} 92" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:none" role="img" aria-label="Ball shkalasi ${percent}/100">`;
   // base track
   s += `<rect x="${x0}" y="${y - 3}" width="${x1 - x0}" height="6" rx="3" fill="${line}"/>`;
   // achieved fill
@@ -102,12 +105,14 @@ export function scoreScale(percent, adjusted, ci, colors) {
   const c = colors || { joriy: '#0F1629', taxmin: '#6B7385', tuzatilgan: '#2F9E6B' };
   const W = 760, x0 = 30, x1 = 730, Ah = 92, barH = 34, barY = Ah;
   const X = (v) => x0 + ((x1 - x0) * v) / 100;
+  // Official "Yakuniy shkala" — matches packages/compute/src/compute.ts:scoreBand.
+  //   0-34 Tamal · 35-49 Shakllanayotgan · 50-66 Rivojlanayotgan · 67-83 Ishonchli · 84-100 Yuqori
   const bands = [
-    { a: 0, b: 60, label: 'Sayoz', color: '#D2503F' },
-    { a: 60, b: 70, label: 'Zaif', color: '#E07B3E' },
-    { a: 70, b: 80, label: "O'rtacha", color: '#D9A417' },
-    { a: 80, b: 90, label: 'Yaxshi', color: '#2F9E6B' },
-    { a: 90, b: 100, label: 'Juda yuqori', color: '#1F8A5B' },
+    { a: 0,  b: 35,  label: 'Tamal',           color: '#D2503F' },
+    { a: 35, b: 50,  label: 'Shakllanayotgan', color: '#E37A2C' },
+    { a: 50, b: 67,  label: 'Rivojlanayotgan', color: '#C98A12' },
+    { a: 67, b: 84,  label: 'Ishonchli',       color: '#3266C9' },
+    { a: 84, b: 100, label: 'Yuqori',          color: '#2F9E6B' },
   ];
   const numY = barY + barH + 20, labelY = barY + barH + 38, H = labelY + 8;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto" role="img" aria-label="Daraja shkalasi: joriy ${percent}, tuzatilgan ${adjusted}">`;
@@ -117,11 +122,13 @@ export function scoreScale(percent, adjusted, ci, colors) {
     const rL = i === 0 ? 4 : 0, rR = i === bands.length - 1 ? 4 : 0;
     s += `<path d="M ${(xa + rL).toFixed(1)} ${barY} H ${(xb - rR).toFixed(1)} ${rR ? `a ${rR} ${rR} 0 0 1 ${rR} ${rR}` : ''} V ${barY + barH - rR} ${rR ? `a ${rR} ${rR} 0 0 1 -${rR} ${rR}` : ''} H ${(xa + rL).toFixed(1)} ${rL ? `a ${rL} ${rL} 0 0 1 -${rL} -${rL}` : ''} V ${barY + rL} ${rL ? `a ${rL} ${rL} 0 0 1 ${rL} -${rL}` : ''} Z" fill="${bd.color}"/>`;
   });
-  // CI as a soft highlighted RANGE on the bar (75–83) — not a "gate"
+  // CI shown as a soft highlighted range on the bar — not a "gate".
   const cl = X(ci.low), ch = X(ci.high);
   s += `<rect x="${cl.toFixed(1)}" y="${barY + 3}" width="${(ch - cl).toFixed(1)}" height="${barH - 6}" rx="5" fill="#fff" fill-opacity="0.5"/>`;
-  // boundary ticks + numbers
-  for (const v of [0, 60, 70, 80, 90, 100]) {
+  // Ticks + numbers at the official band boundaries: 0 · 34 · 49 · 66 · 83 · 100
+  // (The band starts at 35/50/67/84 — the tick shows the boundary of the
+  // preceding band, which is one point below.)
+  for (const v of [0, 34, 49, 66, 83, 100]) {
     const x = X(v);
     s += `<line x1="${x.toFixed(1)}" y1="${barY + barH}" x2="${x.toFixed(1)}" y2="${barY + barH + 6}" stroke="#9AA1B2"/>`;
     s += txt(x, numY, v, { size: 13, fill: '#3A4256', w: 700, mono: true });
@@ -169,8 +176,18 @@ export function pyramid(tiers) {
 // most complex at the TOP so the eye climbs the ladder. Each rung: name + plain
 // gloss on the left, a track+fill bar, and the % at the right. A thin up-arrow
 // on the left encodes "fikrlash murakkablashadi".
+// Qualitative label helper matching bloom-fill.qualitativeLabel — kept inline
+// here so svg.js has no dependency on TS files (Astro build).
+function qualLabel(pct) {
+  if (pct >= 90) return "A'lo";
+  if (pct >= 80) return "Mustahkam";
+  if (pct >= 70) return "Yaxshi";
+  if (pct >= 55) return "Rivojlanmoqda";
+  return "Boshlang'ich";
+}
+
 export function bloomLadder(levels) {
-  const rowH = 46, y0 = 12, W = 516, x0 = 168, x1 = 470, barH = 17;
+  const rowH = 46, y0 = 12, W = 516, x0 = 168, x1 = 430, barH = 17;
   const rungs = [...levels].reverse(); // complex on top
   const H = y0 + rungs.length * rowH + 6;
   let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%" role="img" aria-label="Bloom — fikrlash darajalari">`;
@@ -183,7 +200,9 @@ export function bloomLadder(levels) {
     s += txt(30, cy + 4, esc(d.key), { size: 13, fill: C.ink, w: 700, anchor: 'start' });
     s += `<rect x="${x0}" y="${cy - barH / 2}" width="${x1 - x0}" height="${barH}" rx="${barH / 2}" fill="#EEF0F4"/>`;
     s += `<rect x="${x0}" y="${cy - barH / 2}" width="${((x1 - x0) * Math.min(100, d.percent) / 100).toFixed(1)}" height="${barH}" rx="${barH / 2}" fill="${c}"/>`;
-    s += txt(x1 + 12, cy + 4, `${d.percent}%`, { size: 13, fill: c, w: 700, anchor: 'start', mono: true });
+    // Qualitative badge on the right instead of a raw percentage.
+    const label = d.label || qualLabel(d.percent);
+    s += txt(x1 + 12, cy + 4, esc(label), { size: 12, fill: c, w: 700, anchor: 'start' });
   });
   return s + '</svg>';
 }
@@ -231,7 +250,8 @@ export function skillRadarChart(axes) {
     const y0 = y - (l2 ? 6 : 0) - (Math.sin(ang(i)) < -0.6 ? 6 : 0);
     s += txt(x, y0, esc(l1), { size: 11.5, fill: C.text, w: 600, anchor });
     if (l2) s += txt(x, y0 + 13, esc(l2), { size: 11.5, fill: C.text, w: 600, anchor });
-    s += txt(x, y0 + (l2 ? 26 : 13), `${a.value}%`, { size: 10.5, fill: C.accent, w: 700, anchor, mono: true });
+    // Qualitative label instead of the raw percentage.
+    s += txt(x, y0 + (l2 ? 26 : 13), qualLabel(a.value), { size: 10.5, fill: C.accent, w: 700, anchor });
   });
   return s + '</svg>';
 }

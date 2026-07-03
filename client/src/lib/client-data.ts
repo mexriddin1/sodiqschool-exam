@@ -175,6 +175,12 @@ export interface SummaryOverrides {
   overallRank: number | null;
   overallTotal: number | null;
   overallPct: number | null;
+  // Sex-split cohort standing (auto-computed from snapshot when peers are
+  // published). Null when the student's sex is unknown or when no same-sex
+  // peer has published yet.
+  sexRank: number | null;
+  sexTotal: number | null;
+  sexPercentile: number | null;
   crossStrength: string | null;
   gradeLabel: string | null; // overrides per-summary "5-sinfga nomzod · 3 fan · ~10 yosh"
   verdictOverride: VerdictOverride | null;
@@ -271,15 +277,42 @@ export function resolveOverrides(me: PublicResultPayload): Overrides {
   });
   const summaryNode = (mc.summary ?? {}) as Record<string, unknown>;
 
+  // Snapshot-derived cohort standing — computed by backend recomputeCohortRanks
+  // when peer results are published. Falls back cleanly to null when the exam
+  // has no peers yet.
+  const snap = (me.calculatedSnapshot ?? {}) as Record<string, unknown>;
+  const cohortSnap = (snap.cohort ?? {}) as {
+    rank?: number | null;
+    total?: number | null;
+    percentile?: number | null;
+    male?: { rank: number; total: number; percentile: number } | null;
+    female?: { rank: number; total: number; percentile: number } | null;
+  };
+  const sexBlock =
+    me.student.sex === "MALE" ? cohortSnap.male
+    : me.student.sex === "FEMALE" ? cohortSnap.female
+    : null;
+
+  // Prefer snapshot (auto-computed) over the manualContent overrides. Admin
+  // can still pin values via manualContent for edge cases (e.g. a hand-
+  // reported paper cohort that never gets published to the app).
+  const overallRank = (summaryNode.overallRank as number | undefined) ?? cohortSnap.rank ?? null;
+  const overallTotal = (summaryNode.overallTotal as number | undefined) ?? cohortSnap.total ?? null;
+  const overallPct = (summaryNode.overallPct as number | undefined) ?? cohortSnap.percentile ?? null;
+
   return {
     studentSex: me.student.sex === "MALE" ? "male" : me.student.sex === "FEMALE" ? "female" : null,
     math: merge("math"),
     english: merge("english"),
     criticalThinking: merge("criticalThinking"),
     summary: {
-      overallRank: (summaryNode.overallRank as number) ?? null,
-      overallTotal: (summaryNode.overallTotal as number) ?? null,
-      overallPct: (summaryNode.overallPct as number) ?? null,
+      overallRank,
+      overallTotal,
+      overallPct,
+      // Sex-split standing, e.g. "12/128 yigitlar orasida". Comes from snapshot.
+      sexRank: sexBlock ? sexBlock.rank : null,
+      sexTotal: sexBlock ? sexBlock.total : null,
+      sexPercentile: sexBlock ? sexBlock.percentile : null,
       crossStrength: (summaryNode.crossStrength as string) ?? null,
       gradeLabel: (summaryNode.gradeLabel as string) ?? null,
       verdictOverride: (summaryNode.verdictOverride as VerdictOverride) ?? null,

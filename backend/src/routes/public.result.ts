@@ -98,6 +98,7 @@ publicResultRouter.get(
         grade: result.exam.grade,
         academicYear: result.exam.academicYear,
         cohortSize: result.exam.cohortSize,
+        gradingConfiguration: result.exam.gradingConfiguration,
       },
       publishedAt: result.publishedAt,
       manualContent: result.manualContent,
@@ -111,6 +112,7 @@ publicResultRouter.get(
       })),
       calculatedSnapshot: result.calculatedSnapshot,
       aiNarrative: result.aiNarrative,
+      unlockedSections: result.unlockedSections ?? [],
     });
   }),
 );

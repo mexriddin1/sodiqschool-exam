@@ -15,10 +15,12 @@ interface Me {
 const NAV = [
   { href: "/dashboard", label: "Bosh sahifa" },
   { href: "/students", label: "O'quvchilar" },
+  { href: "/subjects", label: "Fanlar" },
   { href: "/exams", label: "Imtihonlar" },
   { href: "/test-templates", label: "Test shablonlari" },
   { href: "/results", label: "Natijalar" },
   { href: "/audit", label: "Audit jurnali" },
+  { href: "/docs", label: "Namunalar (JSON)" },
   { href: "/users", label: "Boshqaruvchilar", adminOnly: true },
 ];
 

@@ -21,6 +21,8 @@ export interface PublicResultPayload {
     grade: number;
     academicYear: string | null;
     cohortSize: number | null;
+    // { weights: { math, english, criticalThinking } } — composite weight source.
+    gradingConfiguration?: unknown;
   };
   publishedAt: string | null;
   manualContent: Record<string, unknown>;
@@ -39,6 +41,9 @@ export interface PublicResultPayload {
     criticalThinking?:  { diagnostika?: string; tahlil?: string; growth?: string; skills?: string; bloom?: string };
     summary?:           { crossCutting?: string; finalRecommendation?: string };
   } | null;
+  // Which report sections the parent has been granted access to. Overview
+  // metrics are always shown; everything else is gated on this list.
+  unlockedSections?: string[];
 }
 
 // Fetches the authenticated result. Returns null on any failure and

@@ -1,0 +1,250 @@
+{
+  "_meta": {
+    "description": "Curated learning resources per subject + topic. The roadmap picks resources by (subject, topic) key, then falls back to the subject-level '_default' list if the topic doesn't have a specific entry. UZ resources come first — priority for local families — followed by EN counterparts.",
+    "verifiedNote": "Every URL was live at the time of curation. Broken links get triaged monthly; if a resource is unreachable, drop it here and the roadmap stops surfacing it.",
+    "types": {
+      "video": "Free YouTube lesson or lecture — best for visual learners.",
+      "platform": "Interactive practice site (drills, adaptive tests).",
+      "book": "Textbook or workbook — for a systematic path.",
+      "channel": "YouTube channel (evergreen — pick relevant series inside).",
+      "app": "Mobile app with structured practice."
+    }
+  },
+  "MATH": {
+    "_default": {
+      "uz": [
+        { "type": "channel", "title": "Alifbe TV — Matematika", "provider": "YouTube", "url": "https://www.youtube.com/@AlifbeTV", "note": "5–9 sinf matematika darslari o'zbek tilida" },
+        { "type": "channel", "title": "MathMuza", "provider": "YouTube", "url": "https://www.youtube.com/@MathMuza", "note": "Umumiy matematika, olimpiada masalalari" },
+        { "type": "platform", "title": "Bilimland", "provider": "bilimland.uz", "url": "https://bilimland.uz", "note": "Matematika interaktiv darslar" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Khan Academy Math", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math", "note": "Adaptive practice + video, hozircha eng foydali platforma" },
+        { "type": "platform", "title": "IXL Learning", "provider": "IXL", "url": "https://www.ixl.com/math", "note": "Sinf bo'yicha ~5000 mavzu" },
+        { "type": "platform", "title": "Brilliant.org", "provider": "Brilliant", "url": "https://brilliant.org", "note": "Interaktiv, konseptual matematika" }
+      ]
+    },
+    "Kasr amallari": {
+      "uz": [
+        { "type": "video", "title": "Kasrlar — qo'shish va ayirish", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=kasrlar+qo%27shish+ayirish+MathMuza" },
+        { "type": "video", "title": "Aralash kasr — noto'g'riga aylantirish", "provider": "Alifbe TV", "url": "https://www.youtube.com/results?search_query=aralash+kasr+alifbe" },
+        { "type": "book", "title": "5-sinf matematika darsligi (Kasr bo'limi)", "provider": "Respublika Ta'lim Markazi" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Fractions — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/arithmetic/fraction-arithmetic", "note": "Boshlang'ich → aralash kasr" },
+        { "type": "video", "title": "Fractions Explained (Mashup Math)", "provider": "YouTube", "url": "https://www.youtube.com/@MashupMath" }
+      ]
+    },
+    "O'nli kasr": {
+      "uz": [
+        { "type": "video", "title": "O'nli kasr — asosiy tushunchalar", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=o%27nli+kasr+MathMuza" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Decimals — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/arithmetic/arith-decimals" }
+      ]
+    },
+    "Foiz": {
+      "uz": [
+        { "type": "video", "title": "Foiz masalalari 6-sinf", "provider": "Alifbe TV", "url": "https://www.youtube.com/results?search_query=foiz+masalalari+6+sinf" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Percentages — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/pre-algebra/pre-algebra-ratios-rates" }
+      ]
+    },
+    "Tenglama": {
+      "uz": [
+        { "type": "video", "title": "Chiziqli tenglamalar", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=chiziqli+tenglama+MathMuza" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Algebra Basics — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/algebra-basics" }
+      ]
+    },
+    "Kvadrat tenglama": {
+      "uz": [
+        { "type": "video", "title": "Kvadrat tenglama va diskriminant", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=kvadrat+tenglama+diskriminant" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Quadratic Equations — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/algebra/x2f8bb11595b61c86:quadratic-functions-equations" }
+      ]
+    },
+    "Trigonometriya": {
+      "uz": [
+        { "type": "video", "title": "Trigonometriya asoslari (9-10 sinf)", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=trigonometriya+asoslari+9+sinf" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Trigonometry — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/trigonometry" },
+        { "type": "channel", "title": "Professor Leonard — Trig", "provider": "YouTube", "url": "https://www.youtube.com/@ProfessorLeonard" }
+      ]
+    },
+    "Geometriya": {
+      "uz": [
+        { "type": "video", "title": "Geometriya asoslari (5-7 sinf)", "provider": "Alifbe TV", "url": "https://www.youtube.com/results?search_query=geometriya+asoslari+alifbe" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Geometry — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/geometry" }
+      ]
+    },
+    "Pifagor teoremasi": {
+      "uz": [
+        { "type": "video", "title": "Pifagor teoremasi va misollar", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=pifagor+teoremasi" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Pythagorean Theorem — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/geometry/hs-geo-trig" }
+      ]
+    },
+    "Qonuniyat": {
+      "uz": [
+        { "type": "platform", "title": "Logiclike — mantiqiy qonuniyatlar", "provider": "Logiclike", "url": "https://logiclike.com/uz", "note": "Bolalar uchun mantiq va matematika" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Math is Fun — Patterns", "provider": "mathsisfun.com", "url": "https://www.mathsisfun.com/algebra/patterns.html" }
+      ]
+    },
+    "Statistika": {
+      "uz": [
+        { "type": "video", "title": "Statistika: o'rtacha, moda, mediana", "provider": "MathMuza", "url": "https://www.youtube.com/results?search_query=statistika+o%27rtacha+mediana" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Statistics — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/statistics-probability" }
+      ]
+    }
+  },
+  "ENGLISH": {
+    "_default": {
+      "uz": [
+        { "type": "channel", "title": "English O'rgan", "provider": "YouTube", "url": "https://www.youtube.com/results?search_query=english+o%27rgan", "note": "Ingliz tili darslari o'zbek tilida" },
+        { "type": "channel", "title": "Bekhzod Ubaydullaev English", "provider": "YouTube", "url": "https://www.youtube.com/@BekhzodUbaydullaev", "note": "Boshlang'ich → advanced level" },
+        { "type": "platform", "title": "Duolingo", "provider": "Duolingo", "url": "https://www.duolingo.com/course/en/uz/Learn-English", "note": "O'zbekcha interfeys, kunlik mashq" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Cambridge English", "provider": "Cambridge University Press", "url": "https://www.cambridgeenglish.org/learning-english/", "note": "Rasmiy Cambridge materiallari, testlar" },
+        { "type": "platform", "title": "BBC Learning English", "provider": "BBC", "url": "https://www.bbc.co.uk/learningenglish", "note": "6 Minute English, grammar podcasts" },
+        { "type": "platform", "title": "British Council LearnEnglish", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org", "note": "Interaktiv darslar, video, podcast" }
+      ]
+    },
+    "Present Simple": {
+      "uz": [
+        { "type": "video", "title": "Present Simple grammatikasi", "provider": "Bekhzod Ubaydullaev", "url": "https://www.youtube.com/results?search_query=present+simple+bekhzod+ubaydullaev" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Present Simple — British Council", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/grammar/a1-a2-grammar/present-simple" }
+      ]
+    },
+    "Past Simple": {
+      "uz": [
+        { "type": "video", "title": "Past Simple — O'tgan zamon", "provider": "English O'rgan", "url": "https://www.youtube.com/results?search_query=past+simple+o%27tgan+zamon" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Past Simple — BBC Learning English", "provider": "BBC", "url": "https://www.bbc.co.uk/learningenglish/english/course/lower-intermediate/unit-1" }
+      ]
+    },
+    "Present Perfect": {
+      "uz": [
+        { "type": "video", "title": "Present Perfect qanday ishlaydi", "provider": "Bekhzod Ubaydullaev", "url": "https://www.youtube.com/results?search_query=present+perfect+bekhzod" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Present Perfect — British Council", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/grammar/a1-a2-grammar/present-perfect-simple" }
+      ]
+    },
+    "Reading Comprehension": {
+      "uz": [
+        { "type": "video", "title": "Reading skill oshirish", "provider": "Bekhzod Ubaydullaev", "url": "https://www.youtube.com/results?search_query=reading+skill+bekhzod" }
+      ],
+      "en": [
+        { "type": "platform", "title": "British Council — Reading (A2/B1/B2)", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/skills/reading", "note": "Level bo'yicha ajratilgan matnlar" },
+        { "type": "platform", "title": "News in Levels", "provider": "News in Levels", "url": "https://www.newsinlevels.com/", "note": "Har yangilik 3 darajada" }
+      ]
+    },
+    "Listening": {
+      "uz": [
+        { "type": "video", "title": "Listening skill mashqlari", "provider": "English O'rgan", "url": "https://www.youtube.com/results?search_query=listening+practice+uz" }
+      ],
+      "en": [
+        { "type": "platform", "title": "British Council — Listening (A2/B1/B2)", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/skills/listening" },
+        { "type": "platform", "title": "ESL Lab", "provider": "esl-lab.com", "url": "https://www.esl-lab.com/", "note": "Randall's ESL Cyber Listening Lab" }
+      ]
+    },
+    "Lug'at (asosiy)": {
+      "uz": [
+        { "type": "app", "title": "Anki — Flashcards", "provider": "Anki", "url": "https://apps.ankiweb.net/", "note": "Ingliz-o'zbek so'z decklari" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Quizlet", "provider": "Quizlet", "url": "https://quizlet.com", "note": "Tayyor 5000+ vocabulary decks" },
+        { "type": "app", "title": "Memrise", "provider": "Memrise", "url": "https://www.memrise.com/", "note": "Real gapirish + so'z yodlash" }
+      ]
+    },
+    "Writing (Basics)": {
+      "uz": [
+        { "type": "video", "title": "Sentence tuzish asoslari", "provider": "Bekhzod Ubaydullaev", "url": "https://www.youtube.com/results?search_query=writing+basics+bekhzod" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Writing — British Council", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/skills/writing" }
+      ]
+    },
+    "Essay Writing": {
+      "en": [
+        { "type": "platform", "title": "IELTS Writing (Cambridge)", "provider": "Cambridge", "url": "https://www.cambridgeenglish.org/exams-and-tests/ielts/", "note": "Task 1 va Task 2 uchun namuna" },
+        { "type": "channel", "title": "IELTS Liz", "provider": "YouTube", "url": "https://www.youtube.com/@ieltsliz", "note": "IELTS Writing structure" }
+      ]
+    },
+    "Speaking": {
+      "en": [
+        { "type": "platform", "title": "Cake app", "provider": "Cake Corp", "url": "https://cake.co/", "note": "Video clip-lardan gapirish" },
+        { "type": "app", "title": "Elsa Speak", "provider": "Elsa", "url": "https://elsaspeak.com/", "note": "AI pronunciation coach" }
+      ]
+    },
+    "Conditionals": {
+      "en": [
+        { "type": "platform", "title": "Conditionals — British Council", "provider": "British Council", "url": "https://learnenglish.britishcouncil.org/grammar/b1-b2-grammar/conditionals" }
+      ]
+    }
+  },
+  "CRITICAL_THINKING": {
+    "_default": {
+      "uz": [
+        { "type": "platform", "title": "Logiclike", "provider": "Logiclike", "url": "https://logiclike.com/uz", "note": "5–11 yosh bolalar uchun mantiqiy topshiriqlar" },
+        { "type": "channel", "title": "Bilim.uz — Matematik olimpiada", "provider": "YouTube", "url": "https://www.youtube.com/results?search_query=bilim+uz+olimpiada", "note": "Olimpiada uslubidagi qiziqarli masalalar" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Brilliant.org", "provider": "Brilliant", "url": "https://brilliant.org", "note": "Konseptual masalalar, interaktiv" },
+        { "type": "platform", "title": "AoPS Alcumus", "provider": "Art of Problem Solving", "url": "https://artofproblemsolving.com/alcumus", "note": "Bepul adaptive problem solving" },
+        { "type": "book", "title": "Aha! Solutions (Martin Gardner)", "provider": "Cambridge", "note": "Klassik puzzlelar to'plami" }
+      ]
+    },
+    "Deduktiv mantiq": {
+      "uz": [
+        { "type": "platform", "title": "Logiclike — Deduktiv topshiriqlar", "provider": "Logiclike", "url": "https://logiclike.com/uz/course/logic" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Deductive Reasoning — Coursera (Duke)", "provider": "Coursera", "url": "https://www.coursera.org/learn/logical-reasoning" }
+      ]
+    },
+    "Induktiv mantiq": {
+      "uz": [
+        { "type": "platform", "title": "Logiclike — Qonuniyat topshiriqlari", "provider": "Logiclike", "url": "https://logiclike.com/uz/course/patterns" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Brilliant — Logic", "provider": "Brilliant", "url": "https://brilliant.org/courses/logic-i/" }
+      ]
+    },
+    "Fazoviy-vizual mulohaza": {
+      "uz": [
+        { "type": "app", "title": "Tangram — o'yin", "provider": "App Store / Play", "note": "Fazoviy shakllar bilan ishlash" }
+      ],
+      "en": [
+        { "type": "platform", "title": "Brilliant — Geometry", "provider": "Brilliant", "url": "https://brilliant.org/courses/geometry-i/" },
+        { "type": "app", "title": "Peak Brain Games", "provider": "Peak", "url": "https://www.peak.net/", "note": "Fazoviy tasavvur o'yinlari" }
+      ]
+    },
+    "Ma'lumot tahlili": {
+      "en": [
+        { "type": "platform", "title": "Data Analysis — Khan Academy", "provider": "Khan Academy", "url": "https://www.khanacademy.org/math/statistics-probability/analyzing-categorical-data" }
+      ]
+    },
+    "Tanqidiy baholash": {
+      "en": [
+        { "type": "platform", "title": "Critical Thinking — FutureLearn", "provider": "FutureLearn", "url": "https://www.futurelearn.com/subjects/study-skills-courses/critical-thinking-courses" },
+        { "type": "book", "title": "Thinking, Fast and Slow (Daniel Kahneman)", "provider": "FSG", "note": "Fikrlash tizimlari klassikasi" }
+      ]
+    }
+  }
+}

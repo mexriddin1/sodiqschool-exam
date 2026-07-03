@@ -45,6 +45,15 @@ export interface Question {
   // Optional admin-provided real-cohort solve rate for this question.
   // When absent or null, the report renders "—" instead of fabricated values.
   peerSolveRate?: number | null;
+  // Manually-authored "technical error" label: IDs of harder questions that
+  // cover the same skill and are ranked above this one. If ANY of those
+  // harder questions is solved, this wrong answer is treated as a technical
+  // error (careless mistake) instead of a knowledge gap — because the
+  // student clearly can handle a tougher version of the same skill.
+  //
+  // Empty or omitted → fall back to the automatic detector (same skill +
+  // ≥ same difficulty weight).
+  techErrorIds?: string[];
 }
 
 export interface SubjectMeta {
@@ -204,6 +213,11 @@ export type AdmissionThresholds = {
   [grade: string]: { math: number; ct: number; en: number };
 };
 
+// Per-subject weight used to combine three SubjectReports into the composite.
+// Values must sum to 1. When absent, computeComposite falls back to equal
+// thirds (backwards compat with old exams whose gradingConfiguration was empty).
+export type SubjectWeights = Record<SubjectKey, number>;
+
 export interface CompositeReport {
   composite: number;
   compPotential: number;
@@ -215,4 +229,11 @@ export interface CompositeReport {
   verdict: { label: string; sub: string; color: string };
   perSubjectGate: Record<SubjectKey, { percent: number; threshold: number; passed: boolean }>;
   gateAllPassed: boolean;
+  // Weights used to compute `composite` / `compPotential` / `compAdjusted`.
+  // Always populated so summary UI can show "how is the overall score
+  // calculated" without re-reading exam.gradingConfiguration.
+  weights: SubjectWeights;
+  // Marks the source of weights: "exam" when read from exam.gradingConfiguration,
+  // "default" when the equal-thirds fallback kicked in.
+  weightsSource: "exam" | "default";
 }

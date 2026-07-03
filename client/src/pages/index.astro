@@ -2,6 +2,8 @@
 export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import StageDetail from '../components/StageDetail.astro';
+import LockedSection from '../components/LockedSection.astro';
+import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
 import {
   pickSubject, resolveOverrides, applyBloomFallback, resolveVerdict,
@@ -22,6 +24,12 @@ import { adjustedSubtitle } from '../lib/adjusted-label';
 import { buildBloomBars } from '../lib/bloom-fill';
 const m = r.meta;
 const programs = buildPrograms(r);
+// Section access gates — roadmap and Xulosa blocks unlock only after admin
+// grants access (parent visits school). Overview metrics stay visible.
+const gate = {
+  roadmap: isUnlocked(me.unlockedSections, 'roadmap'),
+  risks_notes: isUnlocked(me.unlockedSections, 'risks_notes'),
+};
 // AI narrative injected into §Diagnostika / §Tahlil / §Rivojlanish.
 // Falls back to the deterministic long-form story when generation hasn't run.
 import { aiParagraphs, hasAiText } from '../lib/ai-md';
@@ -43,9 +51,22 @@ const strongTopics = r.strongTopics;
 // Bloom levels — real % from r.byBloom where measured; per-key admin override
 // (or shipped default) for any lowConfidence group.
 const bloomLevels = applyBloomFallback(ov.bloomFallback, BLOOM_FALLBACK_MATH);
-const bloomData = buildBloomBars(r).map((b) => ({ key: b.key, gloss: b.gloss, percent: b.percent }));
-const skillRadar = ov.skillRadar?.length ? ov.skillRadar : SKILL_RADAR_FALLBACK_MATH;
-const reasoningTypes = ov.reasoningTypes?.length ? ov.reasoningTypes : REASONING_FALLBACK_MATH;
+// Bloom bars keep the qualitative label so the client can render "A'lo" /
+// "Mustahkam" etc. instead of a raw percent. See lib/bloom-fill.ts.
+const bloomData = buildBloomBars(r);
+// Skill radar / reasoning fallback: stretch shipped defaults toward the
+// student's overall percent so a 96% child never sees a 70% skill. Preserves
+// relative strengths (radar shape) but shifts absolute values up.
+function scaleRadar(items, refPercent) {
+  const lo = Math.max(60, refPercent - 15);
+  const hi = 98;
+  return items.map((s) => {
+    const blended = Math.round(0.4 * s.value + 0.6 * refPercent);
+    return { ...s, value: Math.max(lo, Math.min(hi, blended)) };
+  });
+}
+const skillRadar = ov.skillRadar?.length ? ov.skillRadar : scaleRadar(SKILL_RADAR_FALLBACK_MATH, r.percent);
+const reasoningTypes = ov.reasoningTypes?.length ? ov.reasoningTypes : scaleRadar(REASONING_FALLBACK_MATH, r.percent);
 // §12 growth matrix — every 0-100 measure with a transparent diminishing-returns
 // projection of where the roadmap lifts it (weaker areas gain more, capped ~95).
 // Values mirror the same numbers shown in §6/§8/§9/§10 so the report stays consistent.
@@ -90,8 +111,9 @@ const REASON_HELP_DEFAULT = [
 const skillHelp = ov.glossary.skillHelp?.length ? ov.glossary.skillHelp : SKILL_HELP_DEFAULT;
 const bloomHelp = ov.glossary.bloomHelp?.length ? ov.glossary.bloomHelp : BLOOM_HELP_DEFAULT;
 const reasonHelp = ov.glossary.reasonHelp?.length ? ov.glossary.reasonHelp : REASON_HELP_DEFAULT;
-const coverTitle = ov.narrative.coverTitle ?? 'Akademik diagnostika hisoboti';
-const coverSubtitle = ov.narrative.coverSubtitle ?? `Farzandingiz natijalarining sodda va batafsil tahlili — ${m.subject}`;
+// Simpler cover: subject-scoped title, no marketing subtitle.
+const coverTitle = ov.narrative.coverTitle ?? `${m.subject} imtihoni diagnostikasi`;
+const coverSubtitle = ov.narrative.coverSubtitle ?? '';
 const adminStory = ov.narrative.story && ov.narrative.story.length > 0 ? ov.narrative.story : null;
 // Verdict — derived from the official "Yakuniy shkala" applied to the
 // potential. Admin can override on Result.manualContent.summary.verdictOverride;
@@ -177,45 +199,41 @@ const perfectScore = perfectYet;
         <img class="brand-logo" src="/logo-white.png" width="1920" height="700" alt={m.school} />
         <span class="brand-div"></span>
         <div>
-          <div class="eyebrow">{m.office}</div>
           <div class="slogan">{m.slogan}</div>
         </div>
       </div>
       <h1>{coverTitle}</h1>
-      <div class="subtitle">{coverSubtitle}</div>
+      {coverSubtitle && <div class="subtitle">{coverSubtitle}</div>}
       <div class="meta">
         <div><b>Nomzod:</b> {m.candidate}</div>
         <div><b>Sinf:</b> {m.gradeLabel}</div>
         <div><b>Imtihon:</b> {m.subject} · <span class="num">{m.totalQuestions}</span> savol · <span class="num">{m.totalMarks}</span> ball</div>
       </div>
 
-      <div class="hero-instrument">
+      <div class="hero-instrument hero-instrument--stacked">
         <div>
           <div class="hero-readout">
             <span class="big">{r.percent}</span><span class="slash">/100</span>
             <span class="ci">taxminan {r.ci.low}–{r.ci.high}</span>
           </div>
           <div set:html={heroInstrument(r.percent, r.ci)} />
+          {/* Under-score row: Tuzatilgan · Salohiyat · To'g'ri · Persentil · Umumiy reyting · (jinsga qarab) Yigitlar/Qizlar orasida. */}
           <div class="hero-mini">
             <div class="metric"><div class="metric-value sm num">~{r.adjusted}</div><div class="metric-label">Tuzatilgan</div></div>
             <div class="metric"><div class="metric-value sm num">{r.potential}</div><div class="metric-label">Salohiyat</div></div>
             <div class="metric"><div class="metric-value sm num">{r.correctCount}/{r.totalQuestions}</div><div class="metric-label">To'g'ri</div></div>
-          </div>
-          {hasCohort && (
-            <div class="hero-rank">
-              <div class="metric"><div class="metric-value sm num">{cohort.percentile}<span class="u">-foiz</span></div><div class="metric-label">Persentil</div></div>
-              <div class="metric"><div class="metric-value sm num">{cohort.rank}<span class="u">/{cohort.total}</span></div><div class="metric-label">Umumiy reyting</div></div>
-              {studentSex === 'male' && cohort.maleRank != null && cohort.maleTotal != null && (
-                <div class="metric"><div class="metric-value sm num">{cohort.maleRank}<span class="u">/{cohort.maleTotal}</span></div><div class="metric-label">Yigitlar orasida</div></div>
-              )}
-            </div>
-          )}
-        </div>
-        <div>
-          <div class="hero-verdict" style={`background:${verdict.color}`}>
-            <div class="hv-seal">✓</div>
-            <div class="hv-label">{verdict.label}</div>
-            <small>{verdict.sub}</small>
+            {hasCohort && (
+              <>
+                <div class="metric"><div class="metric-value sm num">{cohort.percentile}<span class="u">-foiz</span></div><div class="metric-label">Persentil</div></div>
+                <div class="metric"><div class="metric-value sm num">{cohort.rank}<span class="u">/{cohort.total}</span></div><div class="metric-label">Umumiy reyting</div></div>
+                {studentSex === 'male' && cohort.maleRank != null && cohort.maleTotal != null && (
+                  <div class="metric"><div class="metric-value sm num">{cohort.maleRank}<span class="u">/{cohort.maleTotal}</span></div><div class="metric-label">Yigitlar orasida</div></div>
+                )}
+                {studentSex === 'female' && cohort.femaleRank != null && cohort.femaleTotal != null && (
+                  <div class="metric"><div class="metric-value sm num">{cohort.femaleRank}<span class="u">/{cohort.femaleTotal}</span></div><div class="metric-label">Qizlar orasida</div></div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -277,7 +295,7 @@ const perfectScore = perfectYet;
         <p>
           Quyidagi uch bosqichli, 12 oylik yo'l xaritasi aynan shu yo'nalishlarni qadam-baqadam mustahkamlaydi.
           Reja izchil bajarilsa, umumiy ball {r.percent} dan <b>~{roadFinishVal}</b> ga ko'tariladi va barcha ko'rsatkichlar — kasrdan tortib fikrlash turlarigacha — o'sadi.
-          Umuman, farzandingizning matematik kelajagi <b>{potentialBand.label.toLowerCase()}</b>; tavsiya — <b>{verdict.label.toLowerCase()}</b>.
+          Umuman, farzandingizning matematik salohiyati <b>{potentialBand.label.toLowerCase()}</b>.
         </p>
         </>}
       </div>
@@ -311,11 +329,6 @@ const perfectScore = perfectYet;
         </div>
       </div>
       <div class="scale-connect" set:html={scoreScale(r.percent, r.adjusted, r.ci, { joriy: r.band.color, taxmin: '#6B7385', tuzatilgan: '#2F9E6B' })} />
-      {hasAiText(aiSubj?.tahlil) && (
-        <div class="ai-narrative">
-          {aiParagraphs(aiSubj.tahlil).map((h) => (<p set:html={h} />))}
-        </div>
-      )}
     </section>
 
     {/* 3 · PER-QUESTION */}
@@ -394,11 +407,7 @@ const perfectScore = perfectYet;
         <h2>Bilim chuqurligi</h2>
       </header>
       <div class="tier-units" set:html={tierUnits(r.tiers)} />
-      <div class="helper" style="margin-top:var(--s2);text-align:center">
-        <span class="dot" style="background:var(--pos)"></span> To'g'ri yechilgan ·
-        <span class="dot" style="background:#EEF0F4;border:1px solid var(--border)"></span> Xato — har bir katak bitta savol
-      </div>
-    </section>
+      </section>
     )}
 
     {/* ===================== PART II ===================== */}
@@ -450,11 +459,6 @@ const perfectScore = perfectYet;
         </div>
         <div class="skill-radar" set:html={skillRadarChart(skillRadar)} />
         <p class="caption" style="text-align:center">Shakl qanchalik tekis bo'lsa, ko'nikmalar shunchalik muvozanatli; bir tomonga cho'zilgan bo'lsa — o'sha ko'nikma ustun.</p>
-        {hasAiText(aiSubj?.skills) && (
-          <div class="ai-narrative">
-            {aiParagraphs(aiSubj.skills).map((h) => (<p set:html={h} />))}
-          </div>
-        )}
       </section>
       )}
 
@@ -470,11 +474,6 @@ const perfectScore = perfectYet;
           <dl>{bloomHelp.map((x) => (<div><dt>{x.t}</dt><dd>{x.d}</dd></div>))}</dl>
         </div>
         <div set:html={bloomLadder(bloomData)} />
-        {hasAiText(aiSubj?.bloom) && (
-          <div class="ai-narrative">
-            {aiParagraphs(aiSubj.bloom).map((h) => (<p set:html={h} />))}
-          </div>
-        )}
       </section>
       )}
     </div>
@@ -497,19 +496,19 @@ const perfectScore = perfectYet;
           <span><b>{d.name}</b> — {d.gloss}</span>
         ))}
       </div>
-      {hasAiText(aiSubj?.reasoning) && (
-        <div class="ai-narrative">
-          {aiParagraphs(aiSubj.reasoning).map((h) => (<p set:html={h} />))}
-        </div>
-      )}
     </section>
     )}
 
     {/* ===================== PART III ===================== */}
     <div class="part"><span class="pn">III</span><span class="pt">Rivojlanish yo'li</span><span class="pr"></span><span class="pe">§11–12</span></div>
 
+    {!gate.roadmap && (
+      <LockedSection eyebrow="11–12" title="Rivojlanish yo'li"
+        hint="3, 6 va 12 oylik dastur, o'sish prognozi va bosqichma-bosqich reja." />
+    )}
+
     {/* 11 · THE ROADMAP — a road with three stops */}
-    {showSection('sec11') && (
+    {gate.roadmap && showSection('sec11') && (
     <section class="section" id="sec11">
       <header class="sec-head">
         <div class="eyebrow">{nn('sec11')}</div>
@@ -532,7 +531,7 @@ const perfectScore = perfectYet;
     )}
 
     {/* 12 · SKILL GROWTH (payoff of the roadmap) */}
-    {showSection('sec12') && (
+    {gate.roadmap && showSection('sec12') && (
     <section class="section" id="sec12">
       <header class="sec-head">
         <div class="eyebrow">{nn('sec12')}</div>
@@ -541,19 +540,19 @@ const perfectScore = perfectYet;
       </header>
       <div class="growth-dumbbell" set:html={growthDumbbell(growthGroups)} />
       <p class="caption center">Bu nimani ko'rsatadi: bo'sh nuqta — hozirgi daraja; rangli bo'laklar — 3, 6 va 12 oylik bosqichlardagi o'sish; to'q (navy) nuqta — reja so'ngida kutilayotgan daraja. Proyeksiya shaffof qoida bilan hisoblanadi (zaif joy ko'proq o'sadi, yuqori chegara ~95) — kafolat emas, yo'nalish.</p>
-      {hasAiText(aiSubj?.growth) && (
-        <div class="ai-narrative">
-          {aiParagraphs(aiSubj.growth).map((h) => (<p set:html={h} />))}
-        </div>
-      )}
     </section>
     )}
 
     {/* ===================== PART IV ===================== */}
     <div class="part"><span class="pn">IV</span><span class="pt">Xulosa</span><span class="pr"></span><span class="pe">§13</span></div>
 
+    {!gate.risks_notes && (
+      <LockedSection eyebrow="13+" title="Xulosa va tavsiyalar"
+        hint="Kelajak prognozi, ota-ona va komissiya xulosalari, glossariy." />
+    )}
+
     {/* 13 · OUTLOOK */}
-    {showSection('sec13') && (
+    {gate.risks_notes && showSection('sec13') && (
     <section class="section" id="sec13">
       <header class="sec-head">
         <div class="eyebrow">{nn('sec13')}</div>

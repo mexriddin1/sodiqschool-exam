@@ -395,6 +395,7 @@ async function generateAndSaveNarrative(id: string) {
     math: buildSubject("MATH"),
     english: buildSubject("ENGLISH"),
     criticalThinking: buildSubject("CRITICAL_THINKING"),
+    gradingConfiguration: result.exam.gradingConfiguration,
   });
   await prisma.result.update({
     where: { id },
@@ -459,6 +460,41 @@ resultsRouter.get(
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Sodiq_${safeName}_${r.publicCode}.pdf"`);
     res.send(buf);
+  }),
+);
+
+// Whitelist of section keys the admin can toggle. Any string sent by the
+// admin that isn't in this list is dropped — prevents the frontend from
+// accidentally shipping a typo key that clients then rely on.
+const ALLOWED_SECTION_KEYS = ["narrative", "roadmap", "risks_notes"] as const;
+
+resultsRouter.patch(
+  "/:id/unlocked-sections",
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const raw = Array.isArray(req.body?.unlockedSections) ? req.body.unlockedSections : [];
+    const cleaned = Array.from(
+      new Set(
+        raw
+          .filter((v: unknown) => typeof v === "string")
+          .filter((v: string) => (ALLOWED_SECTION_KEYS as readonly string[]).includes(v)),
+      ),
+    ) as string[];
+    const prev = await prisma.result.findUnique({
+      where: { id },
+      select: { id: true, unlockedSections: true },
+    });
+    if (!prev) throw notFound();
+    const updated = await prisma.result.update({
+      where: { id },
+      data: { unlockedSections: cleaned },
+      select: { id: true, unlockedSections: true },
+    });
+    await audit(req.admin!.id, "update", "Result", id,
+      { unlockedSections: prev.unlockedSections },
+      { unlockedSections: updated.unlockedSections },
+    );
+    ok(res, updated);
   }),
 );
 

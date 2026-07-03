@@ -18,6 +18,9 @@ export const questionSchema = z.object({
   errorType: z.enum(["Texnik", "Bilim bo'shlig'i"]).nullable(),
   evidence: z.string(),
   peerSolveRate: z.number().min(0).max(100).nullable().optional(),
+  // Manually-authored technical-error label: harder question IDs that cover
+  // the same skill. See @sodiq/compute Question interface for semantics.
+  techErrorIds: z.array(z.string()).optional(),
 });
 
 export const realDataSchema = z
@@ -50,8 +53,17 @@ export const admissionThresholdsSchema = z.record(
   z.object({ math: z.number(), ct: z.number(), en: z.number() }),
 );
 
-export const studentCreateSchema = z.object({
-  fullName: z.string().min(1),
+// Base object — kept unwrapped so studentUpdateSchema can call .partial().
+// The name-presence rule lives on studentCreateSchema below via .refine().
+const studentBaseSchema = z.object({
+  // Either provide `fullName`, or provide `firstName` + `lastName` and the
+  // server will derive the combined value. Both fields are accepted so old
+  // admin flows keep working.
+  fullName: z.string().min(1).optional(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  uid: z.string().min(1).optional().nullable(),
+  examLanguage: z.string().min(1).optional().nullable(),
   studentNumber: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   sex: z.enum(["MALE", "FEMALE"]).optional().nullable(),
@@ -61,7 +73,18 @@ export const studentCreateSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
-export const studentUpdateSchema = studentCreateSchema.partial();
+export const studentCreateSchema = studentBaseSchema.refine(
+  (d) => !!d.fullName || (!!d.firstName && !!d.lastName),
+  { message: "fullName yoki firstName+lastName kerak", path: ["fullName"] },
+);
+
+export const studentUpdateSchema = studentBaseSchema.partial();
+
+// Bulk JSON import — same shape as create, but as an array. Server splits
+// fullName when only that is provided, so import files can use either shape.
+export const studentImportSchema = z.object({
+  students: z.array(studentCreateSchema).min(1).max(2000),
+});
 
 export const examCreateSchema = z.object({
   title: z.string().min(1),
@@ -69,7 +92,12 @@ export const examCreateSchema = z.object({
   examDate: z.string().datetime(),
   academicYear: z.string().optional().nullable(),
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
-  grade: z.number().int().min(5).max(11),
+  // Legacy single grade — accept it OR the new `grades` array. At least one
+  // must be present; the route normalises them into a consistent shape.
+  grade: z.number().int().min(5).max(11).optional(),
+  grades: z.array(z.number().int().min(5).max(11)).optional(),
+  // Subjects this exam tests. Empty → treat as all three fan (backwards compat).
+  subjectKeys: z.array(z.enum(["MATH", "ENGLISH", "CRITICAL_THINKING"])).optional(),
   admissionThresholds: admissionThresholdsSchema,
   gradingConfiguration: z.record(z.string(), z.unknown()).default({}),
   cohortSize: z.number().int().positive().optional().nullable(),

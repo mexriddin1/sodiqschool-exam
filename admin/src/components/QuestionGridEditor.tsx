@@ -26,6 +26,9 @@ export interface Question {
   errorType: ErrType | null;
   evidence: string;
   peerSolveRate?: number | null;
+  // Manually-authored "technical error" label: harder question IDs. If any is
+  // solved, this wrong answer is treated as a careless (technical) mistake.
+  techErrorIds?: string[];
 }
 
 export function blankQuestion(id: string): Question {
@@ -260,6 +263,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                 <th className="p-2 text-left w-24">Fikrlash</th>
                 <th className="p-2 text-left w-20">Sinf</th>
                 <th className="p-2 text-left">Framework</th>
+                <th className="p-2 text-left w-32" title="Ushbu savoldan qiyinroq savol ID'lari, vergul bilan ajratilgan. Agar shulardan birortasi yechilgan bo'lsa, bu savol texnik xato hisoblanadi.">Texnik xato ID</th>
                 <th className="p-2 w-20"></th>
               </tr>
             </thead>
@@ -290,6 +294,19 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                   </td>
                   <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
                   <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
+                  <td className="p-1">
+                    <input
+                      className="input py-1.5 px-2 text-sm"
+                      placeholder="masalan: 2, 8"
+                      value={(q.techErrorIds ?? []).join(", ")}
+                      onChange={(e) => {
+                        // Split on comma / whitespace, drop empties. Keeps user
+                        // ordering so admin can eyeball what they typed.
+                        const ids = e.target.value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+                        patch(i, { techErrorIds: ids });
+                      }}
+                    />
+                  </td>
                   <td className="p-1 text-right">
                     <div className="inline-flex items-center gap-1">
                       <button type="button" onClick={() => moveRow(i, -1)} className="text-gray-400 hover:text-navy hover:bg-navy/5 inline-flex items-center justify-center h-8 w-8 rounded-md" title="Yuqoriga">↑</button>
@@ -300,7 +317,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                 </tr>
               ))}
               {value.length === 0 && (
-                <tr><td colSpan={12} className="p-4 text-center text-gray-400">Savol yo'q. "Namunadan boshlash" yoki "+ Savol qo'shish".</td></tr>
+                <tr><td colSpan={13} className="p-4 text-center text-gray-400">Savol yo'q. "Namunadan boshlash" yoki "+ Savol qo'shish".</td></tr>
               )}
             </tbody>
           </table>

@@ -56,7 +56,16 @@ model AdminUser {
 
 model Student {
   id            String     @id @default(uuid())
+  // Kept for backwards compat with older admin flows and the report meta
+  // (`meta.candidate`). New records set it to `${firstName} ${lastName}`.
   fullName      String
+  firstName     String?
+  lastName      String?
+  // Externally-issued student UID (e.g. from a school registry). Uniqueness
+  // is enforced only when a value is set — nullable rows never collide.
+  uid           String?    @unique
+  // Language the student sits the exam in: "UZ" / "RU" / other short codes.
+  examLanguage  String?
   studentNumber String?    @unique
   phone         String?
   sex           StudentSex?
@@ -72,6 +81,25 @@ model Student {
   @@index([grade])
 }
 
+// A pickable subject in the admin — the source of truth for the "Fanlar"
+// admin section. `key` is a free-form string (uppercase snake by convention),
+// so admins can add subjects beyond the 3-fan default (PHYSICS, CHEMISTRY,
+// BIOLOGY, HISTORY, ...). The old SubjectResult.subject column stays typed
+// to the SubjectKey enum for legacy report rendering; new subjects added
+// here only appear in the admin picker until a follow-up migration widens
+// SubjectResult too.
+model Subject {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  name      String
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, order])
+}
+
 model Exam {
   id                   String     @id @default(uuid())
   title                String
@@ -79,14 +107,22 @@ model Exam {
   examDate             DateTime
   academicYear         String?
   status               ExamStatus @default(DRAFT)
+  // `grade` kept for legacy rows created before multi-grade landed. New rows
+  // set it to the first entry of `grades` so old code paths keep working.
   grade                Int
+  // Multi-grade support: an exam targets one or more grades (e.g. [5,6,7,8]).
+  grades               Int[]      @default([])
+  // Subjects tested by this exam. SubjectKey[] so the client can pull the
+  // matching template per (examId, grade, subject).
+  subjectKeys          SubjectKey[] @default([])
   admissionThresholds  Json       // { "5": { math, ct, en }, ... }
   gradingConfiguration Json       // band labels & cutoffs (optional overrides)
   cohortSize           Int?
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
 
-  results Result[]
+  results   Result[]
+  templates TestTemplate[]
 
   @@index([grade, status])
 }
@@ -114,6 +150,13 @@ model Result {
   // { model, promptTokens, completionTokens, totalTokens, costUsd, generatedAt,
   //   runs: [{ section, promptTokens, completionTokens, ms, ts }] }
   aiUsage             Json?
+  // Sections of the parent-facing report that are currently unlocked.
+  // Empty [] = only the "overview" hero is visible; parents unlock deeper
+  // sections when they visit the school (admin toggles here). Known keys:
+  //   "narrative" — Bir qarashda + per-fan diagnostikasi
+  //   "roadmap"   — 3/6/12 oylik Rivojlanish yo'li
+  //   "risks_notes" — Xatarlar, ota-ona/komissiya xulosalari
+  unlockedSections    String[]     @default([])
   publishedAt         DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
@@ -153,10 +196,21 @@ model TestTemplate {
   grade     Int
   name      String
   questions Json
+  // Optional link to the owning exam. When set, this template is scoped to
+  // that exam only; nullable so the shipped seed set (grade 5-11, generic)
+  // and legacy rows continue to work as an examId=null "library".
+  examId    String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  @@unique([subject, grade])
+  exam      Exam?      @relation(fields: [examId], references: [id], onDelete: SetNull)
+
+  // A given (exam, subject, grade) combo has ONE template. When examId is
+  // null (legacy shared library) the older (subject, grade) uniqueness
+  // still applies via the second index.
+  @@unique([examId, subject, grade])
+  @@unique([subject, grade], name: "subject_grade_legacy")
+  @@index([examId])
 }
 
 model AuditLog {

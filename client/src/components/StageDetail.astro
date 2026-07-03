@@ -1,7 +1,12 @@
 ---
-// Full detail for ONE roadmap stage. Shown on demand (one at a time) under the
-// road on web; all panels print in the PDF. Driven by a program object.
+// Full detail for ONE roadmap stage. Long-form content lives inside native
+// <details> disclosures so the parent can scan headers first, then open the
+// block they care about. Always-open: header (title/target/mission) + short
+// rationale + closing message. Collapsible: actions, weekly plan, KPIs,
+// resources, roles.
 const { program: p, idx } = Astro.props;
+const rationale = Array.isArray(p.rationale) ? p.rationale : [];
+const catalog = Array.isArray(p.resourceCatalog) ? p.resourceCatalog : [];
 ---
 <div class="stage-detail" data-stage={idx - 1} hidden={idx !== 1} style={`--sc:${p.priority.color}`}>
   <header class="sd-head">
@@ -18,41 +23,234 @@ const { program: p, idx } = Astro.props;
     </div>
   </header>
 
-  <div class="sd-grid">
-    <section class="sd-block">
-      <h5 class="sd-h"><span class="sd-h-ic">▶</span> Bu bosqichda nima qilamiz</h5>
+  {rationale.length > 0 && (
+    <section class="sd-rationale">
+      <div class="sd-h">Nima uchun bu diqqat markazida</div>
+      <ul class="rationale-list">
+        {rationale.map((row) => (
+          <li>
+            <div class="rt-topic">{row.topic}</div>
+            <div class="rt-text">{row.text}</div>
+            {row.prerequisites && row.prerequisites.length > 0 && (
+              <div class="rt-prereq">
+                <span class="rt-prereq-label">Avvalgi asos ko'nikmalar:</span>
+                {row.prerequisites.map((pr) => (
+                  <span class="rt-prereq-chip">{pr}</span>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <div class="sd-panels">
+    <details class="sd-panel">
+      <summary>
+        <span class="sp-title">Bu bosqichda nima qilamiz</span>
+        <span class="sp-hint">{p.actions.length} ta harakat</span>
+      </summary>
       <ul class="action-list">{p.actions.map((a) => (<li><span class="act-do">{a.do}</span><span class="act-dose">{a.dose}</span></li>))}</ul>
-    </section>
-    <section class="sd-block">
-      <h5 class="sd-h">Oylik reja</h5>
+    </details>
+
+    <details class="sd-panel">
+      <summary>
+        <span class="sp-title">Haftama-hafta reja</span>
+        <span class="sp-hint">{p.weekPlan.length} hafta · {p.weeklyHours}/hafta</span>
+      </summary>
       <ol class="sd-timeline">{p.weekPlan.map((w) => (<li><span class="tl-when">{w.period}</span><span class="tl-body"><b>{w.focus}</b><span class="tl-task">{w.task}</span></span></li>))}</ol>
-    </section>
-    <section class="sd-block">
-      <h5 class="sd-h">Natija va o'lchov</h5>
+    </details>
+
+    <details class="sd-panel">
+      <summary>
+        <span class="sp-title">Natija va o'lchov</span>
+        <span class="sp-hint">{p.kpis.length} maqsad · {p.criteria.length} mezon</span>
+      </summary>
       <div class="sd-measure">
         <div><div class="sd-mh">Maqsad (boshlang'ich → maqsad)</div><ul class="ticks">{p.kpis.map((x) => <li>{x}</li>)}</ul></div>
         <div><div class="sd-mh">Muvaffaqiyat belgisi</div><ul class="ticks">{p.criteria.map((x) => <li>{x}</li>)}</ul></div>
       </div>
-    </section>
-    <section class="sd-block">
-      <h5 class="sd-h">Resurslar</h5>
-      <div class="sd-res">
-        <span><b>Mashq:</b> {p.resources.exercises.join(' · ')}</span>
-        <span><b>Kitob:</b> {p.resources.books.join(' · ')}</span>
-        <span><b>Platforma:</b> {p.resources.platforms.join(' · ')}</span>
-        <span><b>Video:</b> {p.resources.videos.join(' · ')}</span>
-      </div>
-    </section>
-  </div>
+    </details>
 
-  <section class="sd-roles-wrap">
-    <h5 class="sd-h">Kim nima qiladi</h5>
-    <div class="roles">
-      <div class="role par"><div class="rh">Ota-ona</div><ul>{p.roles.parent.map((x) => <li>{x}</li>)}</ul></div>
-      <div class="role tea"><div class="rh">O'qituvchi</div><ul>{p.roles.teacher.map((x) => <li>{x}</li>)}</ul></div>
-      <div class="role stu"><div class="rh">O'quvchi</div><ul>{p.roles.student.map((x) => <li>{x}</li>)}</ul></div>
-    </div>
-  </section>
+    {catalog.length > 0 ? (
+      <details class="sd-panel">
+        <summary>
+          <span class="sp-title">Resurslar (o'zbek + inglizcha)</span>
+          <span class="sp-hint">{catalog.reduce((s, g) => s + g.items.length, 0)} ta manba</span>
+        </summary>
+        {catalog.map((group) => (
+          <div class="rc-group">
+            <div class="rc-topic">{group.topic}</div>
+            <div class="rc-items">
+              {group.items.map((r) => (
+                r.url
+                  ? <a class="rc-item" href={r.url} target="_blank" rel="noreferrer">
+                      <span class="rc-type">{r.typeLabel}</span>
+                      <span class="rc-title">{r.title}</span>
+                      {r.provider && <span class="rc-provider">{r.provider}</span>}
+                      {r.note && <span class="rc-note">{r.note}</span>}
+                    </a>
+                  : <span class="rc-item rc-item--offline">
+                      <span class="rc-type">{r.typeLabel}</span>
+                      <span class="rc-title">{r.title}</span>
+                      {r.provider && <span class="rc-provider">{r.provider}</span>}
+                      {r.note && <span class="rc-note">{r.note}</span>}
+                    </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </details>
+    ) : (
+      <details class="sd-panel">
+        <summary>
+          <span class="sp-title">Resurslar</span>
+          <span class="sp-hint">Kitob, video, platforma</span>
+        </summary>
+        <div class="sd-res">
+          <span><b>Mashq:</b> {p.resources.exercises.join(' · ')}</span>
+          <span><b>Kitob:</b> {p.resources.books.join(' · ')}</span>
+          <span><b>Platforma:</b> {p.resources.platforms.join(' · ')}</span>
+          <span><b>Video:</b> {p.resources.videos.join(' · ')}</span>
+        </div>
+      </details>
+    )}
+
+    <details class="sd-panel">
+      <summary>
+        <span class="sp-title">Kim nima qiladi</span>
+        <span class="sp-hint">Ota-ona · O'qituvchi · O'quvchi</span>
+      </summary>
+      <div class="roles">
+        <div class="role par"><div class="rh">Ota-ona</div><ul>{p.roles.parent.map((x) => <li>{x}</li>)}</ul></div>
+        <div class="role tea"><div class="rh">O'qituvchi</div><ul>{p.roles.teacher.map((x) => <li>{x}</li>)}</ul></div>
+        <div class="role stu"><div class="rh">O'quvchi</div><ul>{p.roles.student.map((x) => <li>{x}</li>)}</ul></div>
+      </div>
+    </details>
+  </div>
 
   <div class="note pos sd-result"><b>Bosqich natijasi.</b> {p.closing} <span class={`status ${p.confidence.label === 'Yuqori' ? 'pos' : 'warn'}`}>Ishonch: {p.confidence.label}</span></div>
 </div>
+
+<script>
+  // Force every roadmap detail panel open before print so the PDF export
+  // (Playwright) captures the full content. Restored to their original
+  // open state after print so on-screen collapsed panels stay collapsed.
+  if (typeof window !== 'undefined') {
+    let snapshot: boolean[] = [];
+    window.addEventListener('beforeprint', () => {
+      const all = document.querySelectorAll<HTMLDetailsElement>('.sd-panel');
+      snapshot = Array.from(all).map((d) => d.open);
+      all.forEach((d) => { d.open = true; });
+    });
+    window.addEventListener('afterprint', () => {
+      const all = document.querySelectorAll<HTMLDetailsElement>('.sd-panel');
+      all.forEach((d, i) => { d.open = snapshot[i] ?? false; });
+    });
+  }
+</script>
+
+<style>
+  .sd-rationale {
+    background: #F8FAFC;
+    border-left: 3px solid var(--sc, #06113C);
+    padding: 12px 16px;
+    margin: 12px 0 8px;
+    border-radius: 4px;
+  }
+  .sd-rationale .sd-h {
+    font-size: 12px; font-weight: 600; color: #06113C;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+  }
+  .rationale-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; }
+  .rationale-list li { padding: 8px 0; border-top: 1px solid #E5E7EB; }
+  .rationale-list li:first-child { border-top: none; padding-top: 0; }
+  .rt-topic { font-weight: 600; color: #06113C; font-size: 13px; }
+  .rt-text { font-size: 12.5px; color: #4B5563; margin: 4px 0 6px; line-height: 1.5; }
+  .rt-prereq { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .rt-prereq-label { font-size: 11px; font-weight: 500; color: #6B7280; margin-right: 4px; }
+  .rt-prereq-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
+    font-size: 11px; font-weight: 500;
+  }
+
+  /* --- Accordion panels --- */
+  .sd-panels { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .sd-panel {
+    border: 1px solid #E5E7EB; border-radius: 8px; background: #fff;
+    overflow: hidden;
+  }
+  .sd-panel > summary {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 14px;
+    list-style: none; cursor: pointer;
+    font-size: 14px; font-weight: 500; color: #06113C;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .sd-panel > summary::-webkit-details-marker { display: none; }
+  .sd-panel > summary::before {
+    content: '▸';
+    display: inline-block; width: 12px;
+    color: var(--sc, #06113C);
+    font-size: 12px;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .sd-panel[open] > summary::before { transform: rotate(90deg); }
+  .sd-panel > summary:hover { background: #F9FAFB; }
+  .sp-title { flex: 1; }
+  .sp-hint {
+    font-size: 11px; font-weight: 400; color: #6B7280;
+    background: #F3F4F6; padding: 2px 8px; border-radius: 999px;
+  }
+  .sd-panel[open] > summary { border-bottom: 1px solid #E5E7EB; background: #F9FAFB; }
+
+  /* Panel body common padding — apply to all direct children of a panel
+     except its summary. Astro's PDF export prints all panels fully opened. */
+  .sd-panel > *:not(summary) { padding: 12px 14px; }
+
+  /* --- Resource catalog --- */
+  .rc-group { margin-top: 10px; }
+  .rc-group:first-child { margin-top: 0; }
+  .rc-topic {
+    font-size: 12px; font-weight: 600; color: #06113C;
+    text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px;
+  }
+  .rc-items { display: flex; flex-direction: column; gap: 6px; }
+  .rc-item {
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 8px; align-items: baseline;
+    padding: 8px 10px; border-radius: 6px;
+    background: #FAFBFC; border: 1px solid #E5E7EB;
+    text-decoration: none; color: inherit;
+    transition: border-color 0.15s;
+  }
+  .rc-item:hover { border-color: #06113C; background: #F3F4F6; }
+  .rc-item--offline { background: #FAFAFA; }
+  .rc-type {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 2px 6px; border-radius: 4px;
+    background: #06113C; color: #fff;
+    text-align: center; align-self: center;
+  }
+  .rc-title { font-size: 13px; font-weight: 500; color: #06113C; }
+  .rc-provider { font-size: 11px; color: #6B7280; }
+  .rc-note {
+    grid-column: 2 / -1;
+    font-size: 11.5px; color: #4B5563; margin-top: 2px; font-style: italic;
+  }
+
+  /* --- PDF print: force all panels open so nothing hides on paper. --- */
+  @media print {
+    .sd-panel { border-color: #E5E7EB; }
+    .sd-panel > summary::before { display: none; }
+    .sd-panel[open] > summary,
+    .sd-panel > summary { border-bottom: 1px solid #E5E7EB; background: transparent; }
+    .sd-panel:not([open]) > *:not(summary) { display: block !important; }
+  }
+</style>

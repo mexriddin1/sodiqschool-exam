@@ -6,7 +6,7 @@
 // version, and the model can now write each subject holistically instead of
 // repeating student name and boilerplate across separate calls.
 
-import { computeReport, computeComposite, DEFAULT_ADMISSION_THRESHOLDS } from "@sodiq/compute";
+import { computeReport, computeComposite, DEFAULT_ADMISSION_THRESHOLDS, extractWeights } from "@sodiq/compute";
 import type { SubjectInput, SubjectKey, SubjectReport } from "@sodiq/compute";
 
 const COST_PER_1M_INPUT_USD = 0.27;
@@ -107,7 +107,10 @@ async function callDeepSeekJson<T extends Record<string, string>>(
       // Enough room for ~5-6 sections × 4-5 sentences each without truncation.
       // Previous 1600 sometimes clipped the JSON so trailing keys came back
       // empty and the client rendered empty `.ai-narrative` cards.
-      max_tokens: 2600,
+      // 6-8 paragrafli hikoya ~1500 completion token'da chiqadi; 3200 —
+      // JSON kesilishining oldini oladi va kelajakda uzunroq bo'lsa ham
+      // yetadi.
+      max_tokens: 3200,
       response_format: { type: "json_object" },
     }),
   });
@@ -138,26 +141,28 @@ async function callDeepSeekJson<T extends Record<string, string>>(
 const STYLE_RULES =
   "Uslub qoidalari (majburiy):\n" +
   "- Ozbek Latin yozuvi (ASCII, o' g' bilan). Cyrillic yo'q.\n" +
-  "- HAR bo'lim: 1-2 qisqa xatboshi, jami 3-5 gap. Uzun matn taqiqlanadi.\n" +
-  "- Farzandning ismini AYTMANG. \"Farzandingiz\", \"bola\" yoki umumiy tarzda yozing.\n" +
-  "- Muhim raqamlar va tushunchalarni **markdown bold** bilan belgilang: masalan **72%**, **texnik xato**, **trigonometriya**.\n" +
-  "- Faktik, aniq, harakatga chorlaydigan gaplar. Xushmuomala, lekin haddan tashqari maqtash yo'q.\n" +
-  "- Sarlavha yo'q, ro'yxat yo'q — faqat oqib boradigan matn.\n" +
-  "- Statistikadan tashqari fakt to'qib chiqarmang. Berilgan raqamlargacha rioya qiling.";
+  "- Farzandning ismini yoki familiyasini AYTMANG. Har doim \"farzandingiz\" yoki \"bola\" deb yozing.\n" +
+  "- Tabiiy, jonli ota-ona tili. Xushmuomala, ammo maqtash bilan chegaralanmang; ochiq va halol.\n" +
+  "- Muhim raqamlar va atamalarni **markdown bold** bilan belgilang: **72%**, **texnik xato**, **trigonometriya**.\n" +
+  "- Sarlavhalar, ro'yxatlar, emoji yoki bullet YO'Q — faqat oqib boruvchi matn (paragraflar bo'sh qatorlar bilan).\n" +
+  "- Statistikadan tashqari fakt to'qib chiqarmang. Har son berilgan JSON'dan bo'lsin.";
 
 function subjectSystemPrompt() {
   return (
-    "Siz Sodiq School Academic Assessment Office'ning tajribali diagnostika analitigisiz. " +
-    "Ota-ona uchun aniq, qisqa va faktik xulosalar yozasiz.\n\n" +
+    "Siz Sodiq School diagnostika bo'limining tajribali analitigisiz. Ota-onaga uzun bir sahifalik hikoya yozasiz — u sahifaning §1 'Bir qarashda' bo'limida ko'rinadi va butun hisobotning to'liq xulosasi hisoblanadi.\n\n" +
     STYLE_RULES +
-    "\n\nSizga JSON statistika beriladi. Siz JSON obyekt qaytarasiz, quyidagi kalitlar bilan:\n" +
-    "- diagnostika: §I Diagnostika uchun. Umumiy ball va band, kuchli va zaif tomon.\n" +
-    "- tahlil: §II Tahlil uchun. Xato tabiati (**texnik** vs **bilim bo'shlig'i**), 1-2 aniq mavzu.\n" +
-    "- growth: §III Rivojlanish yo'li uchun. 3, 6, 12 oy uchun aniq amaliy qadam va kutilayotgan o'sish.\n" +
-    "- skills: §Ko'nikmalar profili uchun. Radar'dagi eng kuchli va eng zaif ko'nikma, ular ustida qanday ishlash.\n" +
-    "- bloom: §Fikrlash darajalari uchun. Qaysi Bloom darajasida kuchli/zaif, o'sish uchun tavsiya.\n" +
-    "Faqat matematika uchun qo'shiling: reasoning: §Fikrlash turlari uchun. Deduktiv/induktiv/analitik/fazoviy fikrlashning kuchli va zaif tomonlari.\n\n" +
-    "Har kalit — string tipida, matn HAR doim 3-5 qisqa gap, muhim raqamlar **bold**."
+    "\n\n" +
+    "JSON obyekt qaytaring — **faqat bitta kalit**: `diagnostika`. Uning ichida BIR NECHTA paragraf bo'lishi kerak, har biri bo'sh qator bilan ajratilgan.\n\n" +
+    "Struktura (majburiy tartib, har biri alohida paragraf):\n" +
+    "1) **Umumiy xulosa** — bola imtihonda qanday chiqdi, nima ustuvor, umumiy manzara. Ochiq va aniq, 3-4 gap.\n" +
+    "2) **Umumiy natija va xatolar (§2)** — foiz, band, texnik vs bilim bo'shlig'i nisbati, tuzatilgan baho.\n" +
+    "3) **Bilim chuqurligi (§5, Oson/O'rta/Qiyin)** — qaysi darajada qulay, qaysi darajada qiyinchilik.\n" +
+    "4) **Mavzular (§7)** — eng kuchli va eng zaif 1-2 mavzu, qaysi qismlarni mustahkamlash kerak.\n" +
+    "5) **Ko'nikmalar profili (§Radar)** — radar'dagi kuchli va zaif ko'nikmalar, tavsiya.\n" +
+    "6) **Fikrlash darajalari (§Bloom)** — qaysi darajada mustahkam, qaysi darajaga o'sish kerak.\n" +
+    "7) (Faqat matematika uchun) **Fikrlash turlari** — deduktiv/induktiv/analitik/fazoviy fikrlash.\n" +
+    "8) **Rivojlanish yo'li va kelajak** — 3-6-12 oylik reja bajarilsa qanday ball kutiladi. Ijobiy yakun.\n\n" +
+    "Har paragraf 3-4 qisqa gapdan iborat. Bir paragrafdan boshqasiga tabiiy o'tish qiling. Matn shunday bo'lsinki, ota-ona uni yoqtirib o'qisin va bola haqida yangi narsa bilib olsin."
   );
 }
 
@@ -184,24 +189,26 @@ async function generateSubjectAll(
 ): Promise<{ sections: SubjectSections; telemetry: RunTelemetry }> {
   const report = computeReport(input);
   const digest = subjectDigest(subject, report);
-  const askReasoning = subject === "MATH" ? "\n- reasoning" : "";
   const userPrompt =
     `Fan: ${digest.fan}. ${opts.grade}-sinf nomzodi (ism ATAMASIZ).\n\n` +
     `Statistika (JSON):\n${JSON.stringify(digest)}\n\n` +
-    `Vazifa: quyidagi kalitlar bilan JSON qaytar:\n` +
-    `- diagnostika\n- tahlil\n- growth\n- skills\n- bloom${askReasoning}\n\n` +
-    `Har kalit 3-5 qisqa gap, muhim raqamlar **bold**. Ismini eslatmang.`;
+    `Vazifa: bitta JSON obyekt qaytar. Kalit: \`diagnostika\`. Uning qiymati — 6-8 paragrafdan iborat uzun oqim ` +
+    `matn (paragraflar bo'sh qatorlar bilan ajratilgan). Struktura tizim yo'riqnomasida ko'rsatilgan. Bola ismini eslatmang.`;
   const { obj, telemetry } = await callDeepSeekJson<Record<string, string>>(
     `${subject}.all`, subjectSystemPrompt(), userPrompt,
   );
+  const story = (obj.diagnostika || "").trim();
   return {
+    // The story now lives entirely in `diagnostika` — client only renders it
+    // there (§1 "Bir qarashda"). Other per-graph slots stay empty so the
+    // hasAiText() guards in the client keep those cards hidden.
     sections: {
-      diagnostika: (obj.diagnostika || "").trim(),
-      tahlil:      (obj.tahlil      || "").trim(),
-      growth:      (obj.growth      || "").trim(),
-      skills:      (obj.skills      || "").trim(),
-      bloom:       (obj.bloom       || "").trim(),
-      reasoning:   subject === "MATH" ? (obj.reasoning || "").trim() : undefined,
+      diagnostika: story,
+      tahlil:      "",
+      growth:      "",
+      skills:      "",
+      bloom:       "",
+      reasoning:   subject === "MATH" ? "" : undefined,
     },
     telemetry,
   };
@@ -232,6 +239,9 @@ export interface GenerateInput {
   math: SubjectInput;
   english: SubjectInput;
   criticalThinking: SubjectInput;
+  // Optional exam config so composite weights match what's saved to the DB
+  // snapshot. Legacy callers omit it → equal-thirds fallback.
+  gradingConfiguration?: unknown;
 }
 
 export interface GenerateOutput {
@@ -257,10 +267,12 @@ export async function generateResultNarrative(input: GenerateInput): Promise<Gen
     ENGLISH: subjectDigest("ENGLISH", englishReport),
     CRITICAL_THINKING: subjectDigest("CRITICAL_THINKING", ctReport),
   };
+  const { weights: aiWeights, source: aiWeightsSource } = extractWeights(input.gradingConfiguration);
   const composite = computeComposite({
     reports: { MATH: mathReport, ENGLISH: englishReport, CRITICAL_THINKING: ctReport },
     grade: input.student.grade,
     thresholds: DEFAULT_ADMISSION_THRESHOLDS,
+    weights: aiWeightsSource === "exam" ? aiWeights : undefined,
   });
   const summary = await generateSummary(digests, composite, opts);
 

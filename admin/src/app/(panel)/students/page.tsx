@@ -12,6 +12,10 @@ import { Pagination, Paginated } from "@/components/Pagination";
 interface Student {
   id: string;
   fullName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  uid?: string | null;
+  examLanguage?: string | null;
   grade: number;
   groupName?: string | null;
   studentNumber?: string | null;
@@ -94,10 +98,11 @@ export default function StudentsPage() {
       await api("/api/admin/students", {
         method: "POST",
         body: JSON.stringify({
-          fullName: String(fd.get("fullName") ?? "").trim(),
+          firstName: String(fd.get("firstName") ?? "").trim(),
+          lastName: String(fd.get("lastName") ?? "").trim(),
+          uid: (fd.get("uid") as string) || null,
+          examLanguage: (fd.get("examLanguage") as string) || null,
           grade: Number(fd.get("grade")),
-          groupName: (fd.get("groupName") as string) || null,
-          studentNumber: (fd.get("studentNumber") as string) || null,
           sex: (fd.get("sex") as string) || null,
         }),
       });
@@ -108,29 +113,164 @@ export default function StudentsPage() {
     }
   }
 
+  // ---- Bulk JSON import ----
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPending, setImportPending] = useState(false);
+  const [importReport, setImportReport] = useState<
+    { created: number; skipped: { input: unknown; reason: string }[]; total: number } | null
+  >(null);
+
+  const IMPORT_TEMPLATE = JSON.stringify(
+    {
+      students: [
+        {
+          firstName: "Mehriddin",
+          lastName: "Odilov",
+          uid: "SS-2026-0001",
+          sex: "MALE",
+          grade: 10,
+          examLanguage: "UZ",
+        },
+        {
+          firstName: "Sabina",
+          lastName: "Karimova",
+          uid: "SS-2026-0002",
+          sex: "FEMALE",
+          grade: 5,
+          examLanguage: "RU",
+        },
+      ],
+    },
+    null,
+    2,
+  );
+
+  async function onImport() {
+    setError(null);
+    setImportReport(null);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(importText);
+    } catch (e) {
+      setError("JSON xato — sintaksisni tekshiring");
+      return;
+    }
+    setImportPending(true);
+    try {
+      const r = await api<{ created: number; skipped: { input: unknown; reason: string }[]; total: number }>(
+        "/api/admin/students/import",
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      setImportReport(r);
+      if (r.skipped.length === 0) {
+        setImportText("");
+      }
+      refresh();
+    } catch (e) {
+      setError(e instanceof ApiException ? e.error.message : "Import xato");
+    } finally {
+      setImportPending(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-semibold text-navy">O'quvchilar</h1>
-        <button className="btn-primary inline-flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
-          <Icon name={showForm ? "x" : "plus"} size={16} />
-          {showForm ? "Bekor qilish" : "Yangi qo'shish"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="btn-secondary inline-flex items-center gap-2"
+            onClick={() => { setShowImport((v) => !v); setImportReport(null); }}
+          >
+            <Icon name={showImport ? "x" : "upload"} size={16} />
+            {showImport ? "Yopish" : "JSON import"}
+          </button>
+          <button className="btn-primary inline-flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
+            <Icon name={showForm ? "x" : "plus"} size={16} />
+            {showForm ? "Bekor qilish" : "Yangi qo'shish"}
+          </button>
+        </div>
       </div>
 
+      {showImport && (
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <div className="font-medium">JSON orqali ko'p o'quvchi import qilish</div>
+              <div className="text-xs text-gray-500">
+                Bir vaqtda 2000 tagacha yozuv qabul qilinadi. `uid` bo'yicha takrorlar avtomatik o'tkazib yuboriladi.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => setImportText(IMPORT_TEMPLATE)}
+            >
+              Namunani ko'chirish
+            </button>
+          </div>
+          <textarea
+            className="input font-mono text-xs"
+            rows={12}
+            placeholder='{"students": [ { "firstName": "Ism", "lastName": "Familya", "uid": "…", "sex": "MALE|FEMALE", "grade": 10, "examLanguage": "UZ" } ]}'
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary inline-flex items-center gap-2"
+              onClick={onImport}
+              disabled={importPending || !importText.trim()}
+            >
+              <Icon name="upload" size={16} />
+              {importPending ? "Import qilinmoqda…" : "Import qilish"}
+            </button>
+            {importReport && (
+              <div className="text-sm">
+                <span className="text-good font-medium">{importReport.created}</span>
+                <span className="text-gray-500"> ta yaratildi </span>
+                {importReport.skipped.length > 0 && (
+                  <>
+                    <span className="text-gray-500"> · </span>
+                    <span className="text-warn font-medium">{importReport.skipped.length}</span>
+                    <span className="text-gray-500"> ta o'tkazildi</span>
+                  </>
+                )}
+                <span className="text-gray-500"> / {importReport.total}</span>
+              </div>
+            )}
+          </div>
+          {importReport && importReport.skipped.length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-gray-600">O'tkazilgan yozuvlar batafsil</summary>
+              <ul className="mt-2 space-y-1 max-h-60 overflow-auto">
+                {importReport.skipped.map((s, i) => (
+                  <li key={i} className="border-t pt-1">
+                    <span className="text-warn">{s.reason}</span>
+                    <pre className="mt-1 bg-gray-50 p-2 rounded text-[10px]">{JSON.stringify(s.input, null, 2)}</pre>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
       {showForm && (
-        <form onSubmit={onCreate} className="card p-4 grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
-          <div className="col-span-2">
-            <label className="label">F.I.O.</label>
-            <input name="fullName" required className="input" />
+        <form onSubmit={onCreate} className="card p-4 grid grid-cols-2 md:grid-cols-3 gap-3 items-end">
+          <div>
+            <label className="label">Ism</label>
+            <input name="firstName" required className="input" placeholder="Ism" />
           </div>
           <div>
-            <label className="label">Sinf</label>
-            <select name="grade" defaultValue="5" className="input">
-              {[5, 6, 7, 8, 9, 10, 11].map((g) => (
-                <option key={g} value={g}>{g}-sinf</option>
-              ))}
-            </select>
+            <label className="label">Familya</label>
+            <input name="lastName" required className="input" placeholder="Familya" />
+          </div>
+          <div>
+            <label className="label">UID</label>
+            <input name="uid" className="input" placeholder="SS-2026-0001" />
           </div>
           <div>
             <label className="label">Jinsi</label>
@@ -141,12 +281,21 @@ export default function StudentsPage() {
             </select>
           </div>
           <div>
-            <label className="label">Guruh</label>
-            <input name="groupName" className="input" />
+            <label className="label">Sinf</label>
+            <select name="grade" defaultValue="5" className="input">
+              {[5, 6, 7, 8, 9, 10, 11].map((g) => (
+                <option key={g} value={g}>{g}-sinf</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="label">O'quvchi raqami</label>
-            <input name="studentNumber" className="input" />
+            <label className="label">Imtihon tili</label>
+            <select name="examLanguage" defaultValue="" className="input">
+              <option value="">—</option>
+              <option value="UZ">O'zbekcha</option>
+              <option value="RU">Ruscha</option>
+              <option value="EN">Inglizcha</option>
+            </select>
           </div>
           {error && <div className="col-span-full text-bad text-sm">{error}</div>}
           <div className="col-span-full">
@@ -202,10 +351,10 @@ export default function StudentsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="text-left px-4 py-2">F.I.O.</th>
+              <th className="text-left px-4 py-2">Ism, Familya</th>
               <th className="text-left px-4 py-2">Sinf</th>
-              <th className="text-left px-4 py-2">Guruh</th>
-              <th className="text-left px-4 py-2">Raqam</th>
+              <th className="text-left px-4 py-2">UID</th>
+              <th className="text-left px-4 py-2">Imtihon tili</th>
               <th className="text-right px-4 py-2 w-32">Amallar</th>
             </tr>
           </thead>
@@ -216,10 +365,14 @@ export default function StudentsPage() {
                 className="border-t hover:bg-gray-50 cursor-pointer"
                 onClick={() => router.push(`/students/${s.id}`)}
               >
-                <td className="px-4 py-2 font-medium">{s.fullName}</td>
+                <td className="px-4 py-2 font-medium">
+                  {(s.firstName || s.lastName)
+                    ? `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()
+                    : s.fullName}
+                </td>
                 <td className="px-4 py-2">{s.grade}</td>
-                <td className="px-4 py-2">{s.groupName ?? "—"}</td>
-                <td className="px-4 py-2">{s.studentNumber ?? "—"}</td>
+                <td className="px-4 py-2 font-mono text-xs">{s.uid ?? "—"}</td>
+                <td className="px-4 py-2">{s.examLanguage ?? "—"}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="inline-flex gap-1" onClick={(e) => e.stopPropagation()}>
                     <IconButton icon="edit" label="Tahrirlash" onClick={() => router.push(`/students/${s.id}/edit`)} variant="primary" />

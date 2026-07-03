@@ -1,0 +1,338 @@
+{
+  "_meta": {
+    "description": "Topic prerequisite graph. For each topic, prereqs[] lists what a student must have mastered BEFORE we recommend working on that topic. If the diagnostic shows weakness in `topic`, the roadmap first checks the prereqs — if any are also weak (or common gap-generators), those get prioritised. This prevents the classic mistake of drilling trigonometry when the real gap is algebra basics.",
+    "gradeApplies": "Values are grade-band hints (which grade a topic is normally taught in). A prereq is still valid across any grade — a 10-th grader with a fraction gap needs the same fraction fundamentals as a 5-th grader.",
+    "aliasesNote": "aliases[] catch admin-authored topic strings that mean the same concept ('Fractions' == 'Kasr amallari' == 'Fractions and decimals'). Extends as new templates land."
+  },
+  "MATH": {
+    "Joy qiymati": {
+      "prereqs": [],
+      "grades": [5, 6],
+      "aliases": ["Place value", "Katta sonlar"]
+    },
+    "Arifmetika": {
+      "prereqs": ["Joy qiymati"],
+      "grades": [5, 6, 7],
+      "aliases": ["Amallar tartibi", "Basic arithmetic"]
+    },
+    "Kasr": {
+      "prereqs": ["Bo'linish", "Ko'paytish jadvali"],
+      "grades": [5, 6],
+      "aliases": ["Fractions", "Oddiy kasr", "Kasr tushunchasi"]
+    },
+    "Kasr amallari": {
+      "prereqs": ["Kasr", "Arifmetika"],
+      "grades": [5, 6, 7],
+      "aliases": ["Fraction operations", "Kasrlar bilan amallar"]
+    },
+    "O'nli kasr": {
+      "prereqs": ["Kasr", "Joy qiymati"],
+      "grades": [5, 6],
+      "aliases": ["Decimals", "O'nli sonlar"]
+    },
+    "Foiz": {
+      "prereqs": ["Kasr", "O'nli kasr"],
+      "grades": [6, 7, 8],
+      "aliases": ["Percent", "Foizlar"]
+    },
+    "Nisbat va proporsiya": {
+      "prereqs": ["Kasr", "Foiz"],
+      "grades": [6, 7, 8],
+      "aliases": ["Ratio", "Proportion", "Proporsiya"]
+    },
+    "Bo'linish": {
+      "prereqs": ["Ko'paytish jadvali"],
+      "grades": [5, 6],
+      "aliases": ["Divisibility", "Bo'linuvchanlik"]
+    },
+    "Ko'paytish jadvali": {
+      "prereqs": [],
+      "grades": [5],
+      "aliases": ["Multiplication table", "Ko'paytirish jadvali"]
+    },
+    "Manfiy sonlar": {
+      "prereqs": ["Arifmetika", "Sonli nur"],
+      "grades": [6, 7],
+      "aliases": ["Negative numbers", "Butun sonlar"]
+    },
+    "Sonli nur": {
+      "prereqs": ["Joy qiymati"],
+      "grades": [5, 6],
+      "aliases": ["Number line", "Koordinata o'qi"]
+    },
+    "Tenglama": {
+      "prereqs": ["Arifmetika", "Teskari amallar"],
+      "grades": [6, 7, 8],
+      "aliases": ["Equations", "Chiziqli tenglama"]
+    },
+    "Teskari amallar": {
+      "prereqs": ["Arifmetika"],
+      "grades": [5, 6],
+      "aliases": ["Inverse operations", "Aksincha amallar"]
+    },
+    "Algebra asoslari": {
+      "prereqs": ["Tenglama", "Arifmetika"],
+      "grades": [7, 8, 9],
+      "aliases": ["Basic algebra", "Algebraik ifodalar"]
+    },
+    "Darajalar": {
+      "prereqs": ["Ko'paytish jadvali", "Arifmetika"],
+      "grades": [7, 8, 9],
+      "aliases": ["Powers", "Exponents", "Daraja va ildiz"]
+    },
+    "Kvadrat ildiz": {
+      "prereqs": ["Darajalar", "Ko'paytish jadvali"],
+      "grades": [7, 8],
+      "aliases": ["Square root", "Ildizlar"]
+    },
+    "Kvadrat tenglama": {
+      "prereqs": ["Tenglama", "Darajalar", "Algebra asoslari"],
+      "grades": [8, 9, 10],
+      "aliases": ["Quadratic equations", "2-darajali tenglama"]
+    },
+    "Funksiya": {
+      "prereqs": ["Algebra asoslari", "Koordinata tekisligi"],
+      "grades": [8, 9, 10],
+      "aliases": ["Functions", "Chiziqli funksiya"]
+    },
+    "Koordinata tekisligi": {
+      "prereqs": ["Sonli nur", "Manfiy sonlar"],
+      "grades": [7, 8],
+      "aliases": ["Coordinate plane", "Dekart tizimi"]
+    },
+    "Geometriya": {
+      "prereqs": ["O'lchash"],
+      "grades": [5, 6, 7, 8],
+      "aliases": ["Geometry", "Yassi geometriya"]
+    },
+    "Uchburchak burchaklari": {
+      "prereqs": ["Geometriya", "Burchak o'lchash"],
+      "grades": [6, 7],
+      "aliases": ["Triangle angles"]
+    },
+    "Burchak o'lchash": {
+      "prereqs": ["O'lchash"],
+      "grades": [5, 6],
+      "aliases": ["Angle measurement", "Burchak"]
+    },
+    "O'lchash": {
+      "prereqs": [],
+      "grades": [5, 6],
+      "aliases": ["Measurement", "O'lchov birliklari"]
+    },
+    "Perimetr": {
+      "prereqs": ["Geometriya", "Arifmetika"],
+      "grades": [5, 6, 7],
+      "aliases": ["Perimeter", "Perimetr topish"]
+    },
+    "Yuza": {
+      "prereqs": ["Perimetr", "Geometriya"],
+      "grades": [5, 6, 7, 8],
+      "aliases": ["Area", "Yuza topish"]
+    },
+    "Hajm": {
+      "prereqs": ["Yuza", "Geometriya"],
+      "grades": [7, 8, 9],
+      "aliases": ["Volume", "Hajm topish"]
+    },
+    "Pifagor teoremasi": {
+      "prereqs": ["Uchburchak burchaklari", "Kvadrat ildiz", "Darajalar"],
+      "grades": [8, 9],
+      "aliases": ["Pythagorean theorem"]
+    },
+    "Trigonometriya": {
+      "prereqs": ["Pifagor teoremasi", "Uchburchak burchaklari", "Kasr amallari"],
+      "grades": [9, 10, 11],
+      "aliases": ["Trigonometry", "Sinus kosinus"]
+    },
+    "Statistika": {
+      "prereqs": ["Kasr", "Foiz"],
+      "grades": [6, 7, 8, 9],
+      "aliases": ["Statistics", "O'rtacha qiymat"]
+    },
+    "Ehtimollik": {
+      "prereqs": ["Kasr", "Foiz", "Statistika"],
+      "grades": [7, 8, 9, 10],
+      "aliases": ["Probability", "Tasodifiy hodisa"]
+    },
+    "Qonuniyat": {
+      "prereqs": ["Arifmetika"],
+      "grades": [5, 6, 7],
+      "aliases": ["Patterns", "Ketma-ketlik"]
+    },
+    "Muammo yechish": {
+      "prereqs": ["Arifmetika"],
+      "grades": [5, 6, 7, 8, 9],
+      "aliases": ["Problem solving", "So'zli masala"]
+    },
+    "Modellashtirish": {
+      "prereqs": ["Tenglama", "Muammo yechish"],
+      "grades": [7, 8, 9, 10],
+      "aliases": ["Modelling", "Matematik model"]
+    }
+  },
+  "ENGLISH": {
+    "Alifbo": {
+      "prereqs": [],
+      "grades": [5],
+      "aliases": ["Alphabet"]
+    },
+    "Alifbo va fonetika": {
+      "prereqs": ["Alifbo"],
+      "grades": [5, 6],
+      "aliases": ["Phonics", "Talaffuz asoslari"]
+    },
+    "Lug'at (asosiy)": {
+      "prereqs": ["Alifbo"],
+      "grades": [5, 6, 7],
+      "aliases": ["Basic vocabulary", "Sanoq so'zlar", "Vocabulary"]
+    },
+    "Lug'at (kengaytirilgan)": {
+      "prereqs": ["Lug'at (asosiy)"],
+      "grades": [7, 8, 9, 10, 11],
+      "aliases": ["Extended vocabulary", "Advanced vocabulary"]
+    },
+    "Present Simple": {
+      "prereqs": ["Lug'at (asosiy)"],
+      "grades": [5, 6],
+      "aliases": ["Simple present", "Hozirgi zamon"]
+    },
+    "Past Simple": {
+      "prereqs": ["Present Simple"],
+      "grades": [6, 7],
+      "aliases": ["Simple past", "O'tgan zamon"]
+    },
+    "Present Continuous": {
+      "prereqs": ["Present Simple"],
+      "grades": [5, 6, 7],
+      "aliases": ["Present progressive", "Hozirgi davomli"]
+    },
+    "Future Tenses": {
+      "prereqs": ["Present Simple", "Present Continuous"],
+      "grades": [7, 8],
+      "aliases": ["Kelasi zamon", "Will va going to"]
+    },
+    "Present Perfect": {
+      "prereqs": ["Past Simple"],
+      "grades": [7, 8, 9],
+      "aliases": ["Have/has done"]
+    },
+    "Past Continuous": {
+      "prereqs": ["Past Simple", "Present Continuous"],
+      "grades": [7, 8],
+      "aliases": ["Past progressive"]
+    },
+    "Modal Verbs": {
+      "prereqs": ["Present Simple"],
+      "grades": [6, 7, 8],
+      "aliases": ["Modallar", "Can/must/should"]
+    },
+    "Conditionals": {
+      "prereqs": ["Modal Verbs", "Past Simple", "Present Perfect"],
+      "grades": [9, 10, 11],
+      "aliases": ["Shart mayllari", "If clauses"]
+    },
+    "Passive Voice": {
+      "prereqs": ["Past Simple", "Present Perfect"],
+      "grades": [8, 9, 10],
+      "aliases": ["Majhul nisbat", "Passive"]
+    },
+    "Reported Speech": {
+      "prereqs": ["Past Simple", "Present Perfect"],
+      "grades": [9, 10, 11],
+      "aliases": ["Bosh gap", "Ko'chirma nutq"]
+    },
+    "Reading Comprehension": {
+      "prereqs": ["Lug'at (asosiy)", "Present Simple"],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["O'qish tushunish", "Reading"]
+    },
+    "Listening": {
+      "prereqs": ["Alifbo va fonetika", "Lug'at (asosiy)"],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["Tinglash", "Audio comprehension"]
+    },
+    "Writing (Basics)": {
+      "prereqs": ["Lug'at (asosiy)", "Present Simple"],
+      "grades": [6, 7, 8],
+      "aliases": ["Yozish asoslari", "Sentence writing"]
+    },
+    "Essay Writing": {
+      "prereqs": ["Writing (Basics)", "Lug'at (kengaytirilgan)"],
+      "grades": [9, 10, 11],
+      "aliases": ["Insho yozish"]
+    },
+    "Speaking": {
+      "prereqs": ["Lug'at (asosiy)", "Alifbo va fonetika"],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["Nutq", "Speaking practice"]
+    },
+    "Prepositions": {
+      "prereqs": ["Lug'at (asosiy)"],
+      "grades": [5, 6, 7],
+      "aliases": ["Ko'makchilar", "In/on/at"]
+    },
+    "Articles": {
+      "prereqs": ["Lug'at (asosiy)"],
+      "grades": [5, 6, 7],
+      "aliases": ["A/an/the", "Artikllar"]
+    },
+    "Word Order": {
+      "prereqs": ["Present Simple"],
+      "grades": [6, 7],
+      "aliases": ["So'z tartibi", "Gap tuzilishi"]
+    }
+  },
+  "CRITICAL_THINKING": {
+    "Deduktiv mantiq": {
+      "prereqs": [],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["Deductive reasoning", "Deduktiv xulosa"]
+    },
+    "Induktiv mantiq": {
+      "prereqs": ["Deduktiv mantiq"],
+      "grades": [6, 7, 8, 9, 10, 11],
+      "aliases": ["Inductive reasoning", "Induktiv xulosa"]
+    },
+    "Analitik fikrlash": {
+      "prereqs": ["Deduktiv mantiq"],
+      "grades": [6, 7, 8, 9, 10, 11],
+      "aliases": ["Analytical thinking", "Analitik xulosa"]
+    },
+    "Fazoviy-vizual mulohaza": {
+      "prereqs": [],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["Spatial reasoning", "Fazoviy fikrlash"]
+    },
+    "Qonuniyat va algebra": {
+      "prereqs": ["Deduktiv mantiq"],
+      "grades": [5, 6, 7, 8],
+      "aliases": ["Pattern recognition", "Qonuniyat"]
+    },
+    "Muammo yechish": {
+      "prereqs": ["Analitik fikrlash", "Deduktiv mantiq"],
+      "grades": [5, 6, 7, 8, 9, 10, 11],
+      "aliases": ["Problem solving"]
+    },
+    "Ma'lumot tahlili": {
+      "prereqs": ["Analitik fikrlash"],
+      "grades": [7, 8, 9, 10, 11],
+      "aliases": ["Data analysis", "Grafik/jadval o'qish"]
+    },
+    "Tanqidiy baholash": {
+      "prereqs": ["Analitik fikrlash", "Ma'lumot tahlili"],
+      "grades": [8, 9, 10, 11],
+      "aliases": ["Critical evaluation", "Argumentni baholash"]
+    },
+    "Ma'noli xulosa": {
+      "prereqs": ["Deduktiv mantiq", "Induktiv mantiq"],
+      "grades": [7, 8, 9, 10, 11],
+      "aliases": ["Meaningful inference", "Xulosa chiqarish"]
+    },
+    "Modellashtirish": {
+      "prereqs": ["Analitik fikrlash", "Muammo yechish"],
+      "grades": [8, 9, 10, 11],
+      "aliases": ["Modelling", "Matematik model"]
+    }
+  }
+}

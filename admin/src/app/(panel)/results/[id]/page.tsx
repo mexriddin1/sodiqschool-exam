@@ -28,6 +28,7 @@ interface Detail {
   } | null;
   student: { id: string; fullName: string; grade: number };
   exam: { id: string; title: string; grade: number };
+  unlockedSections?: string[];
   subjects: {
     id: string;
     subject: "MATH" | "ENGLISH" | "CRITICAL_THINKING";
@@ -123,6 +124,8 @@ export default function ResultDetailPage() {
         <Field label="Sinf" value={`${r.student.grade}-sinf`} />
         <Field label="Nashr sanasi" value={r.publishedAt ? new Date(r.publishedAt).toLocaleString() : "—"} />
       </div>
+
+      <SectionAccessCard result={r} onUpdated={load} />
 
       <ParentMessageCard result={r} />
 
@@ -298,6 +301,125 @@ Sodiq School Academic Assessment Office`;
         Matn tayyor — istasangiz tahrirlashingiz mumkin. "Nusxalash" tugmasi bilan
         oling va ota-onaning Telegram/WhatsApp'iga jo'nating.
       </div>
+    </div>
+  );
+}
+
+// Report sections the parent sees are gated per-Result. Overview metrics
+// stay on; deeper narrative / roadmap / xulosalar unlock only after the
+// parent visits the school. Admin toggles that here with instant PATCH.
+const SECTION_KEYS = [
+  { key: "narrative", label: "Batafsil tahlil", hint: "Bir qarashda, uch fan bo'yicha diagnostik hikoya" },
+  { key: "roadmap", label: "Rivojlanish yo'li", hint: "3/6/12 oylik dastur va oylik reja" },
+  { key: "risks_notes", label: "Xatarlar va xulosalar", hint: "Xatarlar tahlili, ota-ona va komissiya xulosasi" },
+] as const;
+
+function SectionAccessCard({ result, onUpdated }: { result: Detail; onUpdated: () => void }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const current = new Set(result.unlockedSections ?? []);
+  const totalUnlocked = current.size;
+
+  async function toggle(key: string) {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setPending(true);
+    setError(null);
+    try {
+      await api(`/api/admin/results/${result.id}/unlocked-sections`, {
+        method: "PATCH",
+        body: JSON.stringify({ unlockedSections: Array.from(next) }),
+      });
+      onUpdated();
+    } catch (e) {
+      setError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function setAll(unlocked: boolean) {
+    setPending(true);
+    setError(null);
+    try {
+      await api(`/api/admin/results/${result.id}/unlocked-sections`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          unlockedSections: unlocked ? SECTION_KEYS.map((s) => s.key) : [],
+        }),
+      });
+      onUpdated();
+    } catch (e) {
+      setError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-medium text-navy">Ota-ona uchun bo'limlar</div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            Ota-ona login qilganda ko'radigan bo'limlarni belgilang. Ochilmaganlari
+            "Yopiq — maktabga tashrif buyuring" ko'rinishida chiqadi. Umumiy ball va
+            fanlar kartasi doim ochiq turadi.
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={pending || totalUnlocked === SECTION_KEYS.length}
+            onClick={() => setAll(true)}
+          >
+            Hammasini ochish
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={pending || totalUnlocked === 0}
+            onClick={() => setAll(false)}
+          >
+            Hammasini yopish
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        {SECTION_KEYS.map((s) => {
+          const on = current.has(s.key);
+          return (
+            <button
+              type="button"
+              key={s.key}
+              disabled={pending}
+              onClick={() => toggle(s.key)}
+              className={`text-left p-3 rounded-lg border transition ${
+                on
+                  ? "bg-good/10 border-good"
+                  : "bg-white border-gray-200 hover:border-navy"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="font-medium text-sm">{s.label}</div>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    on ? "bg-good text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {on ? "Ochiq" : "Yopiq"}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">{s.hint}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {error && <div className="text-bad text-sm">{error}</div>}
     </div>
   );
 }

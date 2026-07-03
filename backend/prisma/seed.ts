@@ -73,8 +73,10 @@ async function main() {
     { subject: "CRITICAL_THINKING" as const, grade: 5, name: "5-sinf Tanqidiy fikrlash testi", data: ct },
   ];
   for (const tpl of TEMPLATES) {
-    const existing = await prisma.testTemplate.findUnique({
-      where: { subject_grade: { subject: tpl.subject, grade: tpl.grade } },
+    // Shared-library template lookup (examId=null). Named unique index is
+    // `subject_grade_legacy` on the new schema.
+    const existing = await prisma.testTemplate.findFirst({
+      where: { examId: null, subject: tpl.subject, grade: tpl.grade },
     });
     if (existing) {
       console.log(`= template: ${tpl.name} (already exists)`);

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { computeReport, scoreBand } from "@sodiq/compute/compute";
-import { computeComposite, DEFAULT_ADMISSION_THRESHOLDS } from "@sodiq/compute/composite";
+import { computeComposite, DEFAULT_ADMISSION_THRESHOLDS, extractWeights } from "@sodiq/compute/composite";
 import type { Question } from "./QuestionGridEditor";
 import type { VerdictLabel, VerdictOverride } from "./ManualContentEditor";
 
@@ -44,6 +44,8 @@ interface Props {
   subjects: Record<SubjectKey, Question[]>;
   grade: number | null;
   admissionThresholds?: Record<string, { math: number; ct: number; en: number }> | null;
+  // exam.gradingConfiguration — composite weights read from here.
+  gradingConfiguration?: unknown;
   // If provided, admin can override the auto-computed verdict inline.
   verdictOverride?: VerdictOverride | null;
   onVerdictOverrideChange?: (next: VerdictOverride | null) => void;
@@ -68,7 +70,7 @@ function makeMeta(subject: SubjectKey, grade: number, questions: Question[]) {
 
 // Live per-subject + composite computation. Renders "—" when subjects are
 // empty or unscored questions block a real number.
-export default function ResultStatsPanel({ subjects, grade, admissionThresholds, verdictOverride, onVerdictOverrideChange }: Props) {
+export default function ResultStatsPanel({ subjects, grade, admissionThresholds, gradingConfiguration, verdictOverride, onVerdictOverrideChange }: Props) {
   const stats = useMemo(() => {
     if (grade == null) return null;
     const keys: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
@@ -93,13 +95,15 @@ export default function ResultStatsPanel({ subjects, grade, admissionThresholds,
         realData: { percentile: null, cohortAverage: null, avgTimeSec: null },
       });
     }
+    const { weights: livWeights, source: livWeightsSource } = extractWeights(gradingConfiguration);
     const composite = computeComposite({
       reports: perSubject,
       grade,
       thresholds: (admissionThresholds ?? DEFAULT_ADMISSION_THRESHOLDS) as Parameters<typeof computeComposite>[0]["thresholds"],
+      weights: livWeightsSource === "exam" ? livWeights : undefined,
     });
     return { perSubject, composite, unscored };
-  }, [subjects, grade, admissionThresholds]);
+  }, [subjects, grade, admissionThresholds, gradingConfiguration]);
 
   if (grade == null) {
     return <div className="text-sm text-gray-500 p-4">O'quvchi tanlangach statistika ko'rinadi.</div>;

@@ -87,6 +87,9 @@ b, strong { font-weight: 700; color: var(--ink); }
   display: grid; grid-template-columns: 1.3fr 1fr; gap: var(--s5); align-items: center;
   animation: rise 0.6s var(--ease) both;
 }
+/* Single-column variant used on subject pages after the verdict badge was
+   moved to /summary only. Lets the readout + metrics use the full width. */
+.hero-instrument--stacked { grid-template-columns: 1fr; }
 .hero-thesis { font-size: var(--fs-sm); color: #C3CBE6; margin-top: var(--s3); max-width: 38ch; }
 .hero-thesis b { color: #fff; }
 .hero-readout { display: flex; align-items: baseline; gap: var(--s2); }
@@ -115,9 +118,28 @@ b, strong { font-weight: 700; color: var(--ink); }
 }
 .hv-label { position: relative; font-family: var(--font-display); font-size: var(--fs-h1); font-weight: 700; letter-spacing: 0.03em; line-height: 1.05; }
 .hero-verdict small { position: relative; font-weight: 600; font-size: var(--fs-xs); letter-spacing: var(--track-label); text-transform: uppercase; opacity: 0.92; max-width: 26ch; }
-.hero-mini { display: flex; gap: var(--s5); margin-top: var(--s4); }
-.hero-mini .metric-value { color: #fff; }
+/* Under-score metrics row — stretches across the full card so 4-5 values
+   sit evenly instead of huddling on the left. In this row (unlike the
+   default .metric column layout) value + label sit SIDE-BY-SIDE so the
+   whole item reads as one horizontal chip: "~97 Tuzatilgan · 57/59 To'g'ri". */
+.hero-mini {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s3) var(--s5);
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.hero-mini .metric {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--s2);
+}
+.hero-mini .metric-value { color: #fff; line-height: 1; }
 .hero-mini .metric-label { color: #97A1C4; }
+.hero-mini .metric-value .u { font-size: 0.58em; font-weight: 500; color: #8893B8; letter-spacing: 0; }
 .hero-rank { display: flex; gap: var(--s5); margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid rgba(255, 255, 255, 0.12); }
 .hero-rank .metric-value { color: #fff; }
 .hero-rank .metric-label { color: #97A1C4; }

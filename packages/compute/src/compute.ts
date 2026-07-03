@@ -111,9 +111,16 @@ export function pctColor(v: number): string {
 }
 
 export function scoreCI(percent: number, n: number): ConfidenceInterval {
+  // Product decision (2026-07-03): show a fixed ±5 margin instead of the
+  // Wald-derived formula. Cap the upper bound at 100 so a perfect score
+  // renders "95–100" rather than "95–105"; likewise clamp low to 0.
   if (n <= 0) return { low: percent, high: percent, margin: 0 };
-  const margin = round(Math.sqrt((percent * (100 - percent)) / n) / 2);
-  return { low: Math.max(0, percent - margin), high: Math.min(100, percent + margin), margin };
+  const margin = 5;
+  return {
+    low: Math.max(0, percent - margin),
+    high: Math.min(100, percent + margin),
+    margin,
+  };
 }
 
 function qualitativeLabel(correct: number, n: number): string {
@@ -128,7 +135,10 @@ function groupBy(questions: Question[], key: keyof Question | ((q: Question) => 
   const groups = new Map<string, Question[]>();
   for (const q of questions) {
     const raw = typeof key === "function" ? key(q) : (q[key] as string | null | undefined);
-    if (raw == null) continue;
+    // Skip null/undefined AND empty strings so a question with no value for
+    // an optional label (e.g. bloom: "") is excluded from that graph's
+    // aggregation instead of falling into an "" bucket.
+    if (raw == null || (typeof raw === "string" && raw.trim() === "")) continue;
     if (!groups.has(raw)) groups.set(raw, []);
     groups.get(raw)!.push(q);
   }
@@ -193,17 +203,32 @@ export function computeReport(data: SubjectInput): SubjectReport {
   const kdi = round(kdiExact);
   const mastery = masteryFromKDI(kdi);
 
+  // Detect technical errors (careless mistakes):
+  //   1) admin's explicit `errorType === "Texnik"` — always wins
+  //   2) manual `techErrorIds` — if any of those harder IDs was solved
+  //   3) auto: same skill + ≥ same difficulty solved elsewhere
+  // Fallback ordering matches errorRoster below.
+  function isTechnicalError(q: Question): boolean {
+    if (q.errorType === "Texnik") return true;
+    if (q.errorType === "Bilim bo'shlig'i") return false; // admin override
+    const manual = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
+    if (manual.length > 0) return questions.some((o) => manual.includes(o.id) && isCorrect(o));
+    return questions.some(
+      (o) => o.skill === q.skill && isCorrect(o)
+        && DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
+    );
+  }
   const technicalLost = questions
-    .filter((q) => q.errorType === "Texnik")
+    .filter((q) => !isCorrect(q) && isTechnicalError(q))
     .reduce((s, q) => s + (q.marks - q.earned), 0);
   const gapLost = questions
-    .filter((q) => q.errorType === "Bilim bo'shlig'i")
+    .filter((q) => !isCorrect(q) && !isTechnicalError(q))
     .reduce((s, q) => s + (q.marks - q.earned), 0);
   // Partial answers: marks the student would recover if their "Qisman"
   // response were completed to full. Deduplicated against technical-error
   // recovery so a Qisman + Texnik question isn't counted twice.
   const partialLost = questions
-    .filter((q) => q.result === "Qisman" && q.errorType !== "Texnik")
+    .filter((q) => q.result === "Qisman" && !isTechnicalError(q))
     .reduce((s, q) => s + (q.marks - q.earned), 0);
   // `adjusted` and `potential` are shown as 0–100 numbers and are averaged
   // across subjects. Keep them as PERCENTAGES so subjects with different
@@ -214,7 +239,13 @@ export function computeReport(data: SubjectInput): SubjectReport {
   // errors or unfinished answers".
   const adjustedRaw = rawScore + technicalLost + partialLost;
   const adjusted = round(pct(adjustedRaw, totalMarks));
-  const potential = round((adjusted + kdi + hardTierPct) / 3);
+  // Salohiyat = avg of three 0–100 signals:
+  //   • percent           — raw score % (nima bajarilgan)
+  //   • adjusted          — corrected score (texnik xato tuzatilgan holat)
+  //   • hardTierPct       — qiyin savollardagi to'g'ri javob %
+  // Idea: reward the student who solves hard items even if careless mistakes
+  // pulled the raw score down.
+  const potential = round((percent + adjusted + hardTierPct) / 3);
 
   const byStrand = groupBy(questions, "strand").sort((a, b) => b.n - a.n);
   const byTopic = groupBy(questions, "topic").sort((a, b) => b.percent - a.percent);
@@ -306,21 +337,33 @@ export function computeReport(data: SubjectInput): SubjectReport {
   ];
 
   const wrong = questions.filter((q) => !isCorrect(q));
+  // Technical-error detector:
+  //   1) If the question carries a manual `techErrorIds` list, we look at
+  //      those specific harder questions. Any of them solved → technical.
+  //   2) Otherwise fall back to the automatic heuristic (same skill and
+  //      difficulty weight ≥ current).
+  //   3) Admin's explicit `errorType === "Texnik"` still wins.
   const errorRoster: ErrorRosterItem[] = wrong.map((q) => {
-    const harderSolved = questions.filter(
+    const manualIds = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
+    const manualSolved = manualIds.length > 0
+      ? questions.filter((o) => manualIds.includes(o.id) && isCorrect(o))
+      : [];
+    const autoHarderSolved = manualIds.length > 0 ? [] : questions.filter(
       (o) =>
         o.skill === q.skill &&
         isCorrect(o) &&
         DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
     );
+    const detectedTechnical = manualSolved.length > 0 || autoHarderSolved.length > 0;
+    const explicit = q.errorType === "Texnik";
     return {
       id: q.id,
       topic: q.subTopic || q.topic,
       skill: q.skill,
       marks: q.marks,
       errorType: q.errorType,
-      isTechnical: q.errorType === "Texnik",
-      harderSolvedIds: harderSolved.map((o) => o.id),
+      isTechnical: explicit || (q.errorType == null && detectedTechnical),
+      harderSolvedIds: (manualSolved.length > 0 ? manualSolved : autoHarderSolved).map((o) => o.id),
       evidence: q.evidence,
     };
   });

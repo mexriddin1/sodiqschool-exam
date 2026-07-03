@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
 import QuestionGridEditor, { Question } from "@/components/QuestionGridEditor";
 import { Icon } from "@/components/Icon";
@@ -11,8 +11,15 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export default function NewTestTemplatePage() {
   const router = useRouter();
-  const [subject, setSubject] = useState<"MATH" | "ENGLISH" | "CRITICAL_THINKING">("MATH");
-  const [grade, setGrade] = useState(5);
+  const search = useSearchParams();
+  // ?examId=… → scope the new template to that exam. ?subject=…&grade=… →
+  // pre-populate the picker when the admin lands from an exam's missing-slot
+  // "Yaratish" link.
+  const paramExamId = search.get("examId");
+  const paramSubject = search.get("subject") as "MATH" | "ENGLISH" | "CRITICAL_THINKING" | null;
+  const paramGrade = Number(search.get("grade")) || null;
+  const [subject, setSubject] = useState<"MATH" | "ENGLISH" | "CRITICAL_THINKING">(paramSubject ?? "MATH");
+  const [grade, setGrade] = useState(paramGrade ?? 5);
   const [name, setName] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +33,14 @@ export default function NewTestTemplatePage() {
       if (questions.length === 0) throw new Error("Kamida bitta savol kerak.");
       const r = await api<{ id: string }>("/api/admin/test-templates", {
         method: "POST",
-        body: JSON.stringify({ subject, grade, name: name.trim(), questions }),
+        body: JSON.stringify({
+          subject, grade, name: name.trim(), questions,
+          examId: paramExamId ?? null,
+        }),
       });
-      router.push(`/test-templates/${r.id}`);
+      // Return to the exam if the admin came from there; otherwise the
+      // detail page for the newly created template.
+      router.push(paramExamId ? `/exams/${paramExamId}` : `/test-templates/${r.id}`);
     } catch (e) {
       setError(e instanceof ApiException ? e.error.message : e instanceof Error ? e.message : "Saqlashda xato");
     } finally {
@@ -38,8 +50,16 @@ export default function NewTestTemplatePage() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-6xl">
-      <Link href="/test-templates" className="text-sm text-navy hover:underline">← Test shablonlari</Link>
+      <Link
+        href={paramExamId ? `/exams/${paramExamId}` : "/test-templates"}
+        className="text-sm text-navy hover:underline"
+      >
+        ← {paramExamId ? "Imtihonga qaytish" : "Test shablonlari"}
+      </Link>
       <h1 className="text-2xl font-semibold text-navy">Yangi test shabloni</h1>
+      {paramExamId && (
+        <div className="text-xs text-gray-500">Bu shablon shu imtihonga bog'lanadi.</div>
+      )}
 
       <div className="card p-4 grid grid-cols-3 gap-3">
         <div>

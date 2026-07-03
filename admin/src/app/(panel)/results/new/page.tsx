@@ -14,6 +14,7 @@ interface Exam {
   title: string;
   grade: number;
   admissionThresholds?: Record<string, { math: number; ct: number; en: number }>;
+  gradingConfiguration?: unknown;
 }
 
 type SubjectKey = "MATH" | "ENGLISH" | "CRITICAL_THINKING";
@@ -309,6 +310,7 @@ export default function NewResultPage() {
           subjects={subjects}
           grade={studentGrade}
           admissionThresholds={exams.find((e) => e.id === examId)?.admissionThresholds ?? null}
+          gradingConfiguration={exams.find((e) => e.id === examId)?.gradingConfiguration}
           verdictOverride={manual.summary.verdictOverride}
           onVerdictOverrideChange={(next) =>
             setManual({ ...manual, summary: { ...manual.summary, verdictOverride: next } })

@@ -1,0 +1,64 @@
+---
+// Placeholder shown in place of a report section that the parent hasn't
+// unlocked yet. Renders a soft "yopiq" card with instructions on how to
+// unlock (visit the school). Non-alarming — the goal is to invite the parent
+// in, not scare them.
+interface Props {
+  /** Displayed as the section title above the placeholder. */
+  title: string;
+  /** Optional 1-line preview of what's inside — tempts the parent. */
+  hint?: string;
+  /** Numbered eyebrow (e.g. "05"), matches the surrounding section style. */
+  eyebrow?: string;
+}
+const { title, hint, eyebrow } = Astro.props;
+---
+<section class="section locked-section">
+  {eyebrow && <div class="eyebrow">{eyebrow}</div>}
+  <div class="locked-card">
+    <div class="locked-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="10" width="16" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 1 1 8 0v3" />
+      </svg>
+    </div>
+    <div class="locked-body">
+      <h3>{title} <span class="locked-tag">Yopiq</span></h3>
+      {hint && <p class="locked-hint">{hint}</p>}
+      <p class="locked-cta">
+        Bu bo'lim <b>Sodiq School</b> maktabiga tashrif buyurganingizdan so'ng ochiladi.
+        Farzandingiz haqidagi to'liq maslahat, rivojlanish yo'li va tavsiyalarni
+        ota-ona bilan uchrashuvda muhokama qilish samaraliroq. Bizga qo'ng'iroq qilib
+        vaqt belgilang.
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .locked-section { padding-top: 24px; }
+  .locked-card {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 20px 22px; border-radius: 14px;
+    background: linear-gradient(135deg, #F8FAFC 0%, #EEF2F7 100%);
+    border: 1px dashed #C7D2E1;
+  }
+  .locked-icon {
+    flex: 0 0 44px; width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    background: #06113C; color: #FF8A32;
+  }
+  .locked-body h3 {
+    margin: 0; font-size: 16px; font-weight: 600; color: #06113C;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .locked-tag {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px;
+    background: #FF8A32; color: #fff;
+  }
+  .locked-hint { margin: 6px 0 8px; font-size: 13px; color: #4B5563; }
+  .locked-cta { margin: 6px 0 0; font-size: 13px; color: #4B5563; line-height: 1.55; }
+</style>
