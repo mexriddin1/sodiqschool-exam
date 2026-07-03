@@ -37,7 +37,24 @@ const roadStops = programs.map((p, i) => ({ n: i + 1, range: p.range, label: p.r
 const roadFinishVal = r.growthForecast[r.growthForecast.length - 1].v;
 // Cohort — from admin override (manualContent.english.cohort).
 const studentSex = overrides.studentSex;
-const cohort = ov.cohort;
+// See index.astro for the rationale — subject override wins, snapshot.cohort
+// is the auto-computed fallback.
+const snapshotCohort = (me.calculatedSnapshot?.cohort ?? {}) as {
+  rank?: number | null; total?: number | null; percentile?: number | null;
+  male?: { rank: number; total: number; percentile: number } | null;
+  female?: { rank: number; total: number; percentile: number } | null;
+};
+const sexBlock = studentSex === 'male' ? snapshotCohort.male : studentSex === 'female' ? snapshotCohort.female : null;
+const cohort = {
+  ...ov.cohort,
+  rank: ov.cohort.rank ?? snapshotCohort.rank ?? null,
+  total: ov.cohort.total ?? snapshotCohort.total ?? null,
+  percentile: ov.cohort.percentile ?? snapshotCohort.percentile ?? null,
+  maleRank: ov.cohort.maleRank ?? (studentSex === 'male' ? sexBlock?.rank ?? null : null),
+  maleTotal: ov.cohort.maleTotal ?? (studentSex === 'male' ? sexBlock?.total ?? null : null),
+  femaleRank: (ov.cohort as any).femaleRank ?? (studentSex === 'female' ? sexBlock?.rank ?? null : null),
+  femaleTotal: (ov.cohort as any).femaleTotal ?? (studentSex === 'female' ? sexBlock?.total ?? null : null),
+};
 const hasCohort = cohort.rank != null && cohort.total != null && cohort.percentile != null;
 
 // ---- derived narrative bits (all computed, never hand-set) -----------------
@@ -51,8 +68,12 @@ const bloomData = buildBloomBars(r);
 // Skill radar: admin override wins. Else shipped fallback, stretched toward
 // the student's overall percent so strong students never see low fallbacks.
 function scaleRadar(items, refPercent) {
+  // Perfect score → every axis pinned to 100. Otherwise blend fallback with
+  // the student's actual percent, capping at max(98, refPercent) so a
+  // near-perfect score isn't artificially clipped.
+  if (refPercent >= 100) return items.map((s) => ({ ...s, value: 100 }));
   const lo = Math.max(60, refPercent - 15);
-  const hi = 98;
+  const hi = Math.min(100, Math.max(98, refPercent));
   return items.map((s) => {
     const blended = Math.round(0.4 * s.value + 0.6 * refPercent);
     return { ...s, value: Math.max(lo, Math.min(hi, blended)) };

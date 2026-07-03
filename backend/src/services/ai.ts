@@ -267,7 +267,7 @@ export async function generateResultNarrative(input: GenerateInput): Promise<Gen
     ENGLISH: subjectDigest("ENGLISH", englishReport),
     CRITICAL_THINKING: subjectDigest("CRITICAL_THINKING", ctReport),
   };
-  const { weights: aiWeights, source: aiWeightsSource } = extractWeights(input.gradingConfiguration);
+  const { weights: aiWeights, source: aiWeightsSource } = extractWeights(input.gradingConfiguration, input.student.grade);
   const composite = computeComposite({
     reports: { MATH: mathReport, ENGLISH: englishReport, CRITICAL_THINKING: ctReport },
     grade: input.student.grade,

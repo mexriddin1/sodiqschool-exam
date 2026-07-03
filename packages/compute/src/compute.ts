@@ -190,7 +190,12 @@ export function computeReport(data: SubjectInput): SubjectReport {
       weight: DIFFICULTY_WEIGHT[d],
     };
   }
-  const hardTierPct = tiers["Qiyin"]?.pct ?? 0;
+  // When the exam has no "Qiyin" tier at all we cannot fairly credit the
+  // student for solving hard items — treat that tier as absent so a perfect
+  // exam doesn't get penalised by a 0/0 slot in the potential formula.
+  const hardTier = tiers["Qiyin"];
+  const hasHardTier = !!hardTier && hardTier.n > 0;
+  const hardTierPct = hasHardTier ? hardTier.pct : 0;
 
   let wCorrect = 0;
   let wTotal = 0;
@@ -245,7 +250,12 @@ export function computeReport(data: SubjectInput): SubjectReport {
   //   • hardTierPct       — qiyin savollardagi to'g'ri javob %
   // Idea: reward the student who solves hard items even if careless mistakes
   // pulled the raw score down.
-  const potential = round((percent + adjusted + hardTierPct) / 3);
+  // Two-part avg when there are no hard-tier items (a perfect score on an
+  // easy-only exam is a perfect potential). Otherwise the original three-part
+  // rule: raw + corrected + hard-question accuracy.
+  const potential = hasHardTier
+    ? round((percent + adjusted + hardTierPct) / 3)
+    : round((percent + adjusted) / 2);
 
   const byStrand = groupBy(questions, "strand").sort((a, b) => b.n - a.n);
   const byTopic = groupBy(questions, "topic").sort((a, b) => b.percent - a.percent);

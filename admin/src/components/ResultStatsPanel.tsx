@@ -95,7 +95,7 @@ export default function ResultStatsPanel({ subjects, grade, admissionThresholds,
         realData: { percentile: null, cohortAverage: null, avgTimeSec: null },
       });
     }
-    const { weights: livWeights, source: livWeightsSource } = extractWeights(gradingConfiguration);
+    const { weights: livWeights, source: livWeightsSource } = extractWeights(gradingConfiguration, grade ?? undefined);
     const composite = computeComposite({
       reports: perSubject,
       grade,

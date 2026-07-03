@@ -47,7 +47,7 @@ export function calculateResult(input: ResultCalcInput): ResultCalcOutput {
     };
     perSubject[sub.subject] = computeReport(subjectInput);
   }
-  const { weights, source } = extractWeights(input.gradingConfiguration);
+  const { weights, source } = extractWeights(input.gradingConfiguration, input.grade);
   const composite = computeComposite({
     reports: perSubject,
     grade: input.grade,

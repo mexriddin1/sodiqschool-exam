@@ -200,8 +200,10 @@ export function bloomLadder(levels) {
     s += txt(30, cy + 4, esc(d.key), { size: 13, fill: C.ink, w: 700, anchor: 'start' });
     s += `<rect x="${x0}" y="${cy - barH / 2}" width="${x1 - x0}" height="${barH}" rx="${barH / 2}" fill="#EEF0F4"/>`;
     s += `<rect x="${x0}" y="${cy - barH / 2}" width="${((x1 - x0) * Math.min(100, d.percent) / 100).toFixed(1)}" height="${barH}" rx="${barH / 2}" fill="${c}"/>`;
-    // Qualitative badge on the right instead of a raw percentage.
-    const label = d.label || qualLabel(d.percent);
+    // Percentage badge on the right (parents asked to see the raw number,
+    // not a qualitative bucket). qualLabel/d.label kept as a fallback in case
+    // the caller supplied a hand-picked override.
+    const label = d.label ?? `${Math.round(d.percent)}%`;
     s += txt(x1 + 12, cy + 4, esc(label), { size: 12, fill: c, w: 700, anchor: 'start' });
   });
   return s + '</svg>';
@@ -250,8 +252,9 @@ export function skillRadarChart(axes) {
     const y0 = y - (l2 ? 6 : 0) - (Math.sin(ang(i)) < -0.6 ? 6 : 0);
     s += txt(x, y0, esc(l1), { size: 11.5, fill: C.text, w: 600, anchor });
     if (l2) s += txt(x, y0 + 13, esc(l2), { size: 11.5, fill: C.text, w: 600, anchor });
-    // Qualitative label instead of the raw percentage.
-    s += txt(x, y0 + (l2 ? 26 : 13), qualLabel(a.value), { size: 10.5, fill: C.accent, w: 700, anchor });
+    // Percentage value under the axis name (parents preferred the raw
+    // number to a qualitative bucket).
+    s += txt(x, y0 + (l2 ? 26 : 13), `${Math.round(a.value)}%`, { size: 10.5, fill: C.accent, w: 700, anchor });
   });
   return s + '</svg>';
 }

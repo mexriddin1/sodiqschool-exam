@@ -64,6 +64,22 @@ export default function ExamsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [formGrades, setFormGrades] = useState<number[]>([5]);
   const [formSubjects, setFormSubjects] = useState<SubjectKey[]>(["MATH", "ENGLISH", "CRITICAL_THINKING"]);
+  // Composite weights per grade (percent, integers 0-100 summing to 100 per
+  // row). Default matrix mirrors Sodiq School's official Qabul 2026 setup —
+  // matematika dominance grows from grade 7 onward, CT weight rises for
+  // primary grades. Admin can override any cell before saving.
+  const DEFAULT_WEIGHTS_MATRIX: Record<number, { math: number; ct: number; en: number }> = {
+    5: { math: 30, ct: 40, en: 30 },
+    6: { math: 30, ct: 40, en: 30 },
+    7: { math: 35, ct: 30, en: 35 },
+    8: { math: 35, ct: 30, en: 35 },
+    9: { math: 35, ct: 25, en: 40 },
+    10: { math: 35, ct: 25, en: 40 },
+    11: { math: 35, ct: 25, en: 40 },
+  };
+  const [formWeightsByGrade, setFormWeightsByGrade] = useState<Record<number, { math: number; ct: number; en: number }>>(
+    DEFAULT_WEIGHTS_MATRIX,
+  );
 
   useEffect(() => {
     api<Subject[]>("/api/admin/subjects").then((d) => setSubjects(d.filter((s) => s.active))).catch(() => undefined);
@@ -137,6 +153,23 @@ export default function ExamsPage() {
     try {
       if (formGrades.length === 0) throw new Error("Kamida bitta sinf tanlang.");
       if (formSubjects.length === 0) throw new Error("Kamida bitta fan tanlang.");
+      // Per-grade weights — only include rows for grades this exam covers,
+      // and normalise to the canonical `criticalThinking`/`english` keys the
+      // compute engine expects (form uses ct/en shorthand for input labels).
+      const weightsByGrade: Record<string, { math: number; english: number; criticalThinking: number }> = {};
+      for (const g of formGrades) {
+        const row = formWeightsByGrade[g] ?? DEFAULT_WEIGHTS_MATRIX[g] ?? { math: 40, ct: 30, en: 30 };
+        weightsByGrade[String(g)] = { math: row.math, english: row.en, criticalThinking: row.ct };
+      }
+      // Sum-per-row validation. Skip when a grade row sums to exactly 100
+      // (or is close to it after admin edits). Warn loudly otherwise.
+      for (const g of formGrades) {
+        const row = formWeightsByGrade[g] ?? DEFAULT_WEIGHTS_MATRIX[g];
+        if (!row) continue;
+        const sum = row.math + row.ct + row.en;
+        if (sum !== 100) throw new Error(`${g}-sinf uchun og'irliklar yig'indisi ${sum}% (100 bo'lishi kerak).`);
+      }
+
       await api("/api/admin/exams", {
         method: "POST",
         body: JSON.stringify({
@@ -149,7 +182,7 @@ export default function ExamsPage() {
           grade: formGrades[0], // legacy column mirrors first grade
           subjectKeys: formSubjects,
           admissionThresholds: DEFAULT_ADMISSION_THRESHOLDS,
-          gradingConfiguration: {},
+          gradingConfiguration: { weightsByGrade },
           cohortSize: fd.get("cohortSize") ? Number(fd.get("cohortSize")) : null,
         }),
       });
@@ -220,9 +253,74 @@ export default function ExamsPage() {
             <label className="label">Tavsif</label>
             <textarea name="description" className="input" rows={2} />
           </div>
-          <div className="col-span-full text-xs text-gray-500">
-            Qabul chegaralari avtomatik <span className="font-mono">resource/result.text</span>
-            dagi default jadvaldan olinadi.
+          {/* Per-grade composite weights. Only rows for grades this exam
+              covers show up so the form stays short. Each row must sum to 100%
+              — the form blocks save otherwise. */}
+          <div className="col-span-full">
+            <label className="label">Fanlar og'irligi (har sinf uchun alohida)</label>
+            <div className="text-xs text-gray-500 mb-2">
+              Har sinf uchun 3 fanning ulushini foizda kiriting (yig'indi 100%). Umumiy ball ushbu
+              og'irliklar bo'yicha hisoblanadi.
+            </div>
+            <div className="overflow-x-auto rounded border border-gray-200">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="text-left px-3 py-2">Sinf</th>
+                    <th className="text-right px-3 py-2">Matematika %</th>
+                    <th className="text-right px-3 py-2">Tanqidiy fikrlash %</th>
+                    <th className="text-right px-3 py-2">Ingliz tili %</th>
+                    <th className="text-right px-3 py-2">Yig'indi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formGrades.length === 0 ? (
+                    <tr><td colSpan={5} className="px-3 py-3 text-center text-gray-400">Avval sinflarni tanlang</td></tr>
+                  ) : (
+                    formGrades.map((g) => {
+                      const row = formWeightsByGrade[g] ?? DEFAULT_WEIGHTS_MATRIX[g] ?? { math: 40, ct: 30, en: 30 };
+                      const sum = row.math + row.ct + row.en;
+                      const ok = sum === 100;
+                      const upd = (patch: Partial<typeof row>) => {
+                        setFormWeightsByGrade((prev) => ({ ...prev, [g]: { ...row, ...patch } }));
+                      };
+                      return (
+                        <tr key={g} className="border-t">
+                          <td className="px-3 py-2 font-medium">{g}-sinf</td>
+                          <td className="px-3 py-1 text-right">
+                            <input
+                              type="number" min={0} max={100}
+                              className="input py-1 text-sm text-right w-20"
+                              value={row.math}
+                              onChange={(e) => upd({ math: Number(e.target.value) || 0 })}
+                            />
+                          </td>
+                          <td className="px-3 py-1 text-right">
+                            <input
+                              type="number" min={0} max={100}
+                              className="input py-1 text-sm text-right w-20"
+                              value={row.ct}
+                              onChange={(e) => upd({ ct: Number(e.target.value) || 0 })}
+                            />
+                          </td>
+                          <td className="px-3 py-1 text-right">
+                            <input
+                              type="number" min={0} max={100}
+                              className="input py-1 text-sm text-right w-20"
+                              value={row.en}
+                              onChange={(e) => upd({ en: Number(e.target.value) || 0 })}
+                            />
+                          </td>
+                          <td className={`px-3 py-2 text-right font-mono text-xs ${ok ? "text-good" : "text-bad"}`}>
+                            {sum}%
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
           {error && <div className="col-span-full text-bad text-sm">{error}</div>}
           <div className="col-span-full">

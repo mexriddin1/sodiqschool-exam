@@ -14,17 +14,63 @@ interface Exam {
   academicYear?: string | null;
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   grade: number;
+  grades?: number[];
   admissionThresholds: Record<string, { math: number; ct: number; en: number }>;
+  gradingConfiguration?: unknown;
   cohortSize: number | null;
 }
 
 const GRADES = [5, 6, 7, 8, 9, 10, 11];
 
+// Default per-grade composite weights — mirrors what the create form uses.
+// Kept here in sync so the edit form falls back to sensible values when an
+// older exam saved gradingConfiguration as an empty object.
+const DEFAULT_WEIGHTS_MATRIX: Record<number, { math: number; ct: number; en: number }> = {
+  5: { math: 30, ct: 40, en: 30 },
+  6: { math: 30, ct: 40, en: 30 },
+  7: { math: 35, ct: 30, en: 35 },
+  8: { math: 35, ct: 30, en: 35 },
+  9: { math: 35, ct: 25, en: 40 },
+  10: { math: 35, ct: 25, en: 40 },
+  11: { math: 35, ct: 25, en: 40 },
+};
+
+// Convert whatever shape the exam has stored into the {math,ct,en} form the
+// UI edits. Accepts weightsByGrade (new), flat weights (legacy), or nothing.
+function loadWeightsMatrix(gradingConfig: unknown): Record<number, { math: number; ct: number; en: number }> {
+  const conf = (gradingConfig ?? {}) as Record<string, unknown>;
+  const out: Record<number, { math: number; ct: number; en: number }> = { ...DEFAULT_WEIGHTS_MATRIX };
+  const byGrade = conf.weightsByGrade as Record<string, { math?: number; english?: number; criticalThinking?: number; ct?: number; en?: number }> | undefined;
+  if (byGrade && typeof byGrade === "object") {
+    for (const g of GRADES) {
+      const row = byGrade[String(g)];
+      if (row) {
+        out[g] = {
+          math: Number(row.math ?? 0),
+          ct: Number(row.criticalThinking ?? row.ct ?? 0),
+          en: Number(row.english ?? row.en ?? 0),
+        };
+      }
+    }
+  } else {
+    const flat = conf.weights as { math?: number; english?: number; criticalThinking?: number; ct?: number; en?: number } | undefined;
+    if (flat) {
+      const uniform = {
+        math: Number(flat.math ?? 0),
+        ct: Number(flat.criticalThinking ?? flat.ct ?? 0),
+        en: Number(flat.english ?? flat.en ?? 0),
+      };
+      for (const g of GRADES) out[g] = { ...uniform };
+    }
+  }
+  return out;
+}
+
 export default function EditExamPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const [e, setE] = useState<Exam | null>(null);
-  const [thresholds, setThresholds] = useState<Exam["admissionThresholds"]>({});
+  const [weightsByGrade, setWeightsByGrade] = useState<Record<number, { math: number; ct: number; en: number }>>(DEFAULT_WEIGHTS_MATRIX);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -32,24 +78,48 @@ export default function EditExamPage() {
     if (!params.id) return;
     api<Exam>(`/api/admin/exams/${params.id}`).then((d) => {
       setE(d);
-      setThresholds(d.admissionThresholds ?? {});
+      setWeightsByGrade(loadWeightsMatrix(d.gradingConfiguration));
     });
   }, [params.id]);
 
-  function setThresh(grade: number, key: "math" | "ct" | "en", value: number) {
-    setThresholds((prev) => {
-      const cur = prev[String(grade)] ?? { math: 0, ct: 0, en: 0 };
-      return { ...prev, [String(grade)]: { ...cur, [key]: value } };
+  function setW(grade: number, key: "math" | "ct" | "en", value: number) {
+    setWeightsByGrade((prev) => {
+      const cur = prev[grade] ?? { math: 0, ct: 0, en: 0 };
+      return { ...prev, [grade]: { ...cur, [key]: value } };
     });
   }
+
+  // Only show rows for grades this exam actually covers. Falls back to all
+  // grades when the exam predates the multi-grade schema.
+  const activeGrades = e && e.grades && e.grades.length > 0 ? e.grades : GRADES;
 
   async function onSubmit(ev: FormEvent<HTMLFormElement>) {
     ev.preventDefault();
     if (!e) return;
+
+    // Sum validation per active row — must be exactly 100%.
+    for (const g of activeGrades) {
+      const row = weightsByGrade[g];
+      if (!row) continue;
+      const sum = row.math + row.ct + row.en;
+      if (sum !== 100) {
+        setError(`${g}-sinf uchun og'irliklar yig'indisi ${sum}% (100 bo'lishi kerak).`);
+        return;
+      }
+    }
+
     setPending(true);
     setError(null);
     const fd = new FormData(ev.currentTarget);
     try {
+      // Normalise to the canonical english/criticalThinking keys the compute
+      // engine expects. Only serialise rows for active grades.
+      const wbg: Record<string, { math: number; english: number; criticalThinking: number }> = {};
+      for (const g of activeGrades) {
+        const row = weightsByGrade[g] ?? DEFAULT_WEIGHTS_MATRIX[g];
+        if (!row) continue;
+        wbg[String(g)] = { math: row.math, english: row.en, criticalThinking: row.ct };
+      }
       await api(`/api/admin/exams/${e.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -59,7 +129,7 @@ export default function EditExamPage() {
           academicYear: (fd.get("academicYear") as string) || null,
           status: String(fd.get("status")),
           grade: Number(fd.get("grade")),
-          admissionThresholds: thresholds,
+          gradingConfiguration: { weightsByGrade: wbg },
           cohortSize: fd.get("cohortSize") ? Number(fd.get("cohortSize")) : null,
         }),
       });
@@ -117,37 +187,63 @@ export default function EditExamPage() {
       </div>
 
       <div className="card p-4">
-        <div className="font-medium mb-3 text-sm">Qabul chegaralari (% — har bir sinf uchun)</div>
-        <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-gray-500">
-            <tr>
-              <th className="text-left py-1">Sinf</th>
-              <th className="text-left py-1">Matematika</th>
-              <th className="text-left py-1">Ingliz</th>
-              <th className="text-left py-1">Tanqidiy</th>
-            </tr>
-          </thead>
-          <tbody>
-            {GRADES.map((g) => {
-              const row = thresholds[String(g)] ?? { math: 0, ct: 0, en: 0 };
-              return (
-                <tr key={g} className="border-t">
-                  <td className="py-1 font-medium">{g}-sinf</td>
-                  {(["math", "en", "ct"] as const).map((k) => (
-                    <td key={k} className="py-1 pr-2">
+        <div className="font-medium text-sm">Fanlar og'irligi (har sinf uchun alohida)</div>
+        <div className="text-xs text-gray-500 mb-3">
+          Har sinf uchun 3 fanning ulushini foizda kiriting (yig'indi 100%). Umumiy ball ushbu
+          og'irliklar bo'yicha hisoblanadi.
+        </div>
+        <div className="overflow-x-auto rounded border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>
+                <th className="text-left px-3 py-2">Sinf</th>
+                <th className="text-right px-3 py-2">Matematika %</th>
+                <th className="text-right px-3 py-2">Tanqidiy fikrlash %</th>
+                <th className="text-right px-3 py-2">Ingliz tili %</th>
+                <th className="text-right px-3 py-2">Yig'indi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeGrades.map((g) => {
+                const row = weightsByGrade[g] ?? DEFAULT_WEIGHTS_MATRIX[g] ?? { math: 40, ct: 30, en: 30 };
+                const sum = row.math + row.ct + row.en;
+                const ok = sum === 100;
+                return (
+                  <tr key={g} className="border-t">
+                    <td className="px-3 py-2 font-medium">{g}-sinf</td>
+                    <td className="px-3 py-1 text-right">
                       <input
                         type="number" min={0} max={100}
-                        value={row[k]}
-                        onChange={(ev) => setThresh(g, k, Number(ev.target.value))}
-                        className="input w-24 py-1 text-xs"
+                        className="input py-1 text-sm text-right w-20"
+                        value={row.math}
+                        onChange={(ev) => setW(g, "math", Number(ev.target.value) || 0)}
                       />
                     </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    <td className="px-3 py-1 text-right">
+                      <input
+                        type="number" min={0} max={100}
+                        className="input py-1 text-sm text-right w-20"
+                        value={row.ct}
+                        onChange={(ev) => setW(g, "ct", Number(ev.target.value) || 0)}
+                      />
+                    </td>
+                    <td className="px-3 py-1 text-right">
+                      <input
+                        type="number" min={0} max={100}
+                        className="input py-1 text-sm text-right w-20"
+                        value={row.en}
+                        onChange={(ev) => setW(g, "en", Number(ev.target.value) || 0)}
+                      />
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono text-xs ${ok ? "text-good" : "text-bad"}`}>
+                      {sum}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {error && <div className="text-bad text-sm">{error}</div>}

@@ -190,7 +190,13 @@ function stageToProgram(stage, idx, m0) {
 // roadmap-v2 engine looks in.
 export function buildProgramsFor(subject, r) {
   const roadmap = buildRoadmapV2(subject, r);
-  return roadmap.stages.map((stage, idx) => stageToProgram(stage, idx, roadmap.overallScore));
+  // Drop stages with no actual work — a strong student shouldn't see three
+  // empty roadmap cards. If every stage is empty (perfect score) the UI
+  // hides the roadmap section entirely.
+  return roadmap.stages
+    .map((stage, idx) => ({ stage, idx }))
+    .filter(({ stage }) => stage.focusItems.length > 0 && stage.weekPlan.length > 0)
+    .map(({ stage, idx }) => stageToProgram(stage, idx, roadmap.overallScore));
 }
 
 export function buildSkillGrowthFor(subject, r) {

@@ -42,7 +42,7 @@ const subjects = CFG.map((c) => {
 const avg = (a) => Math.round(a.reduce((x, y) => x + y, 0) / a.length);
 // Read composite weights from the exam config so the "how is umumiy ball
 // calculated" panel matches the number we display.
-const { weights: subjectWeights, source: weightsSource } = extractWeights(me.exam.gradingConfiguration);
+const { weights: subjectWeights, source: weightsSource } = extractWeights(me.exam.gradingConfiguration, me.student.grade);
 const WKEYS = ['MATH', 'ENGLISH', 'CRITICAL_THINKING'];
 const WEIGHT_BY_INDEX = [subjectWeights.MATH, subjectWeights.ENGLISH, subjectWeights.CRITICAL_THINKING];
 const weightedAvg = (vals) => {

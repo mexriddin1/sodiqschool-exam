@@ -35,24 +35,43 @@ function weightedAvg(
   return round(sum / sumW);
 }
 
-// Read weights out of exam.gradingConfiguration. Accepts both normalised
-// (0.4/0.3/0.3) and percent-ish (40/30/30) shapes. Missing subject keys
-// default to 0 so admins can zero out a fan explicitly.
+// Read weights out of exam.gradingConfiguration. Supports two shapes:
+//   • per-grade:  { weightsByGrade: { "5": { math, ct, en }, "6": {...} } }
+//   • flat/legacy:{ weights: { math, english, criticalThinking } }
+// Per-grade wins when both are present AND a grade is supplied. Values may
+// be normalised (0.4) or percent-ish (40) — the function normalises to
+// [0..1] internally so the composite formula sums to 1.
 export function extractWeights(
   gradingConfig: unknown,
+  grade?: number,
 ): { weights: SubjectWeights; source: "exam" | "default" } {
   if (!gradingConfig || typeof gradingConfig !== "object") {
     return { weights: DEFAULT_SUBJECT_WEIGHTS, source: "default" };
   }
   const conf = gradingConfig as Record<string, unknown>;
-  const raw = conf.weights;
-  if (!raw || typeof raw !== "object") {
-    return { weights: DEFAULT_SUBJECT_WEIGHTS, source: "default" };
+
+  // 1) Per-grade block. Preferred when a grade was supplied.
+  if (grade != null) {
+    const byGrade = conf.weightsByGrade as Record<string, unknown> | undefined;
+    if (byGrade && typeof byGrade === "object") {
+      const row = byGrade[String(grade)] as Record<string, unknown> | undefined;
+      const normalised = readSubjectWeightsRow(row);
+      if (normalised) return { weights: normalised, source: "exam" };
+    }
   }
-  const w = raw as Record<string, unknown>;
+
+  // 2) Flat block. Legacy shape kept for old exams.
+  const flat = readSubjectWeightsRow(conf.weights as Record<string, unknown> | undefined);
+  if (flat) return { weights: flat, source: "exam" };
+
+  return { weights: DEFAULT_SUBJECT_WEIGHTS, source: "default" };
+}
+
+function readSubjectWeightsRow(raw: Record<string, unknown> | undefined): SubjectWeights | null {
+  if (!raw || typeof raw !== "object") return null;
   const read = (...keys: string[]): number => {
     for (const k of keys) {
-      const v = w[k];
+      const v = raw[k];
       if (typeof v === "number" && Number.isFinite(v) && v >= 0) return v;
     }
     return 0;
@@ -61,14 +80,11 @@ export function extractWeights(
   const english = read("english", "ENGLISH", "en");
   const ct = read("criticalThinking", "CRITICAL_THINKING", "ct");
   const sum = math + english + ct;
-  if (sum <= 0) return { weights: DEFAULT_SUBJECT_WEIGHTS, source: "default" };
+  if (sum <= 0) return null;
   return {
-    weights: {
-      MATH: math / sum,
-      ENGLISH: english / sum,
-      CRITICAL_THINKING: ct / sum,
-    },
-    source: "exam",
+    MATH: math / sum,
+    ENGLISH: english / sum,
+    CRITICAL_THINKING: ct / sum,
   };
 }
 

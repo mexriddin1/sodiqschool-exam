@@ -1,7 +1,33 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+
+// Standalone cell for the tech-error IDs input. Controlled inputs bound to
+// `array.join(", ")` re-normalise on every keystroke, which eats the comma
+// and space the user just typed. This cell keeps a local draft string,
+// syncing back to the array only on blur.
+function TechErrorIdsCell({ ids, onChange }: { ids: string[]; onChange: (next: string[]) => void }) {
+  const [draft, setDraft] = useState(ids.join(", "));
+  // Sync incoming array → draft when it changes from OUTSIDE (e.g. row added).
+  const idsJoined = ids.join(",");
+  useEffect(() => {
+    setDraft(ids.join(", "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsJoined]);
+  return (
+    <input
+      className="input py-1.5 px-2 text-sm"
+      placeholder="masalan: 2, 8"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const parsed = draft.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+        if (parsed.join(",") !== idsJoined) onChange(parsed);
+      }}
+    />
+  );
+}
 
 export type Difficulty = "Oson" | "O'rta" | "Qiyin";
 export type QResult = "To'g'ri" | "Noto'g'ri" | "Qisman";
@@ -295,16 +321,9 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                   <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
                   <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
                   <td className="p-1">
-                    <input
-                      className="input py-1.5 px-2 text-sm"
-                      placeholder="masalan: 2, 8"
-                      value={(q.techErrorIds ?? []).join(", ")}
-                      onChange={(e) => {
-                        // Split on comma / whitespace, drop empties. Keeps user
-                        // ordering so admin can eyeball what they typed.
-                        const ids = e.target.value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
-                        patch(i, { techErrorIds: ids });
-                      }}
+                    <TechErrorIdsCell
+                      ids={q.techErrorIds ?? []}
+                      onChange={(ids) => patch(i, { techErrorIds: ids })}
                     />
                   </td>
                   <td className="p-1 text-right">

@@ -50,7 +50,9 @@ export function buildBloomBars(
         key: L.key,
         gloss: L.gloss,
         percent: found.percent,
-        label: qualitativeLabel(found.percent),
+        // Parents asked for the raw percent instead of a qualitative bucket.
+        // qualitativeLabel is still exported for callers that want the text.
+        label: `${Math.round(found.percent)}%`,
         measured: true,
       } as BloomBar;
     })
