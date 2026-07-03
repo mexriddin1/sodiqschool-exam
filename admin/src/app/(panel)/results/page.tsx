@@ -103,9 +103,14 @@ export default function ResultsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-navy">Natijalar</h1>
-        <Link href="/results/new" className="btn-primary inline-flex items-center gap-2">
-          <Icon name="plus" size={16} /> Yangi natija
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/results/import" className="btn-secondary inline-flex items-center gap-2">
+            <Icon name="upload" size={16} /> CSV/JSON import
+          </Link>
+          <Link href="/results/new" className="btn-primary inline-flex items-center gap-2">
+            <Icon name="plus" size={16} /> Yangi natija
+          </Link>
+        </div>
       </div>
 
       <FilterBar

@@ -101,6 +101,39 @@ const SUBJECT_JSON = {
   order: 3,
 };
 
+// Sample JSON payload for the bulk import endpoint. Two students shown: one
+// who attended (Alisher — mixed 0/1 answers), one who didn't show up (Nozima
+// — all zeros). Answer arrays are fixed length: math=25, ct=10, eng=50. The
+// import UI auto-detects JSON vs CSV based on the leading character.
+const RESULTS_JSON_SAMPLE = {
+  students: [
+    {
+      tr: 1,
+      uid: "2605086",
+      firstName: "Alisher",
+      lastName: "Karimov",
+      sex: "MALE",
+      grade: 5,
+      examLanguage: "RU",
+      math: [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      ct:   [0, 1, 1, 1, 1, 0, 1, 1, 1, 1],
+      eng:  [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1],
+    },
+    {
+      tr: 2,
+      uid: "2605084",
+      firstName: "Nozima",
+      lastName: "Yusupova",
+      sex: "FEMALE",
+      grade: 5,
+      examLanguage: null,
+      math: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ct:   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      eng:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    },
+  ],
+};
+
 const EXAM_JSON = {
   title: "Sodiq School — 2026 kirish diagnostikasi",
   description: "5-11 sinflar uchun umumiy diagnostika",
@@ -156,6 +189,26 @@ const SECTIONS: Section[] = [
       "bloom: \"Eslab qolish\" | \"Tushunish\" | \"Qo'llash\" | \"Tahlil\" | \"Baholash\" | \"Yaratish\".",
       "reasoning: \"Deduktiv\" | \"Induktiv\" | \"Analitik\" | \"Fazoviy\" (yoki null).",
       "techErrorIds: agar o'quvchi shu savolni noto'g'ri qilib, sanaladigan qiyinroq savolni to'g'ri yechgan bo'lsa — bu texnik xato hisoblanadi.",
+    ],
+  },
+  {
+    key: "results-csv-import",
+    title: "Natijalarni CSV/JSON import qilish (bulk)",
+    intro:
+      "Natijalar sahifasidagi \"CSV/JSON import\" tugmasi ushbu JSON'ni yoki maktabning original CSV eksportini qabul qiladi. Bir zumda o'nlab-yuzlab o'quvchining natijasini kiritish mumkin. Import UI ichidagi textarea JSON va CSV ni avtomatik ajratadi.",
+    endpoint: "POST /api/admin/results/import-csv",
+    data: RESULTS_JSON_SAMPLE,
+    notes: [
+      "students — massiv, har bir element bir o'quvchi va uning natijasi.",
+      "uid — noyob o'quvchi identifikatori (majburiy). Shu UID bo'yicha student topiladi yoki yaratiladi.",
+      "firstName + lastName — ism va familya alohida. Login kod tasodifiy 6 belgi (masalan 8Q4YTL) — familya/ism harflarga bog'liq emas.",
+      "sex: \"MALE\" / \"FEMALE\" yoki null (bilinmagan). CSV'da E/A ham qabul qilinadi.",
+      "grade — sinf raqami (5-11 gacha butun son).",
+      "examLanguage: \"UZ\" / \"RU\" / \"EN\" yoki null.",
+      "math (25 ta), ct (10 ta), eng (50 ta) — javob arraylari. Har element 1 = to'g'ri, 0 = noto'g'ri.",
+      "Barcha javob 0 bo'lsa: student baribir yaratiladi, natija DRAFT holatida, savollar 'Noto'g'ri' deb belgilanadi (bola imtihonga kelmagan).",
+      "Har importda har natijaga tasodifiy 6 belgili login kod va parol beriladi. Import qilinganidan keyin admin panelda CSV/JSON/PDF orqali yuklab olinadi.",
+      "Bir bola shu imtihonga qayta import qilinsa — eski natija saqlanadi, yangi natija alohida yaratiladi (eski login kod ham amalda qoladi).",
     ],
   },
   {
@@ -249,7 +302,9 @@ export default function DocsPage() {
       </div>
 
       {SECTIONS.map((s) => {
-        const json = JSON.stringify(s.data, null, 2);
+        // CSV samples come in as raw strings — render verbatim. JSON samples
+        // (objects/arrays) get pretty-printed.
+        const json = typeof s.data === "string" ? s.data : JSON.stringify(s.data, null, 2);
         return (
           <section key={s.key} id={s.key} className="card p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">

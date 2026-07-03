@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
-import { isValidPublicCode, normalizePublicCode } from "@sodiq/compute";
+import { isAcceptableLoginCode, normalizePublicCode } from "@sodiq/compute";
 
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
@@ -38,7 +38,7 @@ publicResultRouter.post(
     // Same generic error for invalid code shape, missing result, wrong password,
     // and draft/archived status — prevents enumeration.
     const generic = unauthorized("Kod yoki parol noto'g'ri");
-    if (!isValidPublicCode(code)) throw generic;
+    if (!isAcceptableLoginCode(code)) throw generic;
     const result = await prisma.result.findUnique({
       where: { publicCode: code },
       select: { id: true, publicCode: true, status: true, accessPasswordHash: true },

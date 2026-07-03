@@ -23,6 +23,8 @@ import { computeSnapshot, recomputeCohortRanks } from "../services/snapshot.js";
 import { parsePagination, wrapPaginated } from "../lib/pagination.js";
 import { invalidateStats } from "./admin.stats.js";
 import { generateResultNarrative } from "../services/ai.js";
+import { parseCsv, parseJsonRows } from "../services/csv-import.js";
+import { bulkImportResults } from "../services/bulk-import.js";
 
 export const resultsRouter = Router();
 resultsRouter.use(requireAdmin);
@@ -460,6 +462,104 @@ resultsRouter.get(
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Sodiq_${safeName}_${r.publicCode}.pdf"`);
     res.send(buf);
+  }),
+);
+
+/**
+ * CSV/JSON bulk import from the school's "Kirish imtihoni natijalari" export.
+ * Body: { examId, csv, dryRun }
+ *   - dryRun:true → parse only, return preview (no DB writes)
+ *   - dryRun:false → parse + write students, results, subject results, snapshots
+ *
+ * See services/csv-import.ts for the expected column layout. Login codes
+ * are generated as <LastInit><FirstInit><UID>, passwords are random per row.
+ */
+resultsRouter.post(
+  "/import-csv",
+  asyncHandler(async (req, res) => {
+    const examId = String(req.body?.examId ?? "").trim();
+    const csv = typeof req.body?.csv === "string" ? req.body.csv : "";
+    // Accept EITHER `csv` (raw text in the school's spreadsheet layout) or
+    // `students` (JSON row array — nicer for programmatic generators). If
+    // both are provided we prefer JSON since it's structurally richer.
+    const jsonRows = req.body?.students ?? null;
+    const dryRun = req.body?.dryRun === true;
+    if (!examId) throw badRequest("EXAM_REQUIRED", "examId majburiy");
+    if (!jsonRows && !csv.trim()) throw badRequest("INPUT_EMPTY", "CSV yoki students JSON kerak");
+
+    const exam = await prisma.exam.findUnique({ where: { id: examId } });
+    if (!exam) throw notFound("Exam not found");
+
+    const parsed = jsonRows ? parseJsonRows({ students: jsonRows }) : parseCsv(csv);
+
+    if (dryRun) {
+      // Preview: per-row digest + "already has a result in this exam" flag
+      // as INFORMATIONAL only (import proceeds either way; a fresh Result
+      // with fresh credentials is created so parents of re-imported rows
+      // don't lose access to their previous login). Password is generated
+      // at commit time.
+      const uids = parsed.rows.map((r) => r.uid);
+      const existingStudents = await prisma.student.findMany({
+        where: { uid: { in: uids } },
+        select: { id: true, uid: true },
+      });
+      const studentIdByUid = new Map(existingStudents.map((s) => [s.uid!, s.id]));
+      const existingResults = await prisma.result.findMany({
+        where: {
+          examId,
+          studentId: { in: existingStudents.map((s) => s.id) },
+        },
+        select: { studentId: true, publicCode: true },
+      });
+      const resultCodeByStudentId = new Map(existingResults.map((r) => [r.studentId, r.publicCode]));
+
+      return ok(res, {
+        dryRun: true,
+        examId,
+        totalRows: parsed.rows.length,
+        parseErrors: parsed.errors,
+        preview: parsed.rows.slice(0, 500).map((r) => {
+          const existingStudentId = studentIdByUid.get(r.uid) ?? null;
+          const existingResultCode = existingStudentId ? resultCodeByStudentId.get(existingStudentId) ?? null : null;
+          return {
+            tr: r.tr,
+            uid: r.uid,
+            fullName: `${r.firstName} ${r.lastName}`.trim(),
+            sex: r.sex,
+            grade: r.grade,
+            examLanguage: r.examLanguage,
+            isAllZero: r.isAllZero,
+            mathCorrect: r.answers.MATH.filter((x) => x === 1).length,
+            ctCorrect: r.answers.CRITICAL_THINKING.filter((x) => x === 1).length,
+            engCorrect: r.answers.ENGLISH.filter((x) => x === 1).length,
+            existingStudent: existingStudentId != null,
+            existingResultCode,
+          };
+        }),
+      });
+    }
+
+    const report = await bulkImportResults({
+      examId,
+      rows: parsed.rows,
+      adminId: req.admin!.id,
+    });
+
+    await audit(req.admin!.id, "create", "Result", `bulk-${examId}`, null, {
+      imported: report.created.length,
+      skipped: report.skipped.length,
+      parseErrors: parsed.errors.length,
+    });
+    invalidateStats();
+
+    ok(res, {
+      dryRun: false,
+      examId,
+      totalRows: parsed.rows.length,
+      parseErrors: parsed.errors,
+      created: report.created,
+      skipped: report.skipped,
+    });
   }),
 );
 

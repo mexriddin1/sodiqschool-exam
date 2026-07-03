@@ -14,12 +14,26 @@ export function generatePublicCode(length = 6): string {
   return out;
 }
 
+// Legacy 6-char randomly-generated code shape (uses ALPHABET only).
 export function isValidPublicCode(code: string, length = 6): boolean {
   if (typeof code !== "string" || code.length !== length) return false;
   for (const ch of code) {
     if (!ALPHABET.includes(ch)) return false;
   }
   return true;
+}
+
+/**
+ * Accept BOTH shapes at login time:
+ *   • legacy: 6-char code from ALPHABET
+ *   • CSV-import: LastInit + FirstInit + UID (2 letters + 4-16 digits)
+ * A permissive extra shape is fine for auth — the actual code has to match
+ * a stored publicCode column anyway.
+ */
+export function isAcceptableLoginCode(code: string): boolean {
+  if (typeof code !== "string") return false;
+  if (isValidPublicCode(code)) return true;
+  return /^[A-Z]{2}\d{4,16}$/.test(code);
 }
 
 export function normalizePublicCode(code: string): string {

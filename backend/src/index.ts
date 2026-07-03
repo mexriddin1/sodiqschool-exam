@@ -33,7 +33,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "1mb" }));
+// 5 MB covers the largest exam-results CSV we've seen (~300 rows x 95 cols).
+// If it grows further, switch admin.results/import-csv to multipart file upload.
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 app.get("/health", (_req, res) => {

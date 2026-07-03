@@ -233,7 +233,9 @@ export const adminLoginSchema = z.object({
 });
 
 export const resultLoginSchema = z.object({
-  code: z.string().min(6).max(6),
+  // Legacy 6-char codes still work. New CSV-imported format is
+  // `<LastInit><FirstInit><UID>` (~9-12 chars). Bounds cover both.
+  code: z.string().trim().min(4).max(32),
   password: z.string().min(1),
 });
 
