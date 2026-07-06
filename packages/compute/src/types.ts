@@ -1,6 +1,18 @@
 // Domain types for the Sodiq School diagnostic engine.
 // Mirrors the data shape in client/src/data/*.json.
 
+// A reference in techErrorIds: either a plain question ID (legacy) or an
+// object with an id and an optional admin-written note that appears on the
+// student's report when the referenced question was solved correctly.
+export type TechErrorRef = string | { id: string; note?: string };
+
+export function techRefId(r: TechErrorRef): string {
+  return typeof r === "string" ? r : r.id;
+}
+export function techRefNote(r: TechErrorRef): string {
+  return typeof r === "string" ? "" : (r.note ?? "");
+}
+
 export const DIFFICULTIES = ["Oson", "O'rta", "Qiyin"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
@@ -20,7 +32,7 @@ export const BLOOM_LEVELS = [
 ] as const;
 export type BloomLevel = (typeof BLOOM_LEVELS)[number];
 
-export const REASONING_TYPES = ["Deduktiv", "Induktiv", "Analitik", "Fazoviy"] as const;
+export const REASONING_TYPES = ["Deduktiv", "Induktiv", "Analitik", "Fazoviy", "Inferensial"] as const;
 export type ReasoningType = (typeof REASONING_TYPES)[number];
 
 export const SUBJECT_KEYS = ["MATH", "ENGLISH", "CRITICAL_THINKING"] as const;
@@ -40,20 +52,22 @@ export interface Question {
   framework: string;
   result: QuestionResult;
   earned: number;
-  errorType: ErrorType | null;
+  errorType?: ErrorType | null;
   evidence: string;
   // Optional admin-provided real-cohort solve rate for this question.
   // When absent or null, the report renders "—" instead of fabricated values.
   peerSolveRate?: number | null;
-  // Manually-authored "technical error" label: IDs of harder questions that
-  // cover the same skill and are ranked above this one. If ANY of those
-  // harder questions is solved, this wrong answer is treated as a technical
-  // error (careless mistake) instead of a knowledge gap — because the
-  // student clearly can handle a tougher version of the same skill.
+  // Manually-authored "technical error" label: list of question references that
+  // are conceptually related to this question. If ANY of the referenced questions
+  // was solved correctly, this wrong answer is treated as a careless mistake
+  // rather than a knowledge gap.
   //
-  // Empty or omitted → fall back to the automatic detector (same skill +
-  // ≥ same difficulty weight).
-  techErrorIds?: string[];
+  // Each entry is either a plain question ID string (legacy) or an object with
+  // an id and an optional admin note. When a note is present and the referenced
+  // question was solved, the note surfaces on the student's report page.
+  //
+  // Empty or omitted → fall back to automatic detector (same skill + ≥ difficulty).
+  techErrorIds?: TechErrorRef[];
 }
 
 export interface SubjectMeta {
@@ -143,6 +157,9 @@ export interface ErrorRosterItem {
   errorType: ErrorType | null;
   isTechnical: boolean;
   harderSolvedIds: string[];
+  // Admin notes from matched techErrorIds entries. Populated when the matched
+  // referenced question has a note and was solved correctly.
+  techNotes: string[];
   evidence: string;
 }
 

@@ -10,7 +10,7 @@ import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
 import { pickSubject, resolveOverrides, resolveVerdict } from '../lib/client-data';
 import { computeReport, BAND_COLORS, scoreBand } from '@sodiq/compute/compute';
-import { extractWeights, DEFAULT_SUBJECT_WEIGHTS } from '@sodiq/compute/composite';
+import { extractWeights, DEFAULT_SUBJECT_WEIGHTS, verdictFor } from '@sodiq/compute/composite';
 
 const me = await fetchMyResult(Astro);
 if (!me) return Astro.redirect('/login');
@@ -65,19 +65,12 @@ const weightPct = {
   ct: fmtPct(subjectWeights.CRITICAL_THINKING),
 };
 const compBand = scoreBand(composite);
+const adjustedBand = scoreBand(compAdjusted);
 const avgTechPct = avg(subjects.map((s) => s.techPct));
 const topSubj = [...subjects].sort((a, b) => b.percent - a.percent)[0];
 const lowSubj = [...subjects].sort((a, b) => a.percent - b.percent)[0];
-// Verdict — auto from composite potential, or admin override.
-const verdictBand = scoreBand(compPotential);
-const verdict = resolveVerdict(
-  {
-    label: (verdictBand.admission ?? verdictBand.label).toUpperCase(),
-    sub: verdictBand.tavsif ?? verdictBand.label,
-    color: verdictBand.color,
-  },
-  overrides.summary.verdictOverride,
-);
+// Verdict — based on composite score (same as admin snapshot).
+const verdict = resolveVerdict(verdictFor(composite), overrides.summary.verdictOverride);
 
 // Summary-level overrides (overallRank/overallPct/crossStrength/gradeLabel).
 const sumOv = overrides.summary;
@@ -114,26 +107,29 @@ import { aiParagraphs, hasAiText } from '../lib/ai-md';
 const aiCross = me.aiNarrative?.summary?.crossCutting ?? null;
 const aiFinal = me.aiNarrative?.summary?.finalRecommendation ?? null;
 
-// If admin manualContent didn't set strength/growthLabel we still show them
-// on the subject cards — derive them from the computed report so the cards
-// never show a bare em-dash. Kuchli = highest-scoring strand; Zaif = weakest
-// topic (with at least 2 questions) or, failing that, the lowest strand.
-function autoStrength(rep) {
-  const strand = [...(rep.byStrand ?? [])].sort((a, b) => b.percent - a.percent)[0];
-  return strand ? strand.name.toLowerCase() : null;
+// If admin manualContent didn't set strength/growthLabel we derive them from
+// bySkill (the radar/spider axes). Ties are included — if multiple skills share
+// the top (or bottom) percent they are all listed. 100% total = special labels.
+function autoStrength(rep, subjectPercent) {
+  if (subjectPercent >= 100) return 'barchasi kuchli';
+  const skills = rep.bySkill ?? [];
+  if (!skills.length) return null;
+  const maxPct = Math.max(...skills.map((s) => s.percent));
+  return skills.filter((s) => s.percent === maxPct).map((s) => s.name.toLowerCase()).join(', ');
 }
-function autoWeak(rep) {
-  const topics = [...(rep.topics ?? [])].filter((t) => t.n >= 2).sort((a, b) => a.percent - b.percent);
-  if (topics[0]) return topics[0].name.toLowerCase();
-  const strand = [...(rep.byStrand ?? [])].sort((a, b) => a.percent - b.percent)[0];
-  return strand ? strand.name.toLowerCase() : null;
+function autoWeak(rep, subjectPercent) {
+  if (subjectPercent >= 100) return "zaif tomoni yo'q";
+  const skills = rep.bySkill ?? [];
+  if (!skills.length) return null;
+  const minPct = Math.min(...skills.map((s) => s.percent));
+  return skills.filter((s) => s.percent === minPct).map((s) => s.name.toLowerCase()).join(', ');
 }
 // Backfill '—' fields on the subjects list computed above with auto derivations.
 subjects.forEach((s, i) => {
   const data = [mathData, englishData, ctData][i];
   const rep = computeReport(data);
-  if (s.strength === '—' || !s.strength) s.strength = autoStrength(rep) ?? '—';
-  if (s.growthLabel === '—' || !s.growthLabel) s.growthLabel = autoWeak(rep) ?? '—';
+  if (s.strength === '—' || !s.strength) s.strength = autoStrength(rep, s.percent) ?? '—';
+  if (s.growthLabel === '—' || !s.growthLabel) s.growthLabel = autoWeak(rep, s.percent) ?? '—';
 });
 ---
 <Layout title={`Sodiq School — Umumiy diagnostik xulosa`} meta={m}>
@@ -192,8 +188,10 @@ subjects.forEach((s, i) => {
   </header>
 
   <div class="wrap">
-    {/* ---- short narrative (gated: narrative) ---- */}
-    {gate.narrative ? (
+    {/* ---- short narrative (gated: narrative). Yopiq bo'lsa real hikoya blur. */}
+    <LockedSection eyebrow="01" title="Bir qarashda"
+      hint="Uch fan bo'yicha qisqacha diagnostika hikoyasi va e'tibor beriladigan yo'nalishlar."
+      locked={!gate.narrative}>
       <section class="section" id="sec1">
         <header class="sec-head">
           <div class="eyebrow">01</div>
@@ -220,10 +218,7 @@ subjects.forEach((s, i) => {
           )}
         </div>
       </section>
-    ) : (
-      <LockedSection eyebrow="01" title="Bir qarashda"
-        hint="Uch fan bo'yicha qisqacha diagnostika hikoyasi va e'tibor beriladigan yo'nalishlar." />
-    )}
+    </LockedSection>
 
     {/* ---- overall band scale (toifa) ---- */}
     <section class="section" id="sec2">
@@ -248,12 +243,12 @@ subjects.forEach((s, i) => {
         </div>
         <div class="statcard">
           <div class="sl">Tuzatilgan baho</div>
-          <div class="sv" style="color:var(--pos)">~{compAdjusted}</div>
-          <div class="rule" style="background:#2F9E6B"></div>
+          <div class="sv" style={`color:${adjustedBand.color}`}>~{compAdjusted}</div>
+          <div class="rule" style={`background:${adjustedBand.color}`}></div>
           <div class="sd">{compAdjusted > composite ? "E'tiborsizlik xatolari va yarim javoblar tuzatilsa erishiladigan daraja" : "Xato yo'q — hozirgi daraja to'liq"}</div>
         </div>
       </div>
-      <div class="scale-connect" set:html={scoreScale(composite, compAdjusted, compCi, { joriy: compBand.color, taxmin: '#6B7385', tuzatilgan: '#2F9E6B' })} />
+      <div class="scale-connect" set:html={scoreScale(composite, compAdjusted, compCi, { joriy: compBand.color, taxmin: '#6B7385', tuzatilgan: adjustedBand.color })} />
 
       {/* ---- Umumiy ball qanday hisoblanadi (weights table) ---- */}
       <div class="weight-panel">
@@ -346,8 +341,10 @@ subjects.forEach((s, i) => {
       </div>
     </section>
 
-    {/* ---- cross-cutting insights (gated: narrative) ---- */}
-    {gate.narrative ? (
+    {/* ---- cross-cutting insights (gated: narrative). Yopiq bo'lsa real blur. */}
+    <LockedSection eyebrow="04" title="Umumiy manzara"
+      hint="Uch fandagi kuchli tomonlar, o'sish yo'nalishlari va xato tahlili."
+      locked={!gate.narrative}>
       <section class="section" id="sec4">
         <header class="sec-head">
           <div class="eyebrow">04</div>
@@ -379,13 +376,12 @@ subjects.forEach((s, i) => {
           </div>
         )}
       </section>
-    ) : (
-      <LockedSection eyebrow="04" title="Umumiy manzara"
-        hint="Uch fandagi kuchli tomonlar, o'sish yo'nalishlari va xato tahlili." />
-    )}
+    </LockedSection>
 
-    {/* ---- final recommendation (gated: risks_notes) ---- */}
-    {gate.risks_notes ? (
+    {/* ---- final recommendation (gated: risks_notes). Yopiq bo'lsa real blur. */}
+    <LockedSection eyebrow="05" title="Yakuniy tavsiya va xulosalar"
+      hint="Komissiya xulosasi, oilaviy tavsiyalar va batafsil rivojlanish yo'nalishlari."
+      locked={!gate.risks_notes}>
       <section class="section" id="sec5">
         <header class="sec-head">
           <div class="eyebrow">05</div>
@@ -406,9 +402,6 @@ subjects.forEach((s, i) => {
           {subjects.map((s) => (<a class="report-link" href={s.href} style={`--bc:${s.band.color}`}><b>{s.name}</b><span>to'liq hisobot →</span></a>))}
         </div>
       </section>
-    ) : (
-      <LockedSection eyebrow="05" title="Yakuniy tavsiya va xulosalar"
-        hint="Komissiya xulosasi, oilaviy tavsiyalar va batafsil rivojlanish yo'nalishlari." />
-    )}
+    </LockedSection>
   </div>
 </Layout>

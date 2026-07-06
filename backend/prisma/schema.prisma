@@ -73,6 +73,14 @@ model Student {
   grade         Int
   groupName     String?
   metadata      Json?
+  // Parent-facing credentials (2026-07-03). One login per student instead
+  // of per Result — so a student with several exams reuses the same code
+  // and password. Format: `<LastInit><FirstInit><UID>`. Legacy Result.
+  // publicCode / accessPassword remain for old rows but are no longer
+  // consulted by the login endpoint.
+  loginCode          String?  @unique
+  accessPassword     String?  // plain, shown to admin
+  accessPasswordHash String?  // bcrypt, used for auth
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -211,6 +219,15 @@ model TestTemplate {
   @@unique([examId, subject, grade])
   @@unique([subject, grade], name: "subject_grade_legacy")
   @@index([examId])
+}
+
+// Global key/value settings — used for defaults like which report sections
+// are unlocked on newly-created results. Small table (<20 rows expected)
+// so JSON blobs are fine and no per-key column typing is needed.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {

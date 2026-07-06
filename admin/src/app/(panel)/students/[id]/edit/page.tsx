@@ -6,14 +6,19 @@ import { useParams, useRouter } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 
+// Edit form kept in sync with the create form on /students. Legacy fields
+// (fullName, groupName, studentNumber, phone) are still tolerated by the
+// backend but no longer edited from the UI — the parent-facing schema is
+// firstName + lastName + uid + examLanguage + sex + grade.
 interface Student {
   id: string;
   fullName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  uid?: string | null;
+  examLanguage?: string | null;
   grade: number;
-  groupName?: string | null;
-  studentNumber?: string | null;
   sex?: "MALE" | "FEMALE" | null;
-  phone?: string | null;
 }
 
 export default function EditStudentPage() {
@@ -38,11 +43,11 @@ export default function EditStudentPage() {
       await api(`/api/admin/students/${s.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          fullName: String(fd.get("fullName")),
+          firstName: String(fd.get("firstName") ?? "").trim(),
+          lastName: String(fd.get("lastName") ?? "").trim(),
+          uid: (fd.get("uid") as string) || null,
+          examLanguage: (fd.get("examLanguage") as string) || null,
           grade: Number(fd.get("grade")),
-          groupName: (fd.get("groupName") as string) || null,
-          studentNumber: (fd.get("studentNumber") as string) || null,
-          phone: (fd.get("phone") as string) || null,
           sex: (fd.get("sex") as string) || null,
         }),
       });
@@ -56,23 +61,30 @@ export default function EditStudentPage() {
 
   if (!s) return <div className="text-gray-500">Yuklanmoqda…</div>;
 
+  // Fall back to splitting fullName when the row was created before the
+  // firstName/lastName columns landed, so old students still show up nicely
+  // in the form on first open.
+  const fallbackParts = (s.fullName ?? "").trim().split(/\s+/);
+  const initFirst = s.firstName ?? fallbackParts[0] ?? "";
+  const initLast = s.lastName ?? fallbackParts.slice(1).join(" ") ?? "";
+
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-2xl">
       <Link href={`/students/${s.id}`} className="text-sm text-navy hover:underline">← O'quvchi</Link>
       <h1 className="text-2xl font-semibold text-navy">O'quvchini tahrirlash</h1>
 
-      <div className="card p-4 grid grid-cols-2 gap-3">
-        <div className="col-span-2">
-          <label className="label">F.I.O.</label>
-          <input name="fullName" defaultValue={s.fullName} required className="input" />
+      <div className="card p-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div>
+          <label className="label">Ism</label>
+          <input name="firstName" required defaultValue={initFirst} className="input" placeholder="Ism" />
         </div>
         <div>
-          <label className="label">Sinf</label>
-          <select name="grade" defaultValue={s.grade} className="input">
-            {[5, 6, 7, 8, 9, 10, 11].map((g) => (
-              <option key={g} value={g}>{g}-sinf</option>
-            ))}
-          </select>
+          <label className="label">Familya</label>
+          <input name="lastName" required defaultValue={initLast} className="input" placeholder="Familya" />
+        </div>
+        <div>
+          <label className="label">UID</label>
+          <input name="uid" defaultValue={s.uid ?? ""} className="input" placeholder="SS-2026-0001" />
         </div>
         <div>
           <label className="label">Jinsi</label>
@@ -83,16 +95,21 @@ export default function EditStudentPage() {
           </select>
         </div>
         <div>
-          <label className="label">Guruh</label>
-          <input name="groupName" defaultValue={s.groupName ?? ""} className="input" />
+          <label className="label">Sinf</label>
+          <select name="grade" defaultValue={s.grade} className="input">
+            {[5, 6, 7, 8, 9, 10, 11].map((g) => (
+              <option key={g} value={g}>{g}-sinf</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="label">O'quvchi raqami</label>
-          <input name="studentNumber" defaultValue={s.studentNumber ?? ""} className="input" />
-        </div>
-        <div className="col-span-2">
-          <label className="label">Telefon</label>
-          <input name="phone" defaultValue={s.phone ?? ""} className="input" />
+          <label className="label">Imtihon tili</label>
+          <select name="examLanguage" defaultValue={s.examLanguage ?? ""} className="input">
+            <option value="">—</option>
+            <option value="UZ">O'zbekcha</option>
+            <option value="RU">Ruscha</option>
+            <option value="EN">Inglizcha</option>
+          </select>
         </div>
       </div>
 

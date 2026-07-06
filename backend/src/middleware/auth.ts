@@ -10,15 +10,27 @@ export interface AdminAuthPayload {
   role: AdminRole;
 }
 
+// 2026-07-03: sub is now the STUDENT id. `code` stays for backward compat
+// with tokens issued by the old per-Result auth (they carry the Result id
+// as `sub` and the Result publicCode as `code`). Middleware detects which
+// era the token belongs to and populates the session accordingly.
 export interface ResultAuthPayload {
-  sub: string; // result id
-  code: string; // public code
+  sub: string;   // student id (new) OR result id (legacy)
+  code: string;  // student loginCode (new) OR result publicCode (legacy)
+  kind?: "student" | "result"; // omitted on legacy tokens
 }
 
 declare module "express-serve-static-core" {
   interface Request {
     admin?: { id: string; role: AdminRole; fullName: string; email: string };
-    resultSession?: { resultId: string; publicCode: string };
+    // resultId qoladi (legacy) — yangi tokenlarda studentId ham to'ldiriladi.
+    // Har ikkisi ham optional bo'lgani sababli chaqiruvchilar mavjudini
+    // tekshirib olishlari kerak.
+    resultSession?: {
+      studentId?: string;
+      resultId?: string;
+      publicCode: string;
+    };
   }
 }
 
@@ -80,7 +92,14 @@ export async function requireResultSession(
     const token = cookieToken ?? bearerToken;
     if (!token) throw unauthorized();
     const decoded = jwt.verify(token, config.resultJwtSecret) as ResultAuthPayload;
-    req.resultSession = { resultId: decoded.sub, publicCode: decoded.code };
+    // Yangi token: kind = "student", sub = studentId. Eski token: kind yo'q,
+    // sub = resultId. Ikkalasi ham ishlaydi — eski link'lar buzilmasligi
+    // uchun legacy shape'ni ham qo'llab-quvvatlaymiz.
+    if (decoded.kind === "student") {
+      req.resultSession = { studentId: decoded.sub, publicCode: decoded.code };
+    } else {
+      req.resultSession = { resultId: decoded.sub, publicCode: decoded.code };
+    }
     next();
   } catch (e) {
     if ((e as Error).name === "JsonWebTokenError" || (e as Error).name === "TokenExpiredError") {

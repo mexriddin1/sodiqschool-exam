@@ -13,7 +13,10 @@ import {
   RiskItem,
   SubjectInput,
   SubjectReport,
+  TechErrorRef,
   TierStat,
+  techRefId,
+  techRefNote,
 } from "./types.js";
 
 export const DIFFICULTY_WEIGHT: Record<Difficulty, number> = { Oson: 1, "O'rta": 2, Qiyin: 3 };
@@ -37,10 +40,12 @@ const pct = (a: number, b: number): number => (b === 0 ? 0 : (a / b) * 100);
 // Sodiq School "Yakuniy shkala" — verbatim from resource/image.png.
 // Both scoreBand (for the ball/percent display) and masteryFromKDI (for the
 // knowledge-depth gauge) use this same official scale.
+// Renamed 2026-07-03: labels only. Keys stay stable so any downstream
+// selectors keyed by band.key (dashboards, CSS classes) keep working.
 const OFFICIAL_LEVELS: Band[] = [
   {
     key: "yuqori",
-    label: "Yuqori daraja",
+    label: "Juda yuqori",
     en: "Advanced",
     color: BAND_COLORS.good,
     tavsif: "Murakkab masalalarni mustaqil yechadi",
@@ -50,9 +55,9 @@ const OFFICIAL_LEVELS: Band[] = [
   },
   {
     key: "ishonchli",
-    label: "Ishonchli daraja",
+    label: "Yaxshi",
     en: "Secure",
-    color: BAND_COLORS.green,
+    color: BAND_COLORS.blue,
     tavsif: "Dasturni ishonchli o'zlashtiradi",
     admission: "Qabul qilinsin",
     risk: "Past",
@@ -60,7 +65,7 @@ const OFFICIAL_LEVELS: Band[] = [
   },
   {
     key: "rivojlanayotgan",
-    label: "Rivojlanayotgan daraja",
+    label: "O'rtacha",
     en: "Developing",
     color: BAND_COLORS.ok,
     tavsif: "Asos bor, ayrim bo'shliqlar",
@@ -70,17 +75,17 @@ const OFFICIAL_LEVELS: Band[] = [
   },
   {
     key: "shakllanayotgan",
-    label: "Shakllanayotgan daraja",
+    label: "Zaif",
     en: "Emerging",
     color: BAND_COLORS.orange,
     tavsif: "Sezilarli ko'nikma bo'shliqlari",
-    admission: "Navbatda",
+    admission: "Zaxira qabul",
     risk: "Yuqori",
     riskColor: BAND_COLORS.orange,
   },
   {
     key: "tamal",
-    label: "Tamal bosqich",
+    label: "Sayoz",
     en: "Foundational",
     color: BAND_COLORS.bad,
     tavsif: "Asos deyarli shakllanmagan",
@@ -91,10 +96,10 @@ const OFFICIAL_LEVELS: Band[] = [
 ];
 
 export function scoreBand(p: number): Band {
-  if (p >= 84) return OFFICIAL_LEVELS[0]!;
-  if (p >= 67) return OFFICIAL_LEVELS[1]!;
-  if (p >= 50) return OFFICIAL_LEVELS[2]!;
-  if (p >= 35) return OFFICIAL_LEVELS[3]!;
+  if (p > 83) return OFFICIAL_LEVELS[0]!;
+  if (p > 66) return OFFICIAL_LEVELS[1]!;
+  if (p > 49) return OFFICIAL_LEVELS[2]!;
+  if (p > 34) return OFFICIAL_LEVELS[3]!;
   return OFFICIAL_LEVELS[4]!;
 }
 
@@ -104,10 +109,7 @@ export const masteryFromKDI = scoreBand;
 export { OFFICIAL_LEVELS };
 
 export function pctColor(v: number): string {
-  if (v >= 85) return BAND_COLORS.good;
-  if (v >= 80) return BAND_COLORS.green;
-  if (v >= 65) return BAND_COLORS.ok;
-  return BAND_COLORS.bad;
+  return scoreBand(v).color;
 }
 
 export function scoreCI(percent: number, n: number): ConfidenceInterval {
@@ -208,16 +210,20 @@ export function computeReport(data: SubjectInput): SubjectReport {
   const kdi = round(kdiExact);
   const mastery = masteryFromKDI(kdi);
 
-  // Detect technical errors (careless mistakes):
+  // Detect technical errors (careless mistakes). Priority chain:
   //   1) admin's explicit `errorType === "Texnik"` — always wins
-  //   2) manual `techErrorIds` — if any of those harder IDs was solved
-  //   3) auto: same skill + ≥ same difficulty solved elsewhere
-  // Fallback ordering matches errorRoster below.
+  //   2) template-level `techErrorIds` — if any linked question was solved correctly,
+  //      this is teknik xato regardless of the UI-auto-set "Bilim bo'shlig'i".
+  //      (UI defaults to "Bilim bo'shlig'i" on every wrong answer, so letting that
+  //      short-circuit before techErrorIds would silently break the template logic.)
+  //   3) explicit `errorType === "Bilim bo'shlig'i"` — only blocks auto-heuristic,
+  //      not the techErrorIds rule above.
+  //   4) auto: same skill + ≥ same difficulty solved elsewhere
   function isTechnicalError(q: Question): boolean {
     if (q.errorType === "Texnik") return true;
-    if (q.errorType === "Bilim bo'shlig'i") return false; // admin override
-    const manual = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
-    if (manual.length > 0) return questions.some((o) => manual.includes(o.id) && isCorrect(o));
+    const manual: TechErrorRef[] = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
+    if (manual.length > 0) return questions.some((o) => manual.some((r) => techRefId(r) === o.id) && isCorrect(o));
+    if (q.errorType === "Bilim bo'shlig'i") return false;
     return questions.some(
       (o) => o.skill === q.skill && isCorrect(o)
         && DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
@@ -354,26 +360,35 @@ export function computeReport(data: SubjectInput): SubjectReport {
   //      difficulty weight ≥ current).
   //   3) Admin's explicit `errorType === "Texnik"` still wins.
   const errorRoster: ErrorRosterItem[] = wrong.map((q) => {
-    const manualIds = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
-    const manualSolved = manualIds.length > 0
-      ? questions.filter((o) => manualIds.includes(o.id) && isCorrect(o))
+    const manualRefs: TechErrorRef[] = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
+    const manualSolved = manualRefs.length > 0
+      ? questions.filter((o) => manualRefs.some((r) => techRefId(r) === o.id) && isCorrect(o))
       : [];
-    const autoHarderSolved = manualIds.length > 0 ? [] : questions.filter(
+    // Collect notes from matched refs (only for solved ones).
+    const techNotes = manualSolved
+      .map((solved) => {
+        const ref = manualRefs.find((r) => techRefId(r) === solved.id);
+        return ref ? techRefNote(ref) : "";
+      })
+      .filter(Boolean);
+    const autoHarderSolved = manualRefs.length > 0 ? [] : questions.filter(
       (o) =>
         o.skill === q.skill &&
         isCorrect(o) &&
         DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
     );
-    const detectedTechnical = manualSolved.length > 0 || autoHarderSolved.length > 0;
     const explicit = q.errorType === "Texnik";
     return {
       id: q.id,
       topic: q.subTopic || q.topic,
       skill: q.skill,
       marks: q.marks,
-      errorType: q.errorType,
-      isTechnical: explicit || (q.errorType == null && detectedTechnical),
-      harderSolvedIds: (manualSolved.length > 0 ? manualSolved : autoHarderSolved).map((o) => o.id),
+      errorType: q.errorType ?? null,
+      isTechnical: explicit || manualSolved.length > 0 || (autoHarderSolved.length > 0 && q.errorType !== "Bilim bo'shlig'i"),
+      harderSolvedIds: (explicit || manualSolved.length > 0 || (autoHarderSolved.length > 0 && q.errorType !== "Bilim bo'shlig'i"))
+        ? (manualSolved.length > 0 ? manualSolved : autoHarderSolved).map((o) => o.id)
+        : [],
+      techNotes,
       evidence: q.evidence,
     };
   });

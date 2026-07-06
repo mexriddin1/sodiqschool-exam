@@ -44,7 +44,7 @@ export function buildBloomBars(
   // order (simple → complex) so the ladder reads bottom-up.
   return LEVELS
     .map((L) => {
-      const found = measured.find((x) => x.name === L.key && !x.lowConfidence);
+      const found = measured.find((x) => x.name === L.key);
       if (!found) return null;
       return {
         key: L.key,

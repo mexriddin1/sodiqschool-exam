@@ -16,6 +16,8 @@ export interface Cohort {
   percentile: number | null;
   maleRank: number | null;
   maleTotal: number | null;
+  femaleRank: number | null;
+  femaleTotal: number | null;
 }
 
 export interface GlossaryEntry { t: string; d: string }
@@ -45,7 +47,7 @@ export type VerdictLabel =
   | "QABUL TAVSIYA ETILADI"
   | "QABUL QILINSIN"
   | "SHARTLI QABUL"
-  | "NAVBATDA"
+  | "ZAXIRA QABUL"
   | "TAYYOR EMAS"
   // Legacy English labels — retained for older saved manualContent so their
   // overrides still validate through Zod. Any new selection uses the Uzbek set.
@@ -79,7 +81,7 @@ export interface ManualContent {
   summary: Summary;
 }
 
-const blankCohort: Cohort = { rank: null, total: null, percentile: null, maleRank: null, maleTotal: null };
+const blankCohort: Cohort = { rank: null, total: null, percentile: null, maleRank: null, maleTotal: null, femaleRank: null, femaleTotal: null };
 const blankSubj: SubjectOverrides = {
   strength: "",
   growthLabel: "",
@@ -155,7 +157,7 @@ export function toApi(mc: ManualContent): Record<string, unknown> {
   const stripCohort = (c: Cohort): Cohort | undefined => {
     const out: Cohort = { ...c };
     let any = false;
-    for (const k of ["rank", "total", "percentile", "maleRank", "maleTotal"] as const) {
+    for (const k of ["rank", "total", "percentile", "maleRank", "maleTotal", "femaleRank", "femaleTotal"] as const) {
       if (out[k] != null) any = true;
     }
     return any ? out : undefined;
@@ -228,12 +230,18 @@ function Section({ title, children, defaultOpen }: { title: string; children: Re
   );
 }
 
+const COHORT_LABELS: Record<keyof Cohort, string> = {
+  rank: "O'rin (jami)", total: "Jami (o'g'il+qiz)", percentile: "Persentil",
+  maleRank: "O'g'il o'rin", maleTotal: "O'g'il jami",
+  femaleRank: "Qiz o'rin", femaleTotal: "Qiz jami",
+};
+
 function CohortInputs({ value, onChange }: { value: Cohort; onChange: (c: Cohort) => void }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-      {(["rank", "total", "percentile", "maleRank", "maleTotal"] as const).map((k) => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      {(["rank", "total", "percentile", "maleRank", "maleTotal", "femaleRank", "femaleTotal"] as const).map((k) => (
         <div key={k}>
-          <label className="label">{k}</label>
+          <label className="label">{COHORT_LABELS[k]}</label>
           <input
             type="number" min={0}
             className="input"
@@ -482,7 +490,7 @@ export default function ManualContentEditor({ value, onChange, apiBase }: { valu
             </div>
           </div>
           <div>
-            <div className="label">Cohort reyting (rank/total/percentile/maleRank/maleTotal)</div>
+            <div className="label">Reyting (o'rin / jami / persentil / o'g'il / qiz)</div>
             <CohortInputs value={value[sub.key].cohort} onChange={(c) => patchSubj(sub.key, { cohort: c })} />
           </div>
           <div>

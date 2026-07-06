@@ -8,6 +8,7 @@ import { studentCreateSchema, studentUpdateSchema, studentImportSchema } from ".
 import { audit } from "../services/audit.js";
 import { jsonOrNull } from "../lib/json.js";
 import { parsePagination, wrapPaginated } from "../lib/pagination.js";
+import { ensureStudentCredentials } from "../services/student-credentials.js";
 
 export const studentsRouter = Router();
 studentsRouter.use(requireAdmin);
@@ -96,8 +97,12 @@ studentsRouter.post(
         metadata: jsonOrNull(data.metadata),
       },
     });
-    await audit(req.admin!.id, "create", "Student", student.id, null, student);
-    ok(res, student);
+    // Studentga bir marta login+parol biriktirish. Result yaratilganda
+    // qayta yaratilmaydi — o'sha kredensial barcha natijalar uchun ishlaydi.
+    await ensureStudentCredentials(student.id);
+    const withCreds = await prisma.student.findUnique({ where: { id: student.id } });
+    await audit(req.admin!.id, "create", "Student", student.id, null, withCreds);
+    ok(res, withCreds);
   }),
 );
 
@@ -140,6 +145,7 @@ studentsRouter.post(
             metadata: jsonOrNull(raw.metadata),
           },
         });
+        await ensureStudentCredentials(s.id);
         created += 1;
         // Audit each row so the origin is traceable per import. Volume is
         // bounded by studentImportSchema max=2000, so this is safe.

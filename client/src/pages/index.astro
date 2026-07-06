@@ -10,6 +10,7 @@ import {
   BLOOM_FALLBACK_MATH, SKILL_RADAR_FALLBACK_MATH, REASONING_FALLBACK_MATH,
 } from '../lib/client-data';
 import { computeReport, BAND_COLORS, pctColor, scoreBand } from '@sodiq/compute/compute';
+import { verdictFor } from '@sodiq/compute/composite';
 
 const me = await fetchMyResult(Astro);
 if (!me) return Astro.redirect('/login');
@@ -43,9 +44,9 @@ const roadFinishVal = r.growthForecast[r.growthForecast.length - 1].v;
 // is known and maleTotal/maleRank are provided.
 const studentSex = overrides.studentSex;
 // Cohort standing: subject-level manual override (ov.cohort) wins; otherwise
-// we fall back to the composite snapshot.cohort (auto-computed across all
-// published peers in this exam). Sex-split ranks flow through the same rule.
-const snapshotCohort = (me.calculatedSnapshot?.cohort ?? {}) as {
+// we use snapshot.subjectCohort.MATH (per-subject rank), falling back to the
+// composite snapshot.cohort for results published before this feature landed.
+const snapshotCohort = ((me.calculatedSnapshot as any)?.subjectCohort?.MATH ?? me.calculatedSnapshot?.cohort ?? {}) as {
   rank?: number | null; total?: number | null; percentile?: number | null;
   male?: { rank: number; total: number; percentile: number } | null;
   female?: { rank: number; total: number; percentile: number } | null;
@@ -87,8 +88,19 @@ function scaleRadar(items, refPercent) {
     return { ...s, value: Math.max(lo, Math.min(hi, blended)) };
   });
 }
-const skillRadar = ov.skillRadar?.length ? ov.skillRadar : scaleRadar(SKILL_RADAR_FALLBACK_MATH, r.percent);
-const reasoningTypes = ov.reasoningTypes?.length ? ov.reasoningTypes : scaleRadar(REASONING_FALLBACK_MATH, r.percent);
+const skillRadar = ov.skillRadar?.length
+  ? ov.skillRadar
+  : r.bySkill.length > 0
+    ? r.bySkill.sort((a, b) => b.n - a.n).slice(0, 7).map((s) => ({ name: s.name, value: s.percent }))
+    : scaleRadar(SKILL_RADAR_FALLBACK_MATH, r.percent);
+const reasoningTypes = ov.reasoningTypes?.length
+  ? ov.reasoningTypes
+  : r.byReasoning.length > 0
+    ? r.byReasoning.map((g) => {
+        const fb = REASONING_FALLBACK_MATH.find((f) => f.name === g.name);
+        return { name: g.name, value: g.percent, gloss: fb?.gloss ?? '' };
+      })
+    : scaleRadar(REASONING_FALLBACK_MATH, r.percent);
 // §12 growth matrix — every 0-100 measure with a transparent diminishing-returns
 // projection of where the roadmap lifts it (weaker areas gain more, capped ~95).
 // Values mirror the same numbers shown in §6/§8/§9/§10 so the report stays consistent.
@@ -137,18 +149,9 @@ const reasonHelp = ov.glossary.reasonHelp?.length ? ov.glossary.reasonHelp : REA
 const coverTitle = ov.narrative.coverTitle ?? `${m.subject} imtihoni diagnostikasi`;
 const coverSubtitle = ov.narrative.coverSubtitle ?? '';
 const adminStory = ov.narrative.story && ov.narrative.story.length > 0 ? ov.narrative.story : null;
-// Verdict — derived from the official "Yakuniy shkala" applied to the
-// potential. Admin can override on Result.manualContent.summary.verdictOverride;
-// resolveVerdict picks that when present.
-const verdictBand = scoreBand(r.potential);
-const verdict = resolveVerdict(
-  {
-    label: (verdictBand.admission ?? verdictBand.label).toUpperCase(),
-    sub: verdictBand.tavsif ?? verdictBand.label,
-    color: verdictBand.color,
-  },
-  overrides.summary.verdictOverride,
-);
+// Verdict — auto from potential, or admin override. Uses the same
+// verdictFor() as the admin snapshot so label/sub/color are identical.
+const verdict = resolveVerdict(verdictFor(r.potential), overrides.summary.verdictOverride);
 // Strength label — admin override wins; otherwise derive from the computed report.
 const strengthLabel = ov.strength
   ? ov.strength
@@ -159,9 +162,8 @@ const strengthLabel = ov.strength
       : 'asosiy mavzular';
 const technicalPctOfLost = r.lostTotal ? Math.round((r.technicalLost / r.lostTotal) * 100) : 0;
 const potentialBand = scoreBand(r.potential); // band for the POTENTIAL (not today's score)
+const adjustedBand = scoreBand(r.adjusted);   // band for the adjusted score (tuzatilgan)
 
-// css token color for a 0–100 performance value (HTML side; SVG uses pctColor)
-const band = (p) => (p >= 80 ? 'var(--pos)' : p >= 65 ? 'var(--warn)' : 'var(--neg)');
 
 const palette = { ink: '#0F1629', muted: '#6B7385', faint: '#9AA1B2', grid: '#EEF0F4', border: '#E8EAEF', navy: '#06113C', accent: '#FF8A32', pos: '#2F9E6B', warn: '#C98A12', neg: '#D2503F', info: '#3266C9', mono: "'Space Mono', monospace" };
 const chartData = {
@@ -244,17 +246,13 @@ const perfectScore = perfectYet;
             <div class="metric"><div class="metric-value sm num">~{r.adjusted}</div><div class="metric-label">Tuzatilgan</div></div>
             <div class="metric"><div class="metric-value sm num">{r.potential}</div><div class="metric-label">Salohiyat</div></div>
             <div class="metric"><div class="metric-value sm num">{r.correctCount}/{r.totalQuestions}</div><div class="metric-label">To'g'ri</div></div>
-            {hasCohort && (
-              <>
-                <div class="metric"><div class="metric-value sm num">{cohort.percentile}<span class="u">-foiz</span></div><div class="metric-label">Persentil</div></div>
-                <div class="metric"><div class="metric-value sm num">{cohort.rank}<span class="u">/{cohort.total}</span></div><div class="metric-label">Umumiy reyting</div></div>
-                {studentSex === 'male' && cohort.maleRank != null && cohort.maleTotal != null && (
-                  <div class="metric"><div class="metric-value sm num">{cohort.maleRank}<span class="u">/{cohort.maleTotal}</span></div><div class="metric-label">Yigitlar orasida</div></div>
-                )}
-                {studentSex === 'female' && cohort.femaleRank != null && cohort.femaleTotal != null && (
-                  <div class="metric"><div class="metric-value sm num">{cohort.femaleRank}<span class="u">/{cohort.femaleTotal}</span></div><div class="metric-label">Qizlar orasida</div></div>
-                )}
-              </>
+            <div class="metric"><div class="metric-value sm num">{cohort.percentile != null ? <>{cohort.percentile}<span class="u">-foiz</span></> : '—'}</div><div class="metric-label">Persentil</div></div>
+            <div class="metric"><div class="metric-value sm num">{cohort.rank != null ? <>{cohort.rank}<span class="u">/{cohort.total}</span></> : '—'}</div><div class="metric-label">Umumiy reyting</div></div>
+            {studentSex === 'male' && (
+              <div class="metric"><div class="metric-value sm num">{cohort.maleRank != null ? <>{cohort.maleRank}<span class="u">/{cohort.maleTotal}</span></> : '—'}</div><div class="metric-label">Yigitlar orasida</div></div>
+            )}
+            {studentSex === 'female' && (
+              <div class="metric"><div class="metric-value sm num">{cohort.femaleRank != null ? <>{cohort.femaleRank}<span class="u">/{cohort.femaleTotal}</span></> : '—'}</div><div class="metric-label">Qizlar orasida</div></div>
             )}
           </div>
         </div>
@@ -345,12 +343,12 @@ const perfectScore = perfectYet;
         </div>
         <div class="statcard">
           <div class="sl">Tuzatilgan baho</div>
-          <div class="sv" style="color:var(--pos)">~{r.adjusted}</div>
-          <div class="rule" style="background:#2F9E6B"></div>
+          <div class="sv" style={`color:${adjustedBand.color}`}>~{r.adjusted}</div>
+          <div class="rule" style={`background:${adjustedBand.color}`}></div>
           <div class="sd">{adjustedSubtitle(r)}</div>
         </div>
       </div>
-      <div class="scale-connect" set:html={scoreScale(r.percent, r.adjusted, r.ci, { joriy: r.band.color, taxmin: '#6B7385', tuzatilgan: '#2F9E6B' })} />
+      <div class="scale-connect" set:html={scoreScale(r.percent, r.adjusted, r.ci, { joriy: r.band.color, taxmin: '#6B7385', tuzatilgan: adjustedBand.color })} />
     </section>
 
     {/* 3 · PER-QUESTION */}
@@ -361,13 +359,10 @@ const perfectScore = perfectYet;
         <h2>Har bir savol</h2>
       </header>
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th class="col-icon"></th><th>Mavzu</th><th>Ko'nikma</th><th>Bloom</th><th>Qiy.</th><th class="col-num">Ball</th><th class="col-num">Yechganlar</th></tr></thead>
+        <thead><tr><th>#</th><th class="col-icon"></th><th>Kichik Mavzu</th><th>Ko'nikma</th><th>Bloom</th><th>Qiy.</th><th class="col-num">Ball</th></tr></thead>
         <tbody>
           {r.questions.map((q) => {
             const ok = q.result === "To'g'ri";
-            // Real cohort solve-rate, if the admin provided one on the
-            // per-question payload (q.peerSolveRate). Else dash — never fake.
-            const solved = typeof q.peerSolveRate === 'number' ? `${q.peerSolveRate}%` : '—';
             return (
               <tr class={ok ? '' : 'miss'}>
                 <td class="q">{q.id}</td>
@@ -377,7 +372,6 @@ const perfectScore = perfectYet;
                 <td><span class="tag">{q.bloom}</span></td>
                 <td>{q.difficulty}</td>
                 <td class="col-num">{q.earned}</td>
-                <td class="col-num">{solved}</td>
               </tr>
             );
           })}
@@ -403,15 +397,13 @@ const perfectScore = perfectYet;
         <>
           <div class="note"><b>Usuli sodda.</b> Yechilmagan savol uchun tekshiramiz: bola xuddi shu ko'nikmali, lekin <b>qiyinroq</b> savolni yechganmi? Yechgan bo'lsa — bu <b>texnik (e'tiborsizlik)</b> xatosi; yechmagan bo'lsa — haqiqiy <b>bilim bo'shlig'i</b>.</div>
           <div class="table-wrap"><table>
-            <thead><tr><th>Savol</th><th>Mavzu</th><th>Qiyinroq yechilgan?</th><th>Xulosa</th><th>Izoh</th></tr></thead>
+            <thead><tr><th>Savol</th><th>Xulosa</th><th>Izoh</th></tr></thead>
             <tbody>
               {r.errorRoster.map((e) => (
                 <tr>
                   <td class="q">{e.id}</td>
-                  <td>{e.topic} <span class="muted num">({e.marks})</span></td>
-                  <td class="muted">{e.harderSolvedIds.length ? `${e.harderSolvedIds.join(', ')} — yechgan` : "Yo'q — qiyinrog'i yo'q"}</td>
                   <td><span class={`status ${e.isTechnical ? 'info' : 'neg'}`}>{e.isTechnical ? 'Texnik xato' : "Bilim bo'shlig'i"}</span></td>
-                  <td class="muted">{e.evidence}</td>
+                  <td class="muted">{e.techNotes?.length ? e.techNotes.join(' · ') : e.evidence}</td>
                 </tr>
               ))}
             </tbody>
@@ -446,7 +438,7 @@ const perfectScore = perfectYet;
         {r.strandDetails.map((s) => (
           <div class="strand-card">
             <h4 class="strand-name">{s.name}</h4>
-            <div set:html={strandDonut(s.percent, s.correct, s.n, band(s.percent))} />
+            <div set:html={strandDonut(s.percent, s.correct, s.n, pctColor(s.percent))} />
             <div class="strand-qs"><b>{s.n} ta savol:</b> {s.ids.join(', ')}</div>
           </div>
         ))}
@@ -524,84 +516,87 @@ const perfectScore = perfectYet;
     {/* ===================== PART III ===================== */}
     <div class="part"><span class="pn">III</span><span class="pt">Rivojlanish yo'li</span><span class="pr"></span><span class="pe">§11–12</span></div>
 
-    {!gate.roadmap && (
-      <LockedSection eyebrow="11–12" title="Rivojlanish yo'li"
-        hint="3, 6 va 12 oylik dastur, o'sish prognozi va bosqichma-bosqich reja." />
-    )}
-
-    {/* 11 · THE ROADMAP — a road with three stops */}
-    {gate.roadmap && showSection('sec11') && (
-    <section class="section" id="sec11">
-      <header class="sec-head">
-        <div class="eyebrow">{nn('sec11')}</div>
-        <h2>Rivojlanish yo'li</h2>
-        <p class="lead"><b>Hozir</b>dan <b>maqsad</b> sari uch bosqichli yo'l — har biri oldingisining davomi. Sahifani pastga suring: velosiped yo'l bo'ylab yuradi.</p>
-      </header>
-      <div class="skill-road" set:html={skillRoad(roadStops, { finish: 'Maqsad', finishSub: `umumiy ball ~${roadFinishVal}` })} />
-      <p class="road-hint">Bosqich tafsilotini ko'rish uchun yo'ldagi <b>raqamni</b> yoki quyidagi tugmani bosing.</p>
-      <div class="stage-tabs" role="tablist" aria-label="Bosqichlar">
-        {programs.map((p, i) => (
-          <button class="stage-tab" type="button" role="tab" data-stage={i} aria-selected={i === 0 ? 'true' : 'false'}>
-            <span class="st-n">{i + 1}</span><span class="st-t"><b>{i + 1}-bosqich</b> · {p.range}</span>
-          </button>
-        ))}
-      </div>
-      <div class="stage-details">
-        {programs.map((p, i) => <StageDetail program={p} idx={i + 1} />)}
-      </div>
-    </section>
+    {/* 11 · THE ROADMAP — a road with three stops. Yopiq bo'lsa haqiqiy
+        content blur qilinadi va ustidan qulf overlay chiqadi. */}
+    {showSection('sec11') && (
+    <LockedSection eyebrow="11–12" title="Rivojlanish yo'li"
+      hint="3, 6 va 12 oylik dastur, o'sish prognozi va bosqichma-bosqich reja."
+      locked={!gate.roadmap}>
+      <section class="section" id="sec11">
+        <header class="sec-head">
+          <div class="eyebrow">{nn('sec11')}</div>
+          <h2>Rivojlanish yo'li</h2>
+          <p class="lead"><b>Hozir</b>dan <b>maqsad</b> sari uch bosqichli yo'l — har biri oldingisining davomi. Sahifani pastga suring: velosiped yo'l bo'ylab yuradi.</p>
+        </header>
+        <div class="skill-road" set:html={skillRoad(roadStops, { finish: 'Maqsad', finishSub: `umumiy ball ~${roadFinishVal}` })} />
+        <p class="road-hint">Bosqich tafsilotini ko'rish uchun yo'ldagi <b>raqamni</b> yoki quyidagi tugmani bosing.</p>
+        <div class="stage-tabs" role="tablist" aria-label="Bosqichlar">
+          {programs.map((p, i) => (
+            <button class="stage-tab" type="button" role="tab" data-stage={i} aria-selected={i === 0 ? 'true' : 'false'}>
+              <span class="st-n">{i + 1}</span><span class="st-t"><b>{i + 1}-bosqich</b> · {p.range}</span>
+            </button>
+          ))}
+        </div>
+        <div class="stage-details">
+          {programs.map((p, i) => <StageDetail program={p} idx={i + 1} />)}
+        </div>
+      </section>
+    </LockedSection>
     )}
 
     {/* 12 · SKILL GROWTH (payoff of the roadmap) */}
-    {gate.roadmap && showSection('sec12') && (
-    <section class="section" id="sec12">
-      <header class="sec-head">
-        <div class="eyebrow">{nn('sec12')}</div>
-        <h2>O'sish imkoniyati</h2>
-        <p class="lead">Har bir o'lchanadigan ko'rsatkich (100 balldan) — <b>hozir</b> va reja bajarilgach <b>kutilayotgan daraja</b>. Eng zaif joylar eng ko'p o'sadi.</p>
-      </header>
-      <div class="growth-dumbbell" set:html={growthDumbbell(growthGroups)} />
-      <p class="caption center">Bu nimani ko'rsatadi: bo'sh nuqta — hozirgi daraja; rangli bo'laklar — 3, 6 va 12 oylik bosqichlardagi o'sish; to'q (navy) nuqta — reja so'ngida kutilayotgan daraja. Proyeksiya shaffof qoida bilan hisoblanadi (zaif joy ko'proq o'sadi, yuqori chegara ~95) — kafolat emas, yo'nalish.</p>
-    </section>
+    {showSection('sec12') && (
+    <LockedSection eyebrow="12" title="O'sish imkoniyati"
+      hint="Har o'lchanadigan ko'rsatkichning hozirgi va prognozli darajasi."
+      locked={!gate.roadmap}>
+      <section class="section" id="sec12">
+        <header class="sec-head">
+          <div class="eyebrow">{nn('sec12')}</div>
+          <h2>O'sish imkoniyati</h2>
+          <p class="lead">Har bir o'lchanadigan ko'rsatkich (100 balldan) — <b>hozir</b> va reja bajarilgach <b>kutilayotgan daraja</b>. Eng zaif joylar eng ko'p o'sadi.</p>
+        </header>
+        <div class="growth-dumbbell" set:html={growthDumbbell(growthGroups)} />
+        <p class="caption center">Bu nimani ko'rsatadi: bo'sh nuqta — hozirgi daraja; rangli bo'laklar — 3, 6 va 12 oylik bosqichlardagi o'sish; to'q (navy) nuqta — reja so'ngida kutilayotgan daraja. Proyeksiya shaffof qoida bilan hisoblanadi (zaif joy ko'proq o'sadi, yuqori chegara ~95) — kafolat emas, yo'nalish.</p>
+      </section>
+    </LockedSection>
     )}
 
     {/* ===================== PART IV ===================== */}
     <div class="part"><span class="pn">IV</span><span class="pt">Xulosa</span><span class="pr"></span><span class="pe">§13</span></div>
 
-    {!gate.risks_notes && (
-      <LockedSection eyebrow="13+" title="Xulosa va tavsiyalar"
-        hint="Kelajak prognozi, ota-ona va komissiya xulosalari, glossariy." />
-    )}
-
-    {/* 13 · OUTLOOK */}
-    {gate.risks_notes && showSection('sec13') && (
-    <section class="section" id="sec13">
-      <header class="sec-head">
-        <div class="eyebrow">{nn('sec13')}</div>
-        <h2>Kelajak prognozi</h2>
-        <p class="lead">
-          {perfectScore
-            ? "Farzandingiz allaqachon eng yuqori darajada — endilikda maqsad shu darajani saqlab qolish."
-            : "Reja bajarilsa, qanday o'sish kutiladi (mezonlarga asoslangan taxmin — aniq kafolat emas)."}
-        </p>
-      </header>
-      {perfectScore ? (
-        <div class="perfect-card">
-          <h3>Barcha ko'rsatkichlar juda a'lo darajada</h3>
-          <p>
-            Farzandingiz materialni to'liq egallagan va topshiriqni kutilgandan
-            yuqori bajardi. Bu bosqichda o'sish emas, <b>saqlab qolish</b> muhim:
-            muntazam mashq, murakkabroq masalalar va yangi mavzular orqali
-            fikrlashni doim faol tuting.
+    {/* 13 · OUTLOOK — kelajak prognozi. Yopiq bo'lsa real chart blur bo'ladi. */}
+    {showSection('sec13') && (
+    <LockedSection eyebrow="13+" title="Xulosa va tavsiyalar"
+      hint="Kelajak prognozi, ota-ona va komissiya xulosalari, glossariy."
+      locked={!gate.risks_notes}>
+      <section class="section" id="sec13">
+        <header class="sec-head">
+          <div class="eyebrow">{nn('sec13')}</div>
+          <h2>Kelajak prognozi</h2>
+          <p class="lead">
+            {perfectScore
+              ? "Farzandingiz allaqachon eng yuqori darajada — endilikda maqsad shu darajani saqlab qolish."
+              : "Reja bajarilsa, qanday o'sish kutiladi (mezonlarga asoslangan taxmin — aniq kafolat emas)."}
           </p>
-        </div>
-      ) : (
-        <>
-          <div id="growth" class="chart" style="width:100%;height:240px"></div>
-          <p class="caption center">Chiziq — hozir → 3 oy → 6 oy → 12 oy davomida kutilayotgan ball. Bu taxminiy yo'nalish, kafolat emas.</p>
-        </>
-      )}
-    </section>
+        </header>
+        {perfectScore ? (
+          <div class="perfect-card">
+            <h3>Barcha ko'rsatkichlar juda a'lo darajada</h3>
+            <p>
+              Farzandingiz materialni to'liq egallagan va topshiriqni kutilgandan
+              yuqori bajardi. Bu bosqichda o'sish emas, <b>saqlab qolish</b> muhim:
+              muntazam mashq, murakkabroq masalalar va yangi mavzular orqali
+              fikrlashni doim faol tuting.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div id="growth" class="chart" style="width:100%;height:240px"></div>
+            <p class="caption center">Chiziq — hozir → 3 oy → 6 oy → 12 oy davomida kutilayotgan ball. Bu taxminiy yo'nalish, kafolat emas.</p>
+          </>
+        )}
+      </section>
+    </LockedSection>
     )}
   </div>
 

@@ -107,40 +107,32 @@ function thresholdFor(key: SubjectKey, grade: number, thresholds: AdmissionThres
   return row.ct;
 }
 
-// Sodiq School official "Qabul qarori" — from resource/image.png.
-// Mapped from the composite/potential band on the Yakuniy shkala. Per-grade
-// per-subject minimum thresholds (resource/result.text) gate this: failing
-// any subject's minimum demotes the verdict to "Not Yet Ready".
-function verdictFor(compPotential: number, gateAllPassed: boolean): { label: string; sub: string; color: string } {
-  if (!gateAllPassed) {
-    return {
-      label: "TAYYOR EMAS",
-      sub: "Bir yoki bir nechta fan minimal chegaradan past",
-      color: BAND_COLORS.bad,
-    };
-  }
-  if (compPotential >= 84)
+// Verdict is based on compPotential (what the student can achieve after
+// eliminating technical errors). Thresholds match the official 5-band scale:
+// 83+ Juda yuqori, 66+ Yaxshi, 49+ O'rtacha, 34+ Zaif, else Sayoz.
+export function verdictFor(potential: number): { label: string; sub: string; color: string } {
+  if (potential > 83)
     return {
       label: "QABUL TAVSIYA ETILADI",
       sub: "Yuqori daraja — maktabga qabul tavsiya etiladi",
       color: BAND_COLORS.good,
     };
-  if (compPotential >= 67)
+  if (potential > 66)
     return {
       label: "QABUL QILINSIN",
       sub: "Ishonchli daraja — qabul tavsiya etiladi",
-      color: BAND_COLORS.green,
+      color: BAND_COLORS.blue,
     };
-  if (compPotential >= 50)
+  if (potential > 49)
     return {
       label: "SHARTLI QABUL",
       sub: "Rivojlanayotgan daraja — shartli qabul",
       color: BAND_COLORS.ok,
     };
-  if (compPotential >= 35)
+  if (potential > 34)
     return {
-      label: "NAVBATDA",
-      sub: "Shakllanayotgan daraja — navbatda",
+      label: "ZAXIRA QABUL",
+      sub: "Shakllanayotgan daraja — zaxira qabul",
       color: BAND_COLORS.orange,
     };
   return {
@@ -188,7 +180,7 @@ export function computeComposite(input: CompositeInput): CompositeReport {
     avgTechPct,
     topSubject,
     lowSubject,
-    verdict: verdictFor(compPotential, gateAllPassed),
+    verdict: verdictFor(composite),
     perSubjectGate,
     gateAllPassed,
     weights,

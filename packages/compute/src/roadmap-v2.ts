@@ -184,9 +184,6 @@ function planWeeksForStage(
   focusItems: FocusItem[],
   totalWeeks: number,
 ): WeekTask[] {
-  // No focus items → no plan. The caller/UI hides the stage entirely so the
-  // parent doesn't see a wall of "Umumiy takror" filler weeks. A perfect
-  // score should surface an empty roadmap, not busywork.
   if (focusItems.length === 0) return [];
   const plan: WeekTask[] = [];
   let week = 1;
@@ -205,8 +202,18 @@ function planWeeksForStage(
     }
     if (week > totalWeeks) break;
   }
-  // Deliberately stop here — plan length matches the amount of real work.
-  // Was: pad remaining weeks with "Umumiy takror" (dropped 2026-07-03).
+  // If we ran out of focus items before filling the horizon, top up with
+  // "review + mini-diagnostika" weeks so the plan doesn't feel padded.
+  while (week <= totalWeeks) {
+    plan.push({
+      week,
+      focusTopic: "Umumiy takror",
+      microTask: `Oldingi mavzular aralash mashq (${Math.min(3, focusItems.length)} ta fokusdan)`,
+      review: `Haftalik mini-test; xato-daftarga qaytish.`,
+      hours: 4,
+    });
+    week++;
+  }
   return plan;
 }
 

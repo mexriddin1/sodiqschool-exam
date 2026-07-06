@@ -42,7 +42,7 @@ export default function ResultsPage() {
   const [grade, setGrade] = useState<string>("");
   const [examId, setExamId] = useState<string>("");
   const [exams, setExams] = useState<{ id: string; title: string; grade: number }[]>([]);
-  const [sort, setSort] = useState<"created-desc" | "created-asc" | "code-asc">("created-desc");
+  const [sort, setSort] = useState<"created-desc" | "created-asc">("created-desc");
   const [error, setError] = useState<string | null>(null);
   const [delTarget, setDelTarget] = useState<ResultRow | null>(null);
   const [delPending, setDelPending] = useState(false);
@@ -152,7 +152,6 @@ export default function ResultsPage() {
           <select className="input" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
             <option value="created-desc">Yangi yaratilgan ↓</option>
             <option value="created-asc">Eski ↑</option>
-            <option value="code-asc">Kod A-Z</option>
           </select>
         </FilterField>
       </FilterBar>
@@ -164,7 +163,6 @@ export default function ResultsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="text-left px-4 py-2">Kod</th>
               <th className="text-left px-4 py-2">O'quvchi</th>
               <th className="text-left px-4 py-2">Imtihon</th>
               <th className="text-left px-4 py-2">Holat</th>
@@ -178,7 +176,6 @@ export default function ResultsPage() {
                 className="border-t hover:bg-gray-50 cursor-pointer"
                 onClick={() => router.push(`/results/${r.id}`)}
               >
-                <td className="px-4 py-2 font-mono">{r.publicCode}</td>
                 <td className="px-4 py-2">{r.student.fullName} ({r.student.grade}-sinf)</td>
                 <td className="px-4 py-2">{r.exam.title}</td>
                 <td className="px-4 py-2"><StatusBadge status={r.status} /></td>
@@ -193,7 +190,7 @@ export default function ResultsPage() {
               </tr>
             ))}
             {list.length === 0 && !loading && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">
                 {total === 0 ? "Natija yo'q. Yangi yarating." : "Filtrlarga mos natija topilmadi."}
               </td></tr>
             )}
@@ -206,8 +203,8 @@ export default function ResultsPage() {
       <DeleteConfirmDialog
         open={!!delTarget}
         title="Natijani o'chirish"
-        itemLabel={delTarget?.publicCode ?? ""}
-        confirmWord={delTarget?.publicCode ?? ""}
+        itemLabel={`${delTarget?.student.fullName ?? ""} — ${delTarget?.exam.title ?? ""}`}
+        confirmWord="o'chir"
         description={`${delTarget?.student.fullName ?? ""} — ${delTarget?.exam.title ?? ""}. Natija va uning barcha fan-natijalari o'chiriladi.`}
         pending={delPending}
         onCancel={() => setDelTarget(null)}

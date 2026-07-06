@@ -1,12 +1,13 @@
 ---
 export const prerender = false;
 import Layout from '../layouts/Layout.astro';
-import { fetchMyResult, getSessionToken, SESSION_COOKIE } from '../lib/session';
+import { getSessionToken } from '../lib/session';
 
 if (getSessionToken(Astro.cookies)) {
-  const me = await fetchMyResult(Astro);
-  if (me) return Astro.redirect('/summary');
-  Astro.cookies.delete(SESSION_COOKIE, { path: '/' });
+  // Yangi login flow: /select tanlash sahifasi bir yoki bir necha natijani
+  // aniqlaydi va tegishli joyga yo'naltiradi. Eski token bilan kirsak ham
+  // /select ni ochamiz — u yerda avtomatik summary'ga o'tadi.
+  return Astro.redirect('/select');
 }
 
 const m = {
@@ -35,18 +36,19 @@ const m = {
 
     <form id="loginForm" class="login-card">
       <h1>Natijaga kirish</h1>
-      <p class="hint">Ota-ona sifatida farzandingizning diagnostika hisobotini ko'rish uchun 6 belgili kirish kodi va parolni kiriting.</p>
+      <p class="hint">Ota-ona sifatida farzandingizning diagnostika hisobotini ko'rish uchun o'quvchining kirish kodi va parolini kiriting. Bir necha imtihon topshirgan bo'lsa, ular bitta hisob ostida turadi.</p>
 
-      <label class="lbl">Kirish kodi</label>
-      <div id="otp" class="otp" role="group" aria-label="Kirish kodi">
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="0" />
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="1" />
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="2" />
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="3" />
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="4" />
-        <input class="otp-cell" type="text" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text" data-i="5" />
-      </div>
-      <input id="code" name="code" type="hidden" required />
+      <label class="lbl" for="code">Kirish kodi</label>
+      <input
+        id="code"
+        name="code"
+        type="text"
+        required
+        autocomplete="username"
+        autocapitalize="characters"
+        spellcheck="false"
+        class="code-input"
+      />
 
       <label class="lbl" for="password">Parol</label>
       <div class="password-wrap">
@@ -143,6 +145,7 @@ const m = {
   input { padding: 11px 12px; border: 1.5px solid #d8dbe4; border-radius: 10px; font: inherit; outline: none;
     background: white; color: #0F1629; box-sizing: border-box; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; }
   input:focus { border-color: #06113C; box-shadow: 0 0 0 3px rgba(6, 17, 60, 0.15); }
+  .code-input { text-transform: uppercase; letter-spacing: 0.05em; font-family: "SF Mono", Consolas, Menlo, monospace; font-weight: 600; }
 
   /* ---- OTP grid ---- */
   /* `minmax(0, 1fr)` stops the tracks from ballooning past their flex share
@@ -208,71 +211,18 @@ const m = {
 <script>
   const form = document.getElementById('loginForm') as HTMLFormElement;
   const err = document.getElementById('err') as HTMLParagraphElement;
-  const hidden = document.getElementById('code') as HTMLInputElement;
-  const cells = Array.from(document.querySelectorAll<HTMLInputElement>('.otp-cell'));
+  const codeInput = document.getElementById('code') as HTMLInputElement;
   const pw = document.getElementById('password') as HTMLInputElement;
   const pwToggle = document.getElementById('pwToggle') as HTMLButtonElement;
   const pwIconShow = document.getElementById('pwIconShow') as unknown as SVGSVGElement;
   const pwIconHide = document.getElementById('pwIconHide') as unknown as SVGSVGElement;
 
-  // Only accept A-Z, 0-9 minus O/0/I/1 — same alphabet as the backend
-  // generator, so users don't try to type an ambiguous glyph.
-  const ALPHABET = /[A-HJ-NP-Z2-9]/;
-
-  function syncHidden() {
-    hidden.value = cells.map((c) => c.value).join('');
-  }
-  function updateFilled() {
-    cells.forEach((c) => c.classList.toggle('filled', !!c.value));
-  }
-
-  cells.forEach((cell, i) => {
-    cell.addEventListener('input', (e) => {
-      const el = e.target as HTMLInputElement;
-      const v = el.value.toUpperCase();
-      // Filter out disallowed characters.
-      const clean = v.split('').find((ch) => ALPHABET.test(ch)) ?? '';
-      el.value = clean;
-      updateFilled();
-      syncHidden();
-      if (clean && i < cells.length - 1) cells[i + 1].focus();
-    });
-
-    cell.addEventListener('keydown', (e) => {
-      const el = e.target as HTMLInputElement;
-      if (e.key === 'Backspace' && !el.value && i > 0) {
-        cells[i - 1].focus();
-        cells[i - 1].value = '';
-        updateFilled();
-        syncHidden();
-        e.preventDefault();
-      } else if (e.key === 'ArrowLeft' && i > 0) {
-        cells[i - 1].focus();
-        e.preventDefault();
-      } else if (e.key === 'ArrowRight' && i < cells.length - 1) {
-        cells[i + 1].focus();
-        e.preventDefault();
-      }
-    });
-
-    cell.addEventListener('paste', (e) => {
-      e.preventDefault();
-      const text = (e.clipboardData?.getData('text') ?? '').toUpperCase();
-      const chars = text.split('').filter((ch) => ALPHABET.test(ch));
-      for (let k = 0; k < chars.length && i + k < cells.length; k++) {
-        cells[i + k].value = chars[k];
-      }
-      updateFilled();
-      syncHidden();
-      const next = Math.min(i + chars.length, cells.length - 1);
-      cells[next].focus();
-    });
-
-    cell.addEventListener('focus', () => cell.select());
+  // Kirish kodini uppercase ga aylantiramiz — backend normalizePublicCode
+  // shu formatda tekshiradi.
+  codeInput.addEventListener('input', () => {
+    codeInput.value = codeInput.value.toUpperCase().replace(/\s+/g, '');
   });
-
-  // Autofocus first cell on load
-  cells[0]?.focus();
+  codeInput.focus();
 
   // Password show/hide
   pwToggle.addEventListener('click', () => {
@@ -288,11 +238,10 @@ const m = {
     e.preventDefault();
     err.hidden = true;
 
-    syncHidden();
-    const code = hidden.value;
+    const code = codeInput.value.trim();
     const password = pw.value;
-    if (code.length !== 6) {
-      err.textContent = 'Kirish kodi to\'liq 6 belgi bo\'lishi kerak';
+    if (code.length < 4) {
+      err.textContent = 'Kirish kodini kiriting';
       err.hidden = false;
       return;
     }
@@ -320,7 +269,9 @@ const m = {
       // again on /summary. Same-session navigation still keeps the flag so
       // going back to /summary from a subject page doesn't relaunch it.
       sessionStorage.removeItem('sodiq-celebration-seen');
-      window.location.href = '/summary';
+      // Yangi flow: /select natijalar sonini tekshirib to'g'ri joyga
+      // yo'naltiradi (bitta bo'lsa avtomatik summary, ko'p bo'lsa ro'yxat).
+      window.location.href = '/select';
     } finally {
       btn.disabled = false;
     }

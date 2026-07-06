@@ -8,9 +8,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!body || typeof body.code !== "string" || typeof body.password !== "string") {
     return new Response(JSON.stringify({ error: "Kod va parol kerak" }), { status: 400 });
   }
+  // Forward real client IP so the backend rate-limiter tracks per-user, not per-server.
+  const clientIp =
+    request.headers.get("x-real-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "";
   const res = await fetch(`${API_URL}/api/result/auth/login`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(clientIp ? { "x-forwarded-for": clientIp } : {}),
+    },
     body: JSON.stringify({ code: body.code, password: body.password }),
   });
   const json = await res.json().catch(() => ({}));

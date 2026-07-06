@@ -4,25 +4,26 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
-import { notFound, conflict } from "../lib/errors.js";
+import { notFound, conflict, badRequest } from "../lib/errors.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { audit } from "../services/audit.js";
-import { subjectKeySchema, questionSchema } from "../lib/schemas.js";
+import { subjectKeySchema, templateQuestionSchema } from "../lib/schemas.js";
 import { parsePagination, wrapPaginated } from "../lib/pagination.js";
 
 const createSchema = z.object({
   subject: subjectKeySchema,
   grade: z.number().int().min(5).max(11),
   name: z.string().min(1),
-  questions: z.array(questionSchema).min(1),
-  // Optional exam scope. When null / omitted the template lives in the
-  // "library" that any exam can import from.
-  examId: z.string().uuid().nullable().optional(),
+  questions: z.array(templateQuestionSchema).min(1),
+  // Every template must be attached to an exam (2026-07-03). The old
+  // "library" (examId=null) shape is still tolerated by existing rows but
+  // no new template can be created without an examId.
+  examId: z.string().uuid(),
 });
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  questions: z.array(questionSchema).min(1).optional(),
+  questions: z.array(templateQuestionSchema).min(1).optional(),
   examId: z.string().uuid().nullable().optional(),
 });
 
@@ -86,22 +87,14 @@ testTemplatesRouter.get(
     const subject = String(req.params.subject);
     const grade = Number(req.params.grade);
     const examId = req.query.examId ? String(req.query.examId) : undefined;
-    // Prefer an exam-scoped template when the caller passes examId; fall
-    // back to a shared-library template if none exists for that exam. Both
-    // paths use the same "first non-null match" resolution so callers don't
-    // have to double-request.
-    let t = null;
-    if (examId) {
-      t = await prisma.testTemplate.findFirst({
-        where: { examId, subject: subject as Prisma.EnumSubjectKeyFilter as never, grade },
-      });
-    }
-    if (!t) {
-      t = await prisma.testTemplate.findFirst({
-        where: { examId: null, subject: subject as Prisma.EnumSubjectKeyFilter as never, grade },
-      });
-    }
-    if (!t) throw notFound("Template not found for this subject + grade");
+    // Exam-scoped lookup is now REQUIRED (2026-07-03). Every template is
+    // tied to a specific exam — the legacy library fallback is gone so an
+    // import can't accidentally pick up a template from an unrelated exam.
+    if (!examId) throw badRequest("EXAM_ID_REQUIRED", "examId query parameter kerak");
+    const t = await prisma.testTemplate.findFirst({
+      where: { examId, subject: subject as Prisma.EnumSubjectKeyFilter as never, grade },
+    });
+    if (!t) throw notFound(`Bu imtihonda ${subject} · ${grade}-sinf uchun shablon topilmadi`);
     ok(res, t);
   }),
 );
@@ -110,19 +103,34 @@ testTemplatesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
     const data = createSchema.parse(req.body);
-    // Uniqueness now scoped by exam: one (exam, subject, grade) trio can
-    // exist per template. A null examId represents the shared library.
+    // Every template is tied to a specific exam (2026-07-03). Uniqueness:
+    // one template per (exam, subject, grade). We also enforce that the
+    // template's grade lives in the exam's `grades[]` (or matches the legacy
+    // `grade` column) so admins can't attach a 5-sinf template to an exam
+    // configured only for 8/9/10.
+    const exam = await prisma.exam.findUnique({
+      where: { id: data.examId },
+      select: { id: true, grade: true, grades: true },
+    });
+    if (!exam) throw notFound("Imtihon topilmadi");
+    const allowedGrades = Array.isArray(exam.grades) && exam.grades.length > 0 ? exam.grades : [exam.grade];
+    if (!allowedGrades.includes(data.grade)) {
+      throw badRequest(
+        "GRADE_NOT_ALLOWED",
+        `Tanlangan imtihon ${data.grade}-sinf uchun ruxsat bermaydi. Ruxsat etilgan sinflar: ${allowedGrades.join(", ")}`,
+      );
+    }
     const existing = await prisma.testTemplate.findFirst({
-      where: { examId: data.examId ?? null, subject: data.subject, grade: data.grade },
+      where: { examId: data.examId, subject: data.subject, grade: data.grade },
     });
     if (existing)
-      throw conflict(`Template for ${data.subject} grade ${data.grade} already exists in this scope`);
+      throw conflict(`Bu imtihonda ${data.subject} · ${data.grade}-sinf uchun shablon allaqachon bor`);
     const t = await prisma.testTemplate.create({
       data: {
         subject: data.subject,
         grade: data.grade,
         name: data.name,
-        examId: data.examId ?? null,
+        examId: data.examId,
         questions: data.questions as unknown as Prisma.InputJsonValue,
       },
     });
@@ -147,6 +155,52 @@ testTemplatesRouter.patch(
       },
     });
     await audit(req.admin!.id, "update", "TestTemplate", id, { name: prev.name }, { name: t.name });
+    ok(res, t);
+  }),
+);
+
+testTemplatesRouter.post(
+  "/:id/clone",
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const { examId } = z.object({ examId: z.string().uuid() }).parse(req.body);
+
+    const src = await prisma.testTemplate.findUnique({ where: { id } });
+    if (!src) throw notFound();
+
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      select: { id: true, grade: true, grades: true },
+    });
+    if (!exam) throw notFound("Imtihon topilmadi");
+
+    const allowedGrades =
+      Array.isArray(exam.grades) && exam.grades.length > 0 ? exam.grades : [exam.grade];
+    if (!allowedGrades.includes(src.grade)) {
+      throw badRequest(
+        "GRADE_NOT_ALLOWED",
+        `Tanlangan imtihon ${src.grade}-sinf uchun ruxsat bermaydi. Ruxsat etilgan sinflar: ${allowedGrades.join(", ")}`,
+      );
+    }
+
+    const existing = await prisma.testTemplate.findFirst({
+      where: { examId, subject: src.subject, grade: src.grade },
+    });
+    if (existing)
+      throw conflict(`Bu imtihonda ${src.subject} · ${src.grade}-sinf uchun shablon allaqachon bor`);
+
+    const t = await prisma.testTemplate.create({
+      data: {
+        subject: src.subject,
+        grade: src.grade,
+        name: src.name + " (nusxa)",
+        examId,
+        questions: src.questions as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await audit(req.admin!.id, "create", "TestTemplate", t.id, null, {
+      name: t.name, subject: t.subject, grade: t.grade, examId: t.examId, clonedFrom: src.id,
+    });
     ok(res, t);
   }),
 );

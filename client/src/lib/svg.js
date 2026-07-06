@@ -105,14 +105,14 @@ export function scoreScale(percent, adjusted, ci, colors) {
   const c = colors || { joriy: '#0F1629', taxmin: '#6B7385', tuzatilgan: '#2F9E6B' };
   const W = 760, x0 = 30, x1 = 730, Ah = 92, barH = 34, barY = Ah;
   const X = (v) => x0 + ((x1 - x0) * v) / 100;
-  // Official "Yakuniy shkala" — matches packages/compute/src/compute.ts:scoreBand.
-  //   0-34 Tamal · 35-49 Shakllanayotgan · 50-66 Rivojlanayotgan · 67-83 Ishonchli · 84-100 Yuqori
+  // Band labels + tick numbers both at the band-start boundaries: 35/50/67/84.
+  // Visual divider line and number are co-located so the scale reads cleanly.
   const bands = [
-    { a: 0,  b: 35,  label: 'Tamal',           color: '#D2503F' },
-    { a: 35, b: 50,  label: 'Shakllanayotgan', color: '#E37A2C' },
-    { a: 50, b: 67,  label: 'Rivojlanayotgan', color: '#C98A12' },
-    { a: 67, b: 84,  label: 'Ishonchli',       color: '#3266C9' },
-    { a: 84, b: 100, label: 'Yuqori',          color: '#2F9E6B' },
+    { a: 0,  b: 35,  label: 'Sayoz',       color: '#D2503F' },
+    { a: 35, b: 50,  label: 'Zaif',        color: '#E37A2C' },
+    { a: 50, b: 67,  label: "O'rtacha",    color: '#C98A12' },
+    { a: 67, b: 84,  label: 'Yaxshi',      color: '#3266C9' },
+    { a: 84, b: 100, label: 'Juda yuqori', color: '#2F9E6B' },
   ];
   const numY = barY + barH + 20, labelY = barY + barH + 38, H = labelY + 8;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto" role="img" aria-label="Daraja shkalasi: joriy ${percent}, tuzatilgan ${adjusted}">`;
@@ -125,10 +125,8 @@ export function scoreScale(percent, adjusted, ci, colors) {
   // CI shown as a soft highlighted range on the bar — not a "gate".
   const cl = X(ci.low), ch = X(ci.high);
   s += `<rect x="${cl.toFixed(1)}" y="${barY + 3}" width="${(ch - cl).toFixed(1)}" height="${barH - 6}" rx="5" fill="#fff" fill-opacity="0.5"/>`;
-  // Ticks + numbers at the official band boundaries: 0 · 34 · 49 · 66 · 83 · 100
-  // (The band starts at 35/50/67/84 — the tick shows the boundary of the
-  // preceding band, which is one point below.)
-  for (const v of [0, 34, 49, 66, 83, 100]) {
+  // Ticks + numbers at band-start values: 0 · 35 · 50 · 67 · 84 · 100
+  for (const v of [0, 35, 50, 67, 84, 100]) {
     const x = X(v);
     s += `<line x1="${x.toFixed(1)}" y1="${barY + barH}" x2="${x.toFixed(1)}" y2="${barY + barH + 6}" stroke="#9AA1B2"/>`;
     s += txt(x, numY, v, { size: 13, fill: '#3A4256', w: 700, mono: true });
@@ -214,11 +212,11 @@ export function bloomLadder(levels) {
 // the centre (CSS animation on .radar-grow; disabled for print / reduced-motion).
 export function skillRadarChart(axes) {
   const n = axes.length;
-  const cx = 240, cy = 182, R = 112, W = 480, H = 360;
+  const cx = 310, cy = 230, R = 118, W = 620, H = 470;
   const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
   const pt = (i, r) => [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
   const ring = (r) => axes.map((_, i) => pt(i, r).map((v) => v.toFixed(1)).join(',')).join(' ');
-  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;width:100%;max-width:440px;height:auto" role="img" aria-label="Ko&#39;nikmalar radari">`;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;width:100%;max-width:580px;height:auto" role="img" aria-label="Ko&#39;nikmalar radari">`;
   // web rings — delicate hairlines
   for (const rv of [25, 50, 75, 100]) {
     s += `<polygon points="${ring((R * rv) / 100)}" fill="none" stroke="${rv === 100 ? '#DFE3EA' : '#EEF1F5'}" stroke-width="0.75"/>`;
@@ -237,24 +235,29 @@ export function skillRadarChart(axes) {
     s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="${C.accent}" stroke="#fff" stroke-width="1"/>`;
   });
   s += `</g>`;
-  // labels (name wrapped to 2 lines + value) — light weight
+  // Labels: word-wrap to max 13 chars/line, up to 3 lines, pushed to R+48.
+  const WRAP = 13, MAX_LINES = 3, LINE_H = 13;
   axes.forEach((a, i) => {
-    const [x, y] = pt(i, R + 14);
-    const c = Math.cos(ang(i));
-    const anchor = c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle';
+    const [x, y] = pt(i, R + 48);
+    const cosA = Math.cos(ang(i));
+    const anchor = cosA > 0.3 ? 'start' : cosA < -0.3 ? 'end' : 'middle';
+    // word-wrap
     const words = a.name.split(' ');
-    let l1 = a.name, l2 = '';
-    if (a.name.length > 12 && words.length > 1) {
-      const mid = Math.ceil(words.length / 2);
-      l1 = words.slice(0, mid).join(' ');
-      l2 = words.slice(mid).join(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if (lines.length >= MAX_LINES) break;
+      const candidate = cur ? `${cur} ${w}` : w;
+      if (cur && candidate.length > WRAP) { lines.push(cur); cur = w; }
+      else cur = candidate;
     }
-    const y0 = y - (l2 ? 6 : 0) - (Math.sin(ang(i)) < -0.6 ? 6 : 0);
-    s += txt(x, y0, esc(l1), { size: 11.5, fill: C.text, w: 600, anchor });
-    if (l2) s += txt(x, y0 + 13, esc(l2), { size: 11.5, fill: C.text, w: 600, anchor });
-    // Percentage value under the axis name (parents preferred the raw
-    // number to a qualitative bucket).
-    s += txt(x, y0 + (l2 ? 26 : 13), `${Math.round(a.value)}%`, { size: 10.5, fill: C.accent, w: 700, anchor });
+    if (cur && lines.length < MAX_LINES) lines.push(cur);
+    // Center the text block around y
+    const y0 = y - ((lines.length - 1) * LINE_H) / 2;
+    lines.forEach((ln, li) => {
+      s += txt(x, y0 + li * LINE_H, esc(ln), { size: 10.5, fill: C.text, w: 600, anchor });
+    });
+    s += txt(x, y0 + lines.length * LINE_H + 2, `${Math.round(a.value)}%`, { size: 10, fill: C.accent, w: 700, anchor });
   });
   return s + '</svg>';
 }

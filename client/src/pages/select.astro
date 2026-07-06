@@ -1,0 +1,137 @@
+---
+export const prerender = false;
+// Login qilingandan keyingi tanlash sahifasi. Header (Layout topnav)
+// bu sahifada ko'rinmaydi — foydalanuvchi hali natija tanlamagan bo'ladi,
+// tab navigatsiyasi mantiqsiz. Shu sababli Layout emas, bare shell.
+import '../styles/global.css';
+import { fetchMyResultList } from '../lib/session';
+
+const data = await fetchMyResultList(Astro);
+if (!data) return Astro.redirect('/login');
+
+// Bitta natija — to'g'ridan-to'g'ri summary'ga.
+if (data.results.length === 1) {
+  return Astro.redirect(`/summary?resultId=${data.results[0].id}`);
+}
+---
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sodiq School — Natijalar ro'yxati</title>
+    <meta name="description" content="Sodiq School — natijalar tanlash" />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Pragmatica-400.woff2" crossorigin />
+  </head>
+  <body>
+    <main class="select-shell">
+      <img src="/logo-light.png" alt="Sodiq School" class="brand-logo" />
+      <div class="select-card">
+        <div class="hdr">
+          <div class="who">
+            <div class="name">{data.student.fullName}</div>
+            <div class="sub">{data.student.grade}-sinf</div>
+          </div>
+          <form method="POST" action="/api/logout">
+            <button type="submit" class="btn-logout">Chiqish</button>
+          </form>
+        </div>
+
+        {data.results.length === 0 ? (
+          <div class="empty">
+            <div class="empty-icon">📋</div>
+            <div class="empty-title">Sizga hali imtihon natijasi biriktirilmagan</div>
+            <div class="empty-sub">Imtihon topshirilgandan keyin natijalar shu yerda ko'rinadi.</div>
+          </div>
+        ) : (
+          <>
+            <h1>Natijalar</h1>
+            <p class="hint">
+              Sizga {data.results.length} ta imtihon natijasi biriktirilgan. Ko'rmoqchi bo'lganingizni tanlang.
+            </p>
+            <ul class="results">
+              {data.results.map((r) => (
+                <li>
+                  <a href={`/summary?resultId=${r.id}`} class="result-row">
+                    <div class="rr-main">
+                      <div class="rr-title">{r.exam.title}</div>
+                      <div class="rr-meta">
+                        {new Date(r.exam.examDate).toLocaleDateString()}
+                        {r.exam.academicYear ? ` · ${r.exam.academicYear}` : ''}
+                        {` · ${r.exam.grade}-sinf`}
+                      </div>
+                    </div>
+                    <div class="rr-score">
+                      {r.compositeScore != null ? (
+                        <>
+                          <div class="score-value">{r.compositeScore}</div>
+                          <div class="score-unit">/100</div>
+                        </>
+                      ) : (
+                        <div class="score-empty">—</div>
+                      )}
+                    </div>
+                    <div class="rr-arrow">→</div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </main>
+
+    <style>
+      body { margin: 0; }
+      .select-shell {
+        min-height: 100vh;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 32px 20px 60px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #F7F8FC 60%, #EDEFF7 100%);
+        gap: 20px;
+      }
+      .brand-logo { width: 220px; height: auto; }
+      .select-card {
+        background: #fff;
+        border: 1px solid #E5E7EB;
+        border-radius: 16px;
+        padding: 28px 32px;
+        box-shadow: 0 4px 30px rgba(6, 17, 60, 0.06);
+        width: 100%; max-width: 640px;
+      }
+      .hdr {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #F1F3F7;
+      }
+      .who .name { font-size: 15px; font-weight: 600; color: #06113C; }
+      .who .sub { font-size: 12px; color: #6B7280; margin-top: 2px; }
+      .btn-logout {
+        background: transparent; border: 1px solid #D1D5DB; color: #4B5563;
+        padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+      }
+      .btn-logout:hover { border-color: #06113C; color: #06113C; }
+      h1 { color: #06113C; font-size: 22px; margin: 4px 0 6px; }
+      .hint { color: #4A5060; font-size: 14px; margin: 0 0 20px; }
+      .results { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+      .result-row {
+        display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 20px;
+        padding: 14px 18px; border-radius: 10px;
+        border: 1px solid #E5E7EB; background: #FAFBFC; text-decoration: none;
+        color: inherit; transition: all 0.15s;
+      }
+      .result-row:hover { border-color: #06113C; background: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(6, 17, 60, 0.06); }
+      .rr-title { font-weight: 600; font-size: 15px; color: #06113C; }
+      .rr-meta { font-size: 12px; color: #6B7280; margin-top: 3px; }
+      .rr-score { text-align: right; display: flex; align-items: baseline; gap: 2px; }
+      .score-value { font-size: 22px; font-weight: 700; color: #06113C; font-variant-numeric: tabular-nums; }
+      .score-unit { font-size: 12px; color: #9CA3AF; }
+      .score-empty { font-size: 20px; color: #D1D5DB; }
+      .rr-arrow { font-size: 20px; color: #06113C; opacity: 0.4; transition: opacity 0.15s; }
+      .result-row:hover .rr-arrow { opacity: 1; }
+      .empty { text-align: center; padding: 40px 20px; }
+      .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+      .empty-title { font-size: 16px; font-weight: 600; color: #06113C; }
+      .empty-sub { font-size: 13px; color: #6B7280; margin-top: 6px; }
+    </style>
+  </body>
+</html>

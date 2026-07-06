@@ -26,7 +26,15 @@ interface Detail {
     costUsd?: number;
     generatedAt?: string;
   } | null;
-  student: { id: string; fullName: string; grade: number };
+  student: {
+    id: string;
+    fullName: string;
+    grade: number;
+    // 2026-07-03: login/parol endi Studentga tegishli. Result.publicCode
+    // qoladi (legacy id), ammo ko'rsatiladigan kredensiallar shu yerdan.
+    loginCode?: string | null;
+    accessPassword?: string | null;
+  };
   exam: { id: string; title: string; grade: number };
   unlockedSections?: string[];
   subjects: {
@@ -114,12 +122,17 @@ export default function ResultDetailPage() {
       </div>
 
       <div className="card p-4 grid grid-cols-4 gap-3 text-sm">
-        <Field label="Kirish kodi" value={r.publicCode} mono copyable />
         <Field
-          label="Parol"
-          value={r.accessPassword || "—"}
+          label="Login (o'quvchi)"
+          value={r.student.loginCode ?? "—"}
           mono
-          copyable={!!r.accessPassword}
+          copyable={!!r.student.loginCode}
+        />
+        <Field
+          label="Parol (o'quvchi)"
+          value={r.student.accessPassword || "—"}
+          mono
+          copyable={!!r.student.accessPassword}
         />
         <Field label="Sinf" value={`${r.student.grade}-sinf`} />
         <Field label="Nashr sanasi" value={r.publishedAt ? new Date(r.publishedAt).toLocaleString() : "—"} />
@@ -244,9 +257,12 @@ export default function ResultDetailPage() {
 // value so a fresh open always has fresh data.
 function ParentMessageCard({ result }: { result: Detail }) {
   const clientBase = process.env.NEXT_PUBLIC_CLIENT_URL ?? "https://natija.sodiqschool.uz";
-  const passwordLine = result.accessPassword
-    ? `Parol: ${result.accessPassword}`
-    : `Parol: (natija nashr etilganda paydo bo'ladi)`;
+  const loginLine = result.student.loginCode
+    ? `Login: ${result.student.loginCode}`
+    : `Login: (o'quvchi kredensiallari hali biriktirilmagan)`;
+  const passwordLine = result.student.accessPassword
+    ? `Parol: ${result.student.accessPassword}`
+    : `Parol: (o'quvchi kredensiallari hali biriktirilmagan)`;
   const defaultText = `Assalomu alaykum!
 
 Hurmatli ota-ona, farzandingiz ${result.student.fullName}ning Sodiq School kirish imtihoni natijalari tayyor.
@@ -254,7 +270,7 @@ Hurmatli ota-ona, farzandingiz ${result.student.fullName}ning Sodiq School kiris
 Natijalarni ushbu havoladan ko'rishingiz mumkin:
 ${clientBase}/login
 
-Kirish kodi: ${result.publicCode}
+${loginLine}
 ${passwordLine}
 
 Sodiq School Academic Assessment Office`;
@@ -266,7 +282,7 @@ Sodiq School Academic Assessment Office`;
     setText(defaultText);
     // reset on result change (publish, reset password, etc.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result.publicCode, result.accessPassword, result.student.fullName]);
+  }, [result.student.loginCode, result.student.accessPassword, result.student.fullName]);
 
   async function copy() {
     try {

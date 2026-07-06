@@ -21,6 +21,7 @@ const NAV = [
   { href: "/results", label: "Natijalar" },
   { href: "/audit", label: "Audit jurnali" },
   { href: "/docs", label: "Namunalar (JSON)" },
+  { href: "/settings", label: "Sozlamalar", adminOnly: true },
   { href: "/users", label: "Boshqaruvchilar", adminOnly: true },
 ];
 

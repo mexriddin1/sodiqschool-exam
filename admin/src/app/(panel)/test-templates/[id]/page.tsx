@@ -15,7 +15,10 @@ interface TestTemplate {
   grade: number;
   name: string;
   questions: Question[];
+  examId?: string | null;
 }
+
+interface ExamOption { id: string; title: string; grade: number; status: string }
 
 const SUBJECT_LABEL = {
   MATH: "Matematika",
@@ -28,6 +31,8 @@ export default function EditTestTemplatePage() {
   const params = useParams<{ id: string }>();
   const [tpl, setTpl] = useState<TestTemplate | null>(null);
   const [name, setName] = useState("");
+  const [examId, setExamId] = useState<string>("");
+  const [exams, setExams] = useState<ExamOption[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -37,11 +42,18 @@ export default function EditTestTemplatePage() {
     api<TestTemplate>(`/api/admin/test-templates/${params.id}`).then((d) => {
       setTpl(d);
       setName(d.name);
+      setExamId(d.examId ?? "");
       setQuestions(d.questions ?? []);
     });
   }, [params.id]);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    api<{ items: ExamOption[] }>(`/api/admin/exams?take=200`)
+      .then((d) => setExams(d.items))
+      .catch(() => undefined);
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -49,10 +61,11 @@ export default function EditTestTemplatePage() {
     setError(null);
     setPending(true);
     try {
+      if (!examId) throw new Error("Imtihon tanlang. Test shabloni majburiy bir imtihonga bog'lanadi.");
       if (questions.length === 0) throw new Error("Kamida bitta savol kerak.");
       await api(`/api/admin/test-templates/${tpl.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: name.trim(), questions }),
+        body: JSON.stringify({ name: name.trim(), examId, questions }),
       });
       router.push("/test-templates");
     } catch (e) {
@@ -71,9 +84,31 @@ export default function EditTestTemplatePage() {
         {SUBJECT_LABEL[tpl.subject]} · {tpl.grade}-sinf
       </h1>
 
-      <div className="card p-4">
-        <label className="label">Shablon nomi</label>
-        <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="card p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="label">Imtihon <span className="text-bad">*</span></label>
+          <select
+            className="input"
+            required
+            value={examId}
+            onChange={(e) => setExamId(e.target.value)}
+          >
+            <option value="">— Tanlang —</option>
+            {exams.map((ex) => (
+              <option key={ex.id} value={ex.id}>
+                {ex.title} · {ex.grade}-sinf · {ex.status}
+              </option>
+            ))}
+          </select>
+          <div className="text-xs text-gray-500 mt-1">
+            Bu test shabloni qaysi imtihonga tegishli ekanini belgilaydi.
+            Natija import qilishda shu bog'liqlik tekshiriladi.
+          </div>
+        </div>
+        <div>
+          <label className="label">Shablon nomi</label>
+          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
       </div>
 
       <div className="card p-4 space-y-3">

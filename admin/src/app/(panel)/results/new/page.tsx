@@ -13,8 +13,15 @@ interface Exam {
   id: string;
   title: string;
   grade: number;
+  // Modern multi-grade array — canonical source of truth. Legacy exams
+  // fall back to the single `grade` column via allowedGradesFor().
+  grades?: number[];
   admissionThresholds?: Record<string, { math: number; ct: number; en: number }>;
   gradingConfiguration?: unknown;
+}
+function allowedGradesFor(ex: Exam): number[] {
+  if (Array.isArray(ex.grades) && ex.grades.length > 0) return ex.grades;
+  return [ex.grade];
 }
 
 type SubjectKey = "MATH" | "ENGLISH" | "CRITICAL_THINKING";
@@ -37,7 +44,9 @@ export default function NewResultPage() {
   });
   const [manual, setManual] = useState<ManualContent>(EMPTY_MANUAL);
   const [error, setError] = useState<string | null>(null);
-  const [creds, setCreds] = useState<{ publicCode: string; password: string; id: string } | null>(null);
+  // Yangi credentials shape: loginCode STUDENT ustidan; password faqat ilk
+  // marta yaratilgan holatda qaytadi (aks holda null → "avvalgi parol").
+  const [creds, setCreds] = useState<{ loginCode: string; password: string | null; generated: boolean; id: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -52,6 +61,21 @@ export default function NewResultPage() {
 
   const studentGrade = students.find((s) => s.id === studentId)?.grade ?? null;
   const selectedStudent = students.find((s) => s.id === studentId) ?? null;
+  // Exams a student can be paired with: their grade must live in the exam's
+  // allowed grades. Everything filters through this derived list — the
+  // dropdown, the auto-clear effect below, and the submit check.
+  const compatibleExams = useMemo(() => {
+    if (studentGrade == null) return exams;
+    return exams.filter((e) => allowedGradesFor(e).includes(studentGrade));
+  }, [exams, studentGrade]);
+
+  // If the previously-selected exam is no longer compatible with the newly
+  // picked student, clear the exam pick so the admin has to reselect.
+  useEffect(() => {
+    if (!examId || studentGrade == null) return;
+    const stillOk = compatibleExams.some((e) => e.id === examId);
+    if (!stillOk) setExamId("");
+  }, [studentId, studentGrade, compatibleExams, examId]);
 
   const filteredStudents = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
@@ -85,14 +109,18 @@ export default function NewResultPage() {
   }
 
   async function importAllSubjects() {
-    if (!studentGrade) return;
+    if (!studentGrade || !examId) return;
     setImportLoading(true);
     setImportMsg(null);
     try {
       const next: Record<SubjectKey, Question[]> = { MATH: [], ENGLISH: [], CRITICAL_THINKING: [] };
       const misses: string[] = [];
       for (const k of Object.keys(next) as SubjectKey[]) {
-        const r = await fetch(`${API_BASE}/api/admin/test-templates/by/${k}/${studentGrade}`, { credentials: "include" });
+        // Scope the lookup to the selected exam. The endpoint refuses to
+        // return templates from other exams — this keeps import strictly
+        // "only tests attached to THIS exam" as the product requires.
+        const url = `${API_BASE}/api/admin/test-templates/by/${k}/${studentGrade}?examId=${encodeURIComponent(examId)}`;
+        const r = await fetch(url, { credentials: "include" });
         if (r.ok) {
           const j = await r.json();
           const qs = j?.data?.questions;
@@ -105,7 +133,7 @@ export default function NewResultPage() {
       if (misses.length === 0) {
         setImportMsg(`${studentGrade}-sinf testlari yuklandi. Har bir savolni Natija ustunida baholang.`);
       } else {
-        setImportMsg(`${studentGrade}-sinf uchun ${misses.join(", ")} shabloni topilmadi. Test shablonlari sahifasidan yarating.`);
+        setImportMsg(`${studentGrade}-sinf uchun ${misses.join(", ")} shabloni tanlangan imtihonda topilmadi. Test shablonlari sahifasidan yarating.`);
       }
     } finally {
       setImportLoading(false);
@@ -134,7 +162,7 @@ export default function NewResultPage() {
       });
       const data = await api<{
         result: { id: string };
-        credentials: { publicCode: string; password: string };
+        credentials: { loginCode: string; password: string | null; generated: boolean };
       }>("/api/admin/results", {
         method: "POST",
         body: JSON.stringify({
@@ -161,12 +189,11 @@ export default function NewResultPage() {
         <h1 className="text-2xl font-semibold text-good">Natija yaratildi</h1>
         <div className="card p-4 space-y-3">
           <p className="text-sm text-gray-600">
-            Quyidagi maxfiy ma'lumotlarni endi bir martagina ko'rasiz.
-            Parol bcrypt bilan saqlanadi va keyin tiklab bo'lmaydi.
+            Login o'quvchining o'ziga tegishli (barcha imtihonlari uchun bitta hisob).
           </p>
           <div>
-            <div className="label">Kirish kodi (6 belgi)</div>
-            <div className="font-mono text-xl">{creds.publicCode}</div>
+            <div className="label">Login (kirish kodi)</div>
+            <div className="font-mono text-xl">{creds.loginCode}</div>
           </div>
           <div>
             <div className="label">Parol</div>
@@ -175,7 +202,7 @@ export default function NewResultPage() {
           <div className="pt-3 flex gap-2">
             <button
               className="btn-secondary inline-flex items-center gap-2"
-              onClick={() => navigator.clipboard.writeText(`${creds.publicCode} / ${creds.password}`)}
+              onClick={() => navigator.clipboard.writeText(`${creds.loginCode} / ${creds.password ?? ""}`)}
             ><Icon name="copy" size={16} /> Nusxalash</button>
             <button className="btn-primary inline-flex items-center gap-2" onClick={() => router.push(`/results/${creds.id}`)}>
               <Icon name="view" size={16} /> Natijani ochish
@@ -242,23 +269,47 @@ export default function NewResultPage() {
             onChange={(e) => setExamId(e.target.value)}
             className={`input ${!examId ? "border-bad bg-bad/5 focus:border-bad" : ""}`}
             required
+            disabled={!studentId}
           >
-            <option value="">— tanlang —</option>
-            {exams.map((e) => (
-              <option key={e.id} value={e.id}>{e.title} ({e.grade}-sinf)</option>
+            <option value="">
+              {!studentId
+                ? "Avval o'quvchini tanlang"
+                : compatibleExams.length === 0
+                ? `${studentGrade}-sinf uchun imtihon topilmadi`
+                : "— tanlang —"}
+            </option>
+            {compatibleExams.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.title} ({allowedGradesFor(e).join("/")}-sinf)
+              </option>
             ))}
           </select>
+          {studentId && compatibleExams.length === 0 && (
+            <div className="text-xs text-warn mt-1">
+              {studentGrade}-sinf uchun bironta imtihon topilmadi. Imtihonlar sahifasidan qo'shing.
+            </div>
+          )}
         </div>
       </div>
 
       {studentGrade != null && (
         <div className="card p-3 flex items-center justify-between bg-good/10">
           <div className="text-sm">
-            <b>{studentGrade}-sinf</b> savollarini barcha 3 fan uchun bir tugma bilan import qiling.
+            <b>{studentGrade}-sinf</b> savollarini <b>tanlangan imtihonga</b> bog'langan shablonlardan bir tugma bilan import qiling.
           </div>
-          <button type="button" className="btn-primary inline-flex items-center gap-2" disabled={importLoading} onClick={importAllSubjects}>
+          <button
+            type="button"
+            className="btn-primary inline-flex items-center gap-2"
+            disabled={importLoading || !examId}
+            title={!examId ? "Avval imtihonni tanlang" : ""}
+            onClick={importAllSubjects}
+          >
             <Icon name="download" size={16} />
-            {importLoading ? "Yuklanmoqda…" : `${studentGrade}-sinf testlarini import qilish`}
+            {importLoading
+              ? "Yuklanmoqda…"
+              : !examId
+              ? "Avval imtihonni tanlang"
+              : `${studentGrade}-sinf testlarini import qilish`}
           </button>
         </div>
       )}

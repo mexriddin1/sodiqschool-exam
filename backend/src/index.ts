@@ -17,6 +17,7 @@ import { templatesRouter } from "./routes/admin.templates.js";
 import { testTemplatesRouter } from "./routes/admin.testtemplates.js";
 import { statsRouter } from "./routes/admin.stats.js";
 import { subjectsRouter } from "./routes/admin.subjects.js";
+import { settingsRouter } from "./routes/admin.settings.js";
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use("/api/admin/templates", templatesRouter);
 app.use("/api/admin/test-templates", testTemplatesRouter);
 app.use("/api/admin/stats", statsRouter);
 app.use("/api/admin/subjects", subjectsRouter);
+app.use("/api/admin/settings", settingsRouter);
 app.use("/api/result", publicResultRouter);
 
 app.use(errorMiddleware);

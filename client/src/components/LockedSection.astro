@@ -1,64 +1,124 @@
 ---
-// Placeholder shown in place of a report section that the parent hasn't
-// unlocked yet. Renders a soft "yopiq" card with instructions on how to
-// unlock (visit the school). Non-alarming — the goal is to invite the parent
-// in, not scare them.
+// Ota-ona hali ochmagan bo'limlarga o'rniga ko'rsatiladi. Yopiq ekanligi
+// aniq bilinishi uchun: tepada bo'lim eyebrow + sarlavha + lead ochiq
+// matn bilan chiqadi (bo'limda nima borligini bilib olsin), pastda
+// blur qilingan REAL content preview (mock skeleton emas, aynan bo'lim'ning
+// o'zi), tepasida qulf ramzi + "yopiq" ogohlantirish + tashrif buyurish
+// taklifi. Blur ostidagi real shakl shu bo'limda qanaqa content borligini
+// aniq tuyg'usini beradi — ammo matn o'qib bo'lmaydi.
+//
+// Ishlatilishi:
+//   <LockedSection eyebrow="11–12" title="Rivojlanish yo'li"
+//                  hint="…" locked={!gate.roadmap}>
+//     <section id="sec11">...real content...</section>
+//   </LockedSection>
+//
+// locked=false bo'lsa slot content oddiy holda chiqadi — hech qanday
+// eyebrow/title/lead qo'shilmaydi (chunki real bo'limning o'zi ichida bor).
+
 interface Props {
   /** Displayed as the section title above the placeholder. */
   title: string;
   /** Optional 1-line preview of what's inside — tempts the parent. */
   hint?: string;
-  /** Numbered eyebrow (e.g. "05"), matches the surrounding section style. */
+  /** Numbered eyebrow (e.g. "11–12"), matches the surrounding section style. */
   eyebrow?: string;
+  /** Yopiqmi? false bo'lsa oddiy slot chiqadi. */
+  locked?: boolean;
 }
-const { title, hint, eyebrow } = Astro.props;
+const { title, hint, eyebrow, locked = true } = Astro.props;
 ---
-<section class="section locked-section">
-  {eyebrow && <div class="eyebrow">{eyebrow}</div>}
-  <div class="locked-card">
-    <div class="locked-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="10" width="16" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 1 1 8 0v3" />
-      </svg>
+{locked ? (
+  <section class="section locked-section" aria-label={`${title} — yopiq bo'lim`}>
+    {eyebrow && <div class="eyebrow">{eyebrow}</div>}
+    <h2>{title}</h2>
+    {hint && <p class="lead">{hint}</p>}
+
+    <div class="lock-shell">
+      {/* Blur qilingan REAL content — ota-ona bo'lim mavjudligini va
+          strukturasini ko'radi, ammo matnni o'qib bo'lmaydi. aria-hidden
+          bilan yordamchi texnologiyalarga yashiriladi. */}
+      <div class="lock-blur" aria-hidden="true">
+        <slot />
+      </div>
+
+      <div class="lock-overlay">
+        <div class="lock-badge" role="img" aria-label="Qulf">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="10" width="16" height="10" rx="2" />
+            <path d="M8 10V7a4 4 0 1 1 8 0v3" />
+          </svg>
+        </div>
+        <div class="lock-title">Bu bo'lim yopiq</div>
+        <p class="lock-cta">
+          Bo'limni ochish uchun <b>Sodiq School</b> maktabiga tashrif buyuring.
+          Farzandingiz haqidagi to'liq maslahat va rivojlanish yo'lini ota-ona
+          bilan uchrashuvda muhokama qilamiz.
+        </p>
+      </div>
     </div>
-    <div class="locked-body">
-      <h3>{title} <span class="locked-tag">Yopiq</span></h3>
-      {hint && <p class="locked-hint">{hint}</p>}
-      <p class="locked-cta">
-        Bu bo'lim <b>Sodiq School</b> maktabiga tashrif buyurganingizdan so'ng ochiladi.
-        Farzandingiz haqidagi to'liq maslahat, rivojlanish yo'li va tavsiyalarni
-        ota-ona bilan uchrashuvda muhokama qilish samaraliroq. Bizga qo'ng'iroq qilib
-        vaqt belgilang.
-      </p>
-    </div>
-  </div>
-</section>
+  </section>
+) : (
+  <slot />
+)}
 
 <style>
-  .locked-section { padding-top: 24px; }
-  .locked-card {
-    display: flex; gap: 16px; align-items: flex-start;
-    padding: 20px 22px; border-radius: 14px;
+  .locked-section h2 { margin: 6px 0 2px; color: #06113C; }
+  .locked-section .lead { color: #4B5563; margin: 0 0 12px; font-size: 14px; }
+
+  .lock-shell {
+    position: relative; overflow: hidden;
+    border-radius: 14px; padding: 22px;
     background: linear-gradient(135deg, #F8FAFC 0%, #EEF2F7 100%);
     border: 1px dashed #C7D2E1;
+    min-height: 220px;
   }
-  .locked-icon {
-    flex: 0 0 44px; width: 44px; height: 44px;
-    display: flex; align-items: center; justify-content: center;
+
+  /* --- Blur qilingan REAL content (mock skeleton emas) --- */
+  .lock-blur {
+    position: absolute; inset: 0;
+    padding: 22px;
+    filter: blur(6px);
+    -webkit-filter: blur(6px);
+    opacity: 0.55;
+    pointer-events: none;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  /* --- Ustki qatlam: qulf + xabar --- */
+  .lock-overlay {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    padding: 14px 20px;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(1.5px);
+    -webkit-backdrop-filter: blur(1.5px);
     border-radius: 10px;
+    max-width: 520px;
+    margin: 12px auto;
+  }
+  .lock-badge {
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
     background: #06113C; color: #FF8A32;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(6, 17, 60, 0.15);
   }
-  .locked-body h3 {
-    margin: 0; font-size: 16px; font-weight: 600; color: #06113C;
-    display: flex; align-items: center; gap: 10px;
+  .lock-title {
+    font-size: 16px; font-weight: 700; color: #06113C;
+    letter-spacing: 0.01em;
   }
-  .locked-tag {
-    display: inline-block; font-size: 10px; font-weight: 600;
-    letter-spacing: 0.05em; text-transform: uppercase;
-    padding: 3px 8px; border-radius: 999px;
-    background: #FF8A32; color: #fff;
+  .lock-cta {
+    margin: 0; font-size: 13.5px; color: #374151; line-height: 1.55;
   }
-  .locked-hint { margin: 6px 0 8px; font-size: 13px; color: #4B5563; }
-  .locked-cta { margin: 6px 0 0; font-size: 13px; color: #4B5563; line-height: 1.55; }
+
+  /* Print: blur'ni yopish, faqat xabar chiqsin (PDF ekspertlar uchun). */
+  @media print {
+    .lock-blur { display: none !important; }
+    .lock-shell { min-height: auto; }
+    .lock-overlay { background: transparent; backdrop-filter: none; }
+  }
 </style>

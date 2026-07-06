@@ -24,7 +24,9 @@ import { parsePagination, wrapPaginated } from "../lib/pagination.js";
 import { invalidateStats } from "./admin.stats.js";
 import { generateResultNarrative } from "../services/ai.js";
 import { parseCsv, parseJsonRows } from "../services/csv-import.js";
-import { bulkImportResults } from "../services/bulk-import.js";
+import { bulkImportResults, resolveExamTemplateCounts } from "../services/bulk-import.js";
+import { ensureStudentCredentials } from "../services/student-credentials.js";
+import { readDefaultUnlockedSections } from "./admin.settings.js";
 
 export const resultsRouter = Router();
 resultsRouter.use(requireAdmin);
@@ -122,10 +124,18 @@ resultsRouter.post(
       prisma.student.findUnique({ where: { id: data.studentId } }),
       prisma.exam.findUnique({ where: { id: data.examId } }),
     ]);
-    if (!student) throw notFound("Student not found");
-    if (!exam) throw notFound("Exam not found");
-    if (exam.grade !== student.grade)
-      throw badRequest("GRADE_MISMATCH", `Exam grade ${exam.grade} != student grade ${student.grade}`);
+    if (!student) throw notFound("O'quvchi topilmadi");
+    if (!exam) throw notFound("Imtihon topilmadi");
+    // Multi-grade aware compatibility check. The student's grade must live
+    // in the exam's `grades[]`; legacy exams (grades=[]) fall back to the
+    // single `grade` column.
+    const allowedGrades = Array.isArray(exam.grades) && exam.grades.length > 0 ? exam.grades : [exam.grade];
+    if (!allowedGrades.includes(student.grade)) {
+      throw badRequest(
+        "GRADE_MISMATCH",
+        `${student.grade}-sinf o'quvchisi tanlangan imtihonga ({${allowedGrades.join(", ")}}-sinf) mos kelmaydi.`,
+      );
+    }
 
     validateAllSubjects(data.subjects);
 
@@ -150,9 +160,18 @@ resultsRouter.post(
       subjects: subjectInputs.map(({ subject, meta, questions, realData }) => ({ subject, meta, questions, realData })),
     });
 
+    // Ensure the STUDENT has login credentials (2026-07-03). We stopped
+    // minting fresh credentials per Result — parents log in with a single
+    // student-wide code + password and pick which result to view.
+    const studentCreds = await ensureStudentCredentials(student.id);
+    // Result.publicCode / accessPassword columns are still required by the
+    // schema (backward compat with old rows). We fill them with random
+    // values that are never surfaced to the parent — everything auths
+    // against Student.loginCode / accessPasswordHash from now on.
     const publicCode = await generateUniquePublicCode();
-    const plainPassword = generatePassword();
-    const passwordHash = await bcrypt.hash(plainPassword, config.bcryptCost);
+    const throwawayPlain = generatePassword();
+    const passwordHash = await bcrypt.hash(throwawayPlain, config.bcryptCost);
+    const defaultUnlocked = await readDefaultUnlockedSections();
 
     const result = await prisma.result.create({
       data: {
@@ -160,7 +179,8 @@ resultsRouter.post(
         examId: exam.id,
         publicCode,
         accessPasswordHash: passwordHash,
-        accessPassword: plainPassword,
+        accessPassword: throwawayPlain,
+        unlockedSections: defaultUnlocked,
         // Auto-publish on create so parents can log in immediately with the
         // credentials shown to the admin. No separate "Nashr etish" step is
         // required per operator preference.
@@ -202,9 +222,14 @@ resultsRouter.post(
 
     ok(res, {
       result,
-      // The plain password is returned exactly once. Admin UI must display it
-      // and never persist it client-side.
-      credentials: { publicCode, password: plainPassword },
+      // Student-wide credentials. Password value is only returned when this
+      // is the first result created for the student (i.e. we just minted
+      // them); subsequent results reuse the existing password.
+      credentials: {
+        loginCode: studentCreds.loginCode,
+        password: studentCreds.plainPassword,
+        generated: studentCreds.generated,
+      },
     });
   }),
 );
@@ -349,6 +374,30 @@ resultsRouter.post(
   }),
 );
 
+// Re-freeze the calculatedSnapshot for an already-published result.
+// Useful when compute logic changed (new verdict thresholds, new formula) and
+// existing snapshots are stale. Does NOT change status or publishedAt.
+resultsRouter.post(
+  "/:id/recompute-snapshot",
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const result = await prisma.result.findUnique({
+      where: { id },
+      include: { subjects: true, student: true, exam: true },
+    });
+    if (!result) throw notFound();
+    const snapshot = computeSnapshot(result);
+    await prisma.result.update({
+      where: { id },
+      data: { calculatedSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+    });
+    await recomputeCohortRanks(result.examId);
+    invalidateStats();
+    await audit(req.admin!.id, "recompute-snapshot", "Result", id, null, { id });
+    ok(res, { id, status: result.status, snapshot });
+  }),
+);
+
 // Standalone endpoint so the admin can re-generate narrative on demand (after
 // a manual edit, or if the auto-run on publish failed).
 resultsRouter.post(
@@ -490,7 +539,23 @@ resultsRouter.post(
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) throw notFound("Exam not found");
 
-    const parsed = jsonRows ? parseJsonRows({ students: jsonRows }) : parseCsv(csv);
+    // Look up per-subject question counts from the exam's TestTemplate(s).
+    // JSON parser uses these to reject rows whose answer arrays don't match
+    // (e.g. matem 26 answers when the template has 25). Null per subject
+    // means no template yet — fall back to defaults so import still works.
+    const tplCounts = await resolveExamTemplateCounts(exam.id, exam.grade);
+    const expectedCounts = {
+      MATH: tplCounts.MATH ?? 25,
+      CRITICAL_THINKING: tplCounts.CRITICAL_THINKING ?? 10,
+      ENGLISH: tplCounts.ENGLISH ?? 50,
+    };
+    // Subjects for which no real template exists in this exam — auto-generated stub will be used.
+    const noTemplateSubjects = (Object.entries(tplCounts) as [SubjectKey, number | null][])
+      .filter(([, v]) => v === null)
+      .map(([k]) => k);
+    const parsed = jsonRows
+      ? parseJsonRows({ students: jsonRows }, expectedCounts)
+      : parseCsv(csv);
 
     if (dryRun) {
       // Preview: per-row digest + "already has a result in this exam" flag
@@ -516,6 +581,8 @@ resultsRouter.post(
       return ok(res, {
         dryRun: true,
         examId,
+        expectedCounts,
+        noTemplateSubjects,
         totalRows: parsed.rows.length,
         parseErrors: parsed.errors,
         preview: parsed.rows.slice(0, 500).map((r) => {
@@ -555,6 +622,7 @@ resultsRouter.post(
     ok(res, {
       dryRun: false,
       examId,
+      expectedCounts,
       totalRows: parsed.rows.length,
       parseErrors: parsed.errors,
       created: report.created,

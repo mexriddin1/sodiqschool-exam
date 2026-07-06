@@ -27,6 +27,8 @@ import { computeSnapshot, recomputeCohortRanks } from "./snapshot.js";
 import { generatePassword } from "@sodiq/compute";
 import { generateUniquePublicCode } from "./code.js";
 import { CsvParsedRow } from "./csv-import.js";
+import { readDefaultUnlockedSections } from "../routes/admin.settings.js";
+import { ensureStudentCredentials } from "./student-credentials.js";
 
 const QUESTION_COUNTS: Record<SubjectKey, number> = {
   MATH: 25,
@@ -82,16 +84,17 @@ async function ensureTemplate(
   subject: SubjectKey,
   grade: number,
 ): Promise<Question[]> {
-  // Preferred: template scoped to this exam.
+  // Strict lookup: template must belong to this exam (2026-07-03). The
+  // legacy library fallback (examId=null) was removed. If a grade-specific
+  // template is missing, fall back to ANY exam-scoped template for that
+  // subject before giving up.
   let tpl = await prisma.testTemplate.findFirst({
     where: { examId, subject, grade },
     select: { questions: true },
   });
-  // Legacy fallback: shared "library" template with examId=null. This mirrors
-  // the fallback used by /test-templates.
   if (!tpl) {
     tpl = await prisma.testTemplate.findFirst({
-      where: { examId: null, subject, grade },
+      where: { examId, subject },
       select: { questions: true },
     });
   }
@@ -99,11 +102,12 @@ async function ensureTemplate(
     const arr = tpl.questions as unknown as Question[];
     if (Array.isArray(arr) && arr.length > 0) return arr;
   }
-  // Auto-generate the expected number of questions for this subject.
+  // Nothing found for this exam. Auto-generate a stub so import still works,
+  // but persist it with the correct examId (never null) — admin can enrich
+  // it later from Test shablonlari.
   const count = QUESTION_COUNTS[subject];
   const auto: Question[] = [];
   for (let i = 0; i < count; i++) auto.push(autoQuestion(subject, i, count));
-  // Persist so subsequent imports and admin edits reuse the same shape.
   await prisma.testTemplate.create({
     data: {
       subject,
@@ -152,8 +156,9 @@ export interface BulkImportRowReport {
   rowNumber: number;
   tr: number;
   fullName: string;
-  publicCode: string;
-  password: string;
+  publicCode: string;            // studentga tegishli loginCode
+  password: string | null;       // faqat yangi yaratilgan hollarda
+  credentialsGenerated: boolean; // shu importda ilk marta yaratilganmi
   studentId: string;
   resultId: string;
   studentCreated: boolean;
@@ -164,6 +169,41 @@ export interface BulkImportReport {
   examId: string;
   created: BulkImportRowReport[];
   skipped: { rowNumber: number; tr: number; reason: string }[];
+}
+
+/**
+ * Discover how many questions the exam's TestTemplate holds for each subject.
+ * If a grade is given we look for that grade's template; otherwise we take
+ * the first template we can find per subject. Returns null-per-subject when
+ * no template exists so callers can decide whether to fall back to hardcoded
+ * defaults (25/10/50) or reject the import.
+ */
+export async function resolveExamTemplateCounts(
+  examId: string,
+  grade?: number,
+): Promise<Record<SubjectKey, number | null>> {
+  const subjectKeys: SubjectKey[] = ["MATH", "CRITICAL_THINKING", "ENGLISH"];
+  const out: Record<SubjectKey, number | null> = { MATH: null, CRITICAL_THINKING: null, ENGLISH: null };
+  for (const sk of subjectKeys) {
+    // Strict exam-scoped lookup only (2026-07-03). If a template for the
+    // student's grade exists we use it; otherwise fall back to any grade
+    // within this exam. The old legacy-library (examId=null) fallback is
+    // gone — every template must live under its exam.
+    const where = grade != null
+      ? [{ examId, subject: sk, grade }, { examId, subject: sk }]
+      : [{ examId, subject: sk }];
+    for (const w of where) {
+      const tpl = await prisma.testTemplate.findFirst({ where: w, select: { questions: true } });
+      if (tpl && Array.isArray(tpl.questions)) {
+        const arr = tpl.questions as unknown as Question[];
+        if (arr.length > 0) {
+          out[sk] = arr.length;
+          break;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -181,6 +221,10 @@ export async function bulkImportResults(params: {
 
   const exam = await prisma.exam.findUnique({ where: { id: examId } });
   if (!exam) throw new Error(`Exam not found: ${examId}`);
+
+  // Which report sections should be unlocked by default on newly-created
+  // results. Admin manages this from /settings; empty array = all closed.
+  const defaultUnlocked = await readDefaultUnlockedSections();
 
   const created: BulkImportRowReport[] = [];
   const skipped: BulkImportReport["skipped"] = [];
@@ -227,11 +271,14 @@ export async function bulkImportResults(params: {
         subjectQuestions[sk] = overlayAnswers(tpl, row.answers[sk]);
       }
 
-      // 3. Login code (6-char random, guaranteed unique) + random password.
-      //    bcrypt hash stored alongside plaintext so admin can re-display it.
+      // 3. Ensure the student has login credentials (2026-07-03). One
+      //    account per student — re-imports of the same UID reuse the same
+      //    loginCode/password. Result.publicCode/accessPassword rows are
+      //    still filled (schema NOT NULL) but never surfaced to the parent.
+      const studentCreds = await ensureStudentCredentials(student.id);
       const publicCode = await generateUniquePublicCode();
-      const plainPassword = generatePassword();
-      const passwordHash = await bcrypt.hash(plainPassword, config.bcryptCost);
+      const throwawayPlain = generatePassword();
+      const passwordHash = await bcrypt.hash(throwawayPlain, config.bcryptCost);
 
       // 4. Create the result + three SubjectResult rows in one transaction.
       // Auto-publish so parents can log in with the code/password we hand
@@ -241,11 +288,12 @@ export async function bulkImportResults(params: {
           studentId: student.id,
           examId,
           publicCode,
-          accessPassword: plainPassword,
+          accessPassword: throwawayPlain,
           accessPasswordHash: passwordHash,
           status: "PUBLISHED",
           publishedAt: new Date(),
           manualContent: {},
+          unlockedSections: defaultUnlocked,
           subjects: {
             create: subjectKeys.map((sk) => {
               const qs = subjectQuestions[sk];
@@ -274,12 +322,16 @@ export async function bulkImportResults(params: {
         console.error("[csv-import] snapshot failed", result.id, e);
       }
 
+      // Report row: STUDENT credentials (login + parol). Parol qiymati
+      // faqat shu importda studentga birinchi marta yaratilganida qaytadi;
+      // avvaldan kredensial bo'lgan holatda password: null bo'ladi.
       created.push({
         rowNumber: row.rowNumber,
         tr: row.tr,
         fullName: `${row.firstName} ${row.lastName}`.trim(),
-        publicCode,
-        password: plainPassword,
+        publicCode: studentCreds.loginCode,
+        password: studentCreds.plainPassword,
+        credentialsGenerated: studentCreds.generated,
         studentId: student.id,
         resultId: result.id,
         studentCreated,

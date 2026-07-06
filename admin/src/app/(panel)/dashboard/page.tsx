@@ -72,7 +72,7 @@ const VERDICT_COLORS: Record<string, string> = {
   "QABUL TAVSIYA ETILADI": "#2F9E6B",
   "QABUL QILINSIN": "#3266C9",
   "SHARTLI QABUL": "#C98A12",
-  "NAVBATDA": "#E37A2C",
+  "ZAXIRA QABUL": "#E37A2C",
   "TAYYOR EMAS": "#D2503F",
   // Legacy English labels — keep so old published snapshots still render in
   // colour until they get regenerated.

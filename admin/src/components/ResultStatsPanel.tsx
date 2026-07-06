@@ -10,9 +10,9 @@ type SubjectKey = "MATH" | "ENGLISH" | "CRITICAL_THINKING";
 
 const VERDICT_COLORS: Record<VerdictLabel, string> = {
   "QABUL TAVSIYA ETILADI": "#2F9E6B",
-  "QABUL QILINSIN": "#2F9E6B",
+  "QABUL QILINSIN": "#3266C9",
   "SHARTLI QABUL": "#C98A12",
-  "NAVBATDA": "#FF8A32",
+  "ZAXIRA QABUL": "#FF8A32",
   "TAYYOR EMAS": "#D2503F",
   "STRONG ADMIT": "#2F9E6B",
   "ADMIT": "#2F9E6B",
@@ -25,7 +25,7 @@ const VERDICT_SUBS: Record<VerdictLabel, string> = {
   "QABUL TAVSIYA ETILADI": "Yuqori daraja — maktabga qabul tavsiya etiladi",
   "QABUL QILINSIN": "Ishonchli daraja — qabul tavsiya etiladi",
   "SHARTLI QABUL": "Rivojlanayotgan daraja — shartli qabul",
-  "NAVBATDA": "Shakllanayotgan daraja — navbatda",
+  "ZAXIRA QABUL": "Shakllanayotgan daraja — zaxira qabul",
   "TAYYOR EMAS": "Tamal bosqich — avval tayyorgarlik kerak",
   "STRONG ADMIT": "Yuqori daraja — maktabga qabul tavsiya etiladi",
   "ADMIT": "Ishonchli daraja — qabul tavsiya etiladi",
@@ -211,7 +211,7 @@ export default function ResultStatsPanel({ subjects, grade, admissionThresholds,
                   <option value="QABUL TAVSIYA ETILADI">Qabul tavsiya etiladi</option>
                   <option value="QABUL QILINSIN">Qabul qilinsin</option>
                   <option value="SHARTLI QABUL">Shartli qabul</option>
-                  <option value="NAVBATDA">Navbatda</option>
+                  <option value="ZAXIRA QABUL">Zaxira qabul</option>
                   <option value="TAYYOR EMAS">Tayyor emas</option>
                 </select>
               </div>

@@ -3,36 +3,80 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 
-// Standalone cell for the tech-error IDs input. Controlled inputs bound to
-// `array.join(", ")` re-normalise on every keystroke, which eats the comma
-// and space the user just typed. This cell keeps a local draft string,
-// syncing back to the array only on blur.
-function TechErrorIdsCell({ ids, onChange }: { ids: string[]; onChange: (next: string[]) => void }) {
-  const [draft, setDraft] = useState(ids.join(", "));
-  // Sync incoming array → draft when it changes from OUTSIDE (e.g. row added).
-  const idsJoined = ids.join(",");
+interface TechRef { id: string; note: string; }
+
+function normalizeTechRefs(raw: Array<string | { id: string; note?: string }> | undefined): TechRef[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r) => typeof r === "string" ? { id: r, note: "" } : { id: r.id, note: r.note ?? "" });
+}
+
+// Structured editor: each entry has an ID field and an optional note field.
+// Uses internal state so the "+" button can add empty rows without the
+// parent filter immediately removing them. Syncs to parent on blur.
+function TechErrorRefsCell({ refs: parentRefs, onChange }: { refs: TechRef[]; onChange: (next: TechRef[]) => void }) {
+  const [refs, setRefs] = useState<TechRef[]>(parentRefs);
+
+  // Re-sync when parent data changes (e.g. template loaded from picker).
+  const parentKey = parentRefs.map((r) => `${r.id}\x00${r.note}`).join("\x01");
   useEffect(() => {
-    setDraft(ids.join(", "));
+    setRefs(parentRefs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsJoined]);
+  }, [parentKey]);
+
+  // Push non-empty entries to parent.
+  function commit(next: TechRef[]) {
+    onChange(next.filter((r) => r.id.trim()));
+  }
+
+  function updateRef(i: number, p: Partial<TechRef>) {
+    const next = [...refs];
+    next[i] = { ...next[i]!, ...p };
+    setRefs(next);
+    return next;
+  }
+
   return (
-    <input
-      className="input py-1.5 px-2 text-sm"
-      placeholder="masalan: 2, 8"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        const parsed = draft.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
-        if (parsed.join(",") !== idsJoined) onChange(parsed);
-      }}
-    />
+    <div className="space-y-1 min-w-[220px]">
+      {refs.map((r, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <input
+            className="input py-1 px-1.5 text-xs w-14 font-mono"
+            placeholder="Q7"
+            value={r.id}
+            onChange={(e) => updateRef(i, { id: e.target.value })}
+            onBlur={() => commit(refs)}
+          />
+          <input
+            className="input py-1 px-1.5 text-xs flex-1"
+            placeholder="izoh (ixtiyoriy)"
+            value={r.note}
+            onChange={(e) => updateRef(i, { note: e.target.value })}
+            onBlur={() => commit(refs)}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const next = refs.filter((_, j) => j !== i);
+              setRefs(next);
+              commit(next);
+            }}
+            className="text-bad text-xs hover:bg-bad/10 rounded px-1 py-0.5 flex-shrink-0"
+          >✕</button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => setRefs([...refs, { id: "", note: "" }])}
+        className="text-xs text-navy hover:underline"
+      >+ qo'shish</button>
+    </div>
   );
 }
 
 export type Difficulty = "Oson" | "O'rta" | "Qiyin";
 export type QResult = "To'g'ri" | "Noto'g'ri" | "Qisman";
 export type Bloom = "Eslab qolish" | "Tushunish" | "Qo'llash" | "Tahlil" | "Baholash" | "Yaratish";
-export type Reasoning = "Deduktiv" | "Induktiv" | "Analitik" | "Fazoviy";
+export type Reasoning = "Deduktiv" | "Induktiv" | "Analitik" | "Fazoviy" | "Inferensial";
 export type ErrType = "Texnik" | "Bilim bo'shlig'i";
 
 export interface Question {
@@ -52,9 +96,9 @@ export interface Question {
   errorType: ErrType | null;
   evidence: string;
   peerSolveRate?: number | null;
-  // Manually-authored "technical error" label: harder question IDs. If any is
-  // solved, this wrong answer is treated as a careless (technical) mistake.
-  techErrorIds?: string[];
+  // Manually-authored "technical error" links. Each entry is either a plain
+  // question ID (legacy) or an object with id + optional admin note.
+  techErrorIds?: Array<string | { id: string; note?: string }>;
 }
 
 export function blankQuestion(id: string): Question {
@@ -68,9 +112,13 @@ export function blankQuestion(id: string): Question {
 
 const DIFF: Difficulty[] = ["Oson", "O'rta", "Qiyin"];
 const BLOOM: Bloom[] = ["Eslab qolish", "Tushunish", "Qo'llash", "Tahlil", "Baholash", "Yaratish"];
-const REASON: (Reasoning | "")[] = ["", "Deduktiv", "Induktiv", "Analitik", "Fazoviy"];
+const REASON_MATH_CT: (Reasoning | "")[] = ["", "Deduktiv", "Induktiv", "Analitik", "Fazoviy"];
+const REASON_ENGLISH: (Reasoning | "")[] = ["", "Deduktiv", "Induktiv", "Analitik", "Inferensial"];
+function getReasonOptions(subj: "MATH" | "ENGLISH" | "CRITICAL_THINKING"): (Reasoning | "")[] {
+  return subj === "ENGLISH" ? REASON_ENGLISH : REASON_MATH_CT;
+}
 const QRES: QResult[] = ["To'g'ri", "Noto'g'ri", "Qisman"];
-const ERR: (ErrType | "")[] = ["", "Texnik", "Bilim bo'shlig'i"];
+const ERR: (ErrType | "")[] = ["", "Bilim bo'shlig'i"];
 
 export type GridMode = "template" | "result";
 
@@ -152,7 +200,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
         }
         // Noto'g'ri / Qisman
         const earned = next === "Qisman" ? Math.floor(q.marks / 2) : 0;
-        return { ...q, result: next, earned, errorType: q.errorType ?? "Bilim bo'shlig'i" };
+        return { ...q, result: next, earned };
       }),
     );
   }
@@ -278,52 +326,52 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
           <table className="w-full text-sm border-collapse">
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
               <tr>
-                <th className="p-2 text-left w-16">ID</th>
-                <th className="p-2 text-left w-16">Ball</th>
-                <th className="p-2 text-left w-20">Qiyinlik</th>
-                <th className="p-2 text-left">Bo'lim</th>
-                <th className="p-2 text-left">Mavzu</th>
-                <th className="p-2 text-left">Kichik mavzu</th>
-                <th className="p-2 text-left">Ko'nikma</th>
-                <th className="p-2 text-left w-28">Bloom</th>
-                <th className="p-2 text-left w-24">Fikrlash</th>
-                <th className="p-2 text-left w-20">Sinf</th>
-                <th className="p-2 text-left">Framework</th>
-                <th className="p-2 text-left w-32" title="Ushbu savoldan qiyinroq savol ID'lari, vergul bilan ajratilgan. Agar shulardan birortasi yechilgan bo'lsa, bu savol texnik xato hisoblanadi.">Texnik xato ID</th>
-                <th className="p-2 w-20"></th>
+                <th className="p-2 text-left min-w-[100px]">ID</th>
+                <th className="p-2 text-left min-w-[100px]">Ball</th>
+                <th className="p-2 text-left min-w-[130px]">Qiyinlik</th>
+                <th className="p-2 text-left min-w-[170px]">Bo'lim</th>
+                <th className="p-2 text-left min-w-[190px]">Mavzu</th>
+                <th className="p-2 text-left min-w-[210px]">Kichik mavzu</th>
+                <th className="p-2 text-left min-w-[190px]">Ko'nikma</th>
+                <th className="p-2 text-left min-w-[160px]">Bloom</th>
+                <th className="p-2 text-left min-w-[140px]">Fikrlash</th>
+                <th className="p-2 text-left min-w-[110px]">Sinf</th>
+                <th className="p-2 text-left min-w-[170px]">Framework</th>
+                <th className="p-2 text-left min-w-[240px]" title="Bog'liq savol ID'lari. Agar shulardan biri yechilgan bo'lsa, bu savol texnik xato hisoblanadi. Har biriga ixtiyoriy izoh qo'shish mumkin.">Texnik xato IDlar + izoh</th>
+                <th className="p-2 min-w-[90px]"></th>
               </tr>
             </thead>
             <tbody>
               {value.map((q, i) => (
                 <tr key={i} className="border-t align-top">
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.id} onChange={(e) => patch(i, { id: e.target.value })} /></td>
-                  <td className="p-1"><input type="number" min={0} className="input py-1.5 px-2 text-sm" value={q.marks} onChange={(e) => patch(i, { marks: Number(e.target.value) })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.id} onChange={(e) => patch(i, { id: e.target.value })} /></td>
+                  <td className="p-1"><input type="number" min={0} className="input py-3 px-3 text-sm w-full" value={q.marks} onChange={(e) => patch(i, { marks: Number(e.target.value) })} /></td>
                   <td className="p-1">
-                    <select className="input py-1.5 px-2 text-sm" value={q.difficulty} onChange={(e) => patch(i, { difficulty: e.target.value as Difficulty })}>
+                    <select className="input py-3 px-3 text-sm w-full" value={q.difficulty} onChange={(e) => patch(i, { difficulty: e.target.value as Difficulty })}>
                       {DIFF.map((d) => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.strand} onChange={(e) => patch(i, { strand: e.target.value })} /></td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.topic} onChange={(e) => patch(i, { topic: e.target.value })} /></td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.subTopic} onChange={(e) => patch(i, { subTopic: e.target.value })} /></td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.skill} onChange={(e) => patch(i, { skill: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.strand} onChange={(e) => patch(i, { strand: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.topic} onChange={(e) => patch(i, { topic: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.subTopic} onChange={(e) => patch(i, { subTopic: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.skill} onChange={(e) => patch(i, { skill: e.target.value })} /></td>
                   <td className="p-1">
-                    <select className="input py-1.5 px-2 text-sm" value={q.bloom} onChange={(e) => patch(i, { bloom: e.target.value as Bloom })}>
+                    <select className="input py-3 px-3 text-sm w-full" value={q.bloom} onChange={(e) => patch(i, { bloom: e.target.value as Bloom })}>
                       {BLOOM.map((b) => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </td>
                   <td className="p-1">
-                    <select className="input py-1.5 px-2 text-sm" value={q.reasoning ?? ""}
+                    <select className="input py-3 px-3 text-sm w-full" value={q.reasoning ?? ""}
                       onChange={(e) => patch(i, { reasoning: (e.target.value || null) as Reasoning | null })}>
-                      {REASON.map((r) => <option key={r} value={r}>{r || "—"}</option>)}
+                      {getReasonOptions(subject).map((r) => <option key={r} value={r}>{r || "—"}</option>)}
                     </select>
                   </td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
-                  <td className="p-1"><input className="input py-1.5 px-2 text-sm" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.gradeLevel} onChange={(e) => patch(i, { gradeLevel: e.target.value })} /></td>
+                  <td className="p-1"><input className="input py-3 px-3 text-sm w-full" value={q.framework} onChange={(e) => patch(i, { framework: e.target.value })} /></td>
                   <td className="p-1">
-                    <TechErrorIdsCell
-                      ids={q.techErrorIds ?? []}
-                      onChange={(ids) => patch(i, { techErrorIds: ids })}
+                    <TechErrorRefsCell
+                      refs={normalizeTechRefs(q.techErrorIds)}
+                      onChange={(refs) => patch(i, { techErrorIds: refs })}
                     />
                   </td>
                   <td className="p-1 text-right">
@@ -414,7 +462,6 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
               <th className="p-2 text-left w-14">Ball</th>
               <th className="p-2 text-left w-24 text-good">Natija</th>
               <th className="p-2 text-left w-16 text-good">Olgan</th>
-              <th className="p-2 text-left w-28 text-good">Xato turi</th>
               <th className="p-2 text-left text-good">Izoh</th>
               <th className="p-2 w-10"></th>
             </tr>
@@ -446,15 +493,10 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                         const earned = next === "To'g'ri" ? q.marks : next === "Qisman" ? Math.floor(q.marks / 2) : 0;
                         // Auto-manage errorType so it stays consistent:
                         //  - "To'g'ri" → errorType must be null (compute validator enforces this).
-                        //  - "Noto'g'ri"/"Qisman" → default to "Bilim bo'shlig'i" so the column
-                        //    is never left empty when required; admin can flip to "Texnik".
-                        let errorType: ErrType | null | undefined = undefined;
-                        if (next === "To'g'ri") errorType = null;
-                        else if (!q.errorType) errorType = "Bilim bo'shlig'i";
                         patch(i, {
                           result: next,
                           earned,
-                          ...(errorType !== undefined && { errorType }),
+                          errorType: next === "To'g'ri" ? null : undefined,
                         });
                       }}>
                       <option value="">—</option>
@@ -464,16 +506,6 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                   <td className="p-1">
                     <input type="number" min={0} max={q.marks} className="input py-1.5 px-2 text-sm"
                       value={q.earned} onChange={(e) => patch(i, { earned: Number(e.target.value) })} />
-                  </td>
-                  <td className="p-1">
-                    <select
-                      className={`input py-1.5 px-2 text-sm ${!wrong ? "cursor-not-allowed bg-gray-100" : ""}`}
-                      value={q.errorType ?? ""}
-                      disabled={!wrong}
-                      title={!wrong ? "Avval Natijani 'Noto'g'ri' yoki 'Qisman' qiling" : ""}
-                      onChange={(e) => patch(i, { errorType: (e.target.value || null) as ErrType | null })}>
-                      {ERR.map((r) => <option key={r} value={r}>{r || "—"}</option>)}
-                    </select>
                   </td>
                   <td className="p-1">
                     <input className="input py-1.5 px-2 text-sm"
@@ -491,7 +523,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
               );
             })}
             {value.length === 0 && (
-              <tr><td colSpan={10} className="p-4 text-center text-gray-400">
+              <tr><td colSpan={9} className="p-4 text-center text-gray-400">
                 Savol yo'q. <b>{tplButtonLabel}</b> tugmasini bosing.
               </td></tr>
             )}
@@ -557,7 +589,14 @@ function Toolbar({
 function PasteBox({ text, setText, err, onApply }: { text: string; setText: (s: string) => void; err: string | null; onApply: () => void }) {
   return (
     <div className="card p-3 space-y-2">
-      <div className="text-xs">JSON kiriting (massiv yoki <code>{`{ "questions": [...] }`}</code>)</div>
+      <div className="text-xs space-y-1">
+        <div>JSON kiriting (massiv yoki <code>{`{ "questions": [...] }`}</code>)</div>
+        <div className="text-gray-400">
+          <code>techErrorIds</code> formati:{" "}
+          <code>{`[{"id":"Q7","note":"izoh matni"},{"id":"Q8","note":""}]`}</code>{" "}
+          yoki sodda ID: <code>{`["Q7","Q8"]`}</code>
+        </div>
+      </div>
       <textarea className="input font-mono text-xs" rows={6} value={text} onChange={(e) => setText(e.target.value)} />
       {err && <div className="text-bad text-xs">{err}</div>}
       <button type="button" className="btn-primary inline-flex items-center gap-2" onClick={onApply}>

@@ -1,6 +1,31 @@
 import { z } from "zod";
 
-// Per-question shape. Mirrors @sodiq/compute Question.
+const techErrorIdsSchema = z.array(
+  z.union([
+    z.string().min(1),
+    z.object({ id: z.string().min(1), note: z.string().optional() }),
+  ]),
+).optional();
+
+// Template question: structure-only (no result/earned/evidence).
+// All fields except id/marks are optional so any external JSON (different
+// bloom taxonomy labels, extra reasoning types, missing fields) is accepted.
+export const templateQuestionSchema = z.object({
+  id: z.coerce.string().min(1),
+  marks: z.coerce.number().int().nonnegative(),
+  difficulty: z.string().optional(),
+  strand: z.string().optional(),
+  topic: z.string().optional(),
+  subTopic: z.string().optional(),
+  skill: z.string().optional(),
+  bloom: z.string().optional(),
+  reasoning: z.string().nullable().optional(),
+  gradeLevel: z.string().optional(),
+  framework: z.string().optional(),
+  techErrorIds: techErrorIdsSchema,
+});
+
+// Result question: strict version for result creation/validation.
 export const questionSchema = z.object({
   id: z.string().min(1),
   marks: z.number().int().nonnegative(),
@@ -10,17 +35,15 @@ export const questionSchema = z.object({
   subTopic: z.string(),
   skill: z.string(),
   bloom: z.enum(["Eslab qolish", "Tushunish", "Qo'llash", "Tahlil", "Baholash", "Yaratish"]),
-  reasoning: z.enum(["Deduktiv", "Induktiv", "Analitik", "Fazoviy"]).nullable(),
+  reasoning: z.enum(["Deduktiv", "Induktiv", "Analitik", "Fazoviy", "Inferensial"]).nullable(),
   gradeLevel: z.string(),
   framework: z.string(),
+  techErrorIds: techErrorIdsSchema,
   result: z.enum(["To'g'ri", "Noto'g'ri", "Qisman"]),
   earned: z.number().int().nonnegative(),
-  errorType: z.enum(["Texnik", "Bilim bo'shlig'i"]).nullable(),
+  errorType: z.enum(["Texnik", "Bilim bo'shlig'i"]).nullable().optional(),
   evidence: z.string(),
   peerSolveRate: z.number().min(0).max(100).nullable().optional(),
-  // Manually-authored technical-error label: harder question IDs that cover
-  // the same skill. See @sodiq/compute Question interface for semantics.
-  techErrorIds: z.array(z.string()).optional(),
 });
 
 export const realDataSchema = z
@@ -192,7 +215,7 @@ const summaryOverrideSchema = z.object({
   verdictOverride: z
     .object({
       label: z.enum([
-        "QABUL TAVSIYA ETILADI", "QABUL QILINSIN", "SHARTLI QABUL", "NAVBATDA", "TAYYOR EMAS",
+        "QABUL TAVSIYA ETILADI", "QABUL QILINSIN", "SHARTLI QABUL", "ZAXIRA QABUL", "NAVBATDA", "TAYYOR EMAS",
         // Legacy English labels — accept for backwards compatibility with old
         // manualContent records that were saved before the Uzbek rename.
         "STRONG ADMIT", "ADMIT", "CONDITIONAL ADMIT", "WAITLIST", "NOT YET READY",

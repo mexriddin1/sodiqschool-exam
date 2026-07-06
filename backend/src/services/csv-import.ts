@@ -193,6 +193,10 @@ export function parseCsv(csvText: string): CsvParseResult {
       answers.CRITICAL_THINKING.every((a) => a === 0) &&
       answers.ENGLISH.every((a) => a === 0);
 
+    // Student didn't show up — all answers zero. Skip entirely: no student
+    // record, no result, no impact on statistics.
+    if (isAllZero) continue;
+
     rows.push({
       rowNumber: i + 1,
       tr,
@@ -203,11 +207,17 @@ export function parseCsv(csvText: string): CsvParseResult {
       grade,
       examLanguage,
       answers,
-      isAllZero,
+      isAllZero: false,
     });
   }
 
   return { rows, errors };
+}
+
+export interface ExpectedCounts {
+  MATH: number;
+  CRITICAL_THINKING: number;
+  ENGLISH: number;
 }
 
 /**
@@ -217,8 +227,13 @@ export function parseCsv(csvText: string): CsvParseResult {
  *
  * Per-row validation errors are collected in `errors` rather than throwing so
  * a single bad row doesn't abort the batch.
+ *
+ * `expectedCounts` — when provided, each subject's answer array MUST be that
+ * exact length. This is how we enforce "matched to the exam's TestTemplate":
+ * a row whose math has 26 answers when the template has 25 is rejected. If
+ * omitted, falls back to the legacy fixed 25/10/50 shape of the school's CSV.
  */
-export function parseJsonRows(payload: unknown): CsvParseResult {
+export function parseJsonRows(payload: unknown, expectedCounts?: ExpectedCounts): CsvParseResult {
   const rows: CsvParsedRow[] = [];
   const errors: CsvParseResult["errors"] = [];
   if (
@@ -256,13 +271,14 @@ export function parseJsonRows(payload: unknown): CsvParseResult {
         return null;
       }
       if (v.length !== count) {
+        // Strict: reject the row so admin can fix the JSON before proceeding.
+        // Was: tolerate/pad — that hid mismatches with the exam's TestTemplate.
         errors.push({
           rowNumber,
-          reason: `${label} uzunligi ${v.length} — ${count} kutilgan edi`,
+          reason: `${label} uzunligi ${v.length} — ${count} ta savol kutilgan (imtihon test shabloniga qarang)`,
           raw: JSON.stringify(raw).slice(0, 200),
         });
-        // Tolerate: pad/truncate so the row still imports even if the length
-        // is slightly off. Callers see the warning and can fix upstream.
+        return null;
       }
       const out: number[] = [];
       for (let j = 0; j < count; j++) {
@@ -271,12 +287,17 @@ export function parseJsonRows(payload: unknown): CsvParseResult {
       }
       return out;
     };
-    const math = readAnswers(r.math, MATH_QUESTIONS, "math");
-    const ct = readAnswers(r.ct, CT_QUESTIONS, "ct");
-    const eng = readAnswers(r.eng, ENG_QUESTIONS, "eng");
+    const counts = expectedCounts ?? { MATH: MATH_QUESTIONS, CRITICAL_THINKING: CT_QUESTIONS, ENGLISH: ENG_QUESTIONS };
+    const math = readAnswers(r.math, counts.MATH, "math");
+    const ct = readAnswers(r.ct, counts.CRITICAL_THINKING, "ct");
+    const eng = readAnswers(r.eng, counts.ENGLISH, "eng");
     if (!math || !ct || !eng) return;
     const isAllZero =
       math.every((a) => a === 0) && ct.every((a) => a === 0) && eng.every((a) => a === 0);
+
+    // Student didn't show up — skip entirely.
+    if (isAllZero) return;
+
     rows.push({
       rowNumber,
       tr: typeof r.tr === "number" ? r.tr : rowNumber,
@@ -287,7 +308,7 @@ export function parseJsonRows(payload: unknown): CsvParseResult {
       grade: gradeRaw,
       examLanguage,
       answers: { MATH: math, CRITICAL_THINKING: ct, ENGLISH: eng },
-      isAllZero,
+      isAllZero: false,
     });
   });
   return { rows, errors };

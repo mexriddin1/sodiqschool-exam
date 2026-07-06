@@ -38,13 +38,18 @@ interface ImportedRow {
   tr: number;
   fullName: string;
   publicCode: string;
-  password: string;
+  // Student uchun parol faqat ilk marta yaratilganida qaytadi. Mavjud
+  // student uchun password: null bo'ladi va credentialsGenerated: false.
+  password: string | null;
+  credentialsGenerated: boolean;
   studentCreated: boolean;
   isAllZero: boolean;
 }
 
 interface PreviewResponse {
   dryRun: true;
+  expectedCounts?: { MATH: number; CRITICAL_THINKING: number; ENGLISH: number };
+  noTemplateSubjects?: string[];
   totalRows: number;
   parseErrors: { rowNumber: number; reason: string; raw: string }[];
   preview: PreviewRow[];
@@ -145,7 +150,7 @@ export default function CsvImportPage() {
   const credentialTsv = useMemo(() => {
     if (!commit) return "";
     const header = ["T/r", "F.I.O.", "Login (kod)", "Parol"].join("\t");
-    const lines = commit.created.map((r) => [r.tr, r.fullName, r.publicCode, r.password].join("\t"));
+    const lines = commit.created.map((r) => [r.tr, r.fullName, r.publicCode, r.password ?? ""].join("\t"));
     return [header, ...lines].join("\n");
   }, [commit]);
 
@@ -180,7 +185,7 @@ export default function CsvImportPage() {
         r.tr,
         r.fullName,
         r.publicCode,
-        r.password,
+        r.password ?? "",
         r.studentCreated ? "Yangi student" : "Mavjud student",
         r.isAllZero ? "Kelmagan" : "Ha",
       ].map(escape).join(","),
@@ -240,7 +245,7 @@ export default function CsvImportPage() {
         String(r.tr),
         r.fullName,
         r.publicCode,
-        r.password,
+        r.password ?? "",
         r.isAllZero ? "Kelmagan" : "Ha",
       ]),
       styles: { font: "helvetica", fontSize: 9, cellPadding: 2, textColor: [17, 24, 39], lineColor: [209, 213, 219], lineWidth: 0.1 },
@@ -348,6 +353,23 @@ export default function CsvImportPage() {
               <span className="text-warn text-sm">Xato qatorlar: {preview.parseErrors.length}</span>
             )}
           </div>
+          {preview.expectedCounts && (
+            <div className="px-4 py-2 border-b bg-navy/5 text-xs">
+              <b className="text-navy">Imtihon test shabloni:</b>{" "}
+              math = <b>{preview.expectedCounts.MATH}</b> ta savol,{" "}
+              ct = <b>{preview.expectedCounts.CRITICAL_THINKING}</b> ta,{" "}
+              eng = <b>{preview.expectedCounts.ENGLISH}</b> ta.
+              JSON'dagi arraylar shu uzunlikda bo'lishi shart.
+            </div>
+          )}
+          {preview.noTemplateSubjects && preview.noTemplateSubjects.length > 0 && (
+            <div className="px-4 py-2 border-b bg-warn/10 text-xs text-warn font-medium">
+              ⚠ Quyidagi fanlar uchun bu imtihonda haqiqiy test shabloni topilmadi —
+              avtomatik shablon ishlatiladi (standart savol tuzilishi, mavzu/ko'nikma yo'q):{" "}
+              {preview.noTemplateSubjects.join(", ")}.{" "}
+              Import'dan oldin <b>Test shablonlari</b> bo'limidan ushbu imtihon uchun shablon qo'shing.
+            </div>
+          )}
           {preview.parseErrors.length > 0 && (
             <details className="text-xs px-4 py-2 border-b bg-warn/5">
               <summary className="cursor-pointer text-warn font-medium">
@@ -386,9 +408,9 @@ export default function CsvImportPage() {
                     <td className="px-3 py-1.5 font-mono text-xs">{r.uid}</td>
                     <td className="px-3 py-1.5">{r.sex === "MALE" ? "O'g'il" : r.sex === "FEMALE" ? "Qiz" : "—"}</td>
                     <td className="px-3 py-1.5">{r.grade}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.mathCorrect}/25</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.ctCorrect}/10</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.engCorrect}/50</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.mathCorrect}/{preview.expectedCounts?.MATH ?? 25}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.ctCorrect}/{preview.expectedCounts?.CRITICAL_THINKING ?? 10}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs">{r.engCorrect}/{preview.expectedCounts?.ENGLISH ?? 50}</td>
                     <td className="px-3 py-1.5 text-xs">
                       {r.existingResultCode ? (
                         <span className="text-warn">Ushbu imtihonda ilgari import qilingan ({r.existingResultCode}) — yangi natija baribir yaratiladi</span>

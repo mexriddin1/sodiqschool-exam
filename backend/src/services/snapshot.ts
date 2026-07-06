@@ -39,7 +39,6 @@ export interface ResultWithRelations {
     grade: number;
     admissionThresholds: Prisma.JsonValue;
     gradingConfiguration: Prisma.JsonValue;
-    cohortSize: number | null;
   };
   student: { fullName: string; sex: "MALE" | "FEMALE" | null };
   subjects: {
@@ -73,14 +72,9 @@ export function computeSnapshot(result: ResultWithRelations) {
 }
 
 // Cohort rank across published peers in the same exam. Ranks are computed
-// three times:
-//   • overall  — every published peer
-//   • male     — peers with student.sex === "MALE"
-//   • female   — peers with student.sex === "FEMALE"
-// so the parent report can show "12/128 yigitlar orasida" alongside the
-// overall standing. Rank = 1 + count(peer.composite > this.composite);
-// percentile = round(atOrBelow / denom * 100). Denominator = max(cohortSize,
-// actualPeers) so a partially-published exam doesn't inflate percentiles.
+// three times (overall, male, female) for both the composite score and each
+// individual subject score. Composite → snapshot.cohort; per-subject →
+// snapshot.subjectCohort.MATH / .ENGLISH / .CRITICAL_THINKING.
 export async function recomputeCohortRanks(examId: string): Promise<void> {
   const published = await prisma.result.findMany({
     where: { examId, status: "PUBLISHED" },
@@ -88,7 +82,6 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
       id: true,
       calculatedSnapshot: true,
       examId: true,
-      exam: { select: { cohortSize: true } },
       student: { select: { sex: true } },
     },
   });
@@ -97,19 +90,24 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
   type Row = {
     id: string;
     percent: number;
+    subjectPercents: Record<string, number>;
     snapshot: Record<string, unknown>;
-    cohortSize: number;
     sex: Sex;
   };
   const rows: Row[] = published
     .map((r) => {
       const snap = (r.calculatedSnapshot as Record<string, unknown> | null) ?? {};
       const composite = (snap.composite as { composite?: number } | undefined)?.composite ?? 0;
+      const perSubject = (snap.perSubject as Record<string, { percent?: number }> | undefined) ?? {};
       return {
         id: r.id,
         percent: composite,
+        subjectPercents: {
+          MATH: perSubject.MATH?.percent ?? 0,
+          ENGLISH: perSubject.ENGLISH?.percent ?? 0,
+          CRITICAL_THINKING: perSubject.CRITICAL_THINKING?.percent ?? 0,
+        },
         snapshot: snap,
-        cohortSize: r.exam.cohortSize ?? published.length,
         sex: r.student.sex as Sex,
       };
     })
@@ -118,29 +116,47 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
   const males = rows.filter((r) => r.sex === "MALE");
   const females = rows.filter((r) => r.sex === "FEMALE");
 
-  function rankIn(peers: Row[], row: Row, cohortSize: number) {
+  function rankIn(peers: Row[], getVal: (r: Row) => number) {
     if (peers.length === 0) return null;
-    const rank = 1 + peers.filter((p) => p.percent > row.percent).length;
-    const atOrBelow = peers.filter((p) => p.percent <= row.percent).length;
-    const denom = Math.max(cohortSize, peers.length);
-    const percentile = Math.round((atOrBelow / denom) * 100);
-    return { rank, total: cohortSize, peers: peers.length, percentile };
+    return (row: Row) => {
+      const val = getVal(row);
+      const rank = 1 + peers.filter((p) => getVal(p) > val).length;
+      const atOrBelow = peers.filter((p) => getVal(p) <= val).length;
+      const percentile = Math.round((atOrBelow / peers.length) * 100);
+      return { rank, total: peers.length, percentile };
+    };
   }
 
-  // For sex-split cohorts we scale the reported "total" against the same
-  // ratio as the overall cohort — so if the exam has cohortSize=240 total
-  // and 60% are male, the male total shown is ~144.
-  function scaledSexTotal(peers: Row[], cohortSize: number): number {
-    if (rows.length === 0) return peers.length;
-    return Math.max(peers.length, Math.round((peers.length / rows.length) * cohortSize));
-  }
+  const byComposite = (r: Row) => r.percent;
+  const rankOverall = rankIn(rows, byComposite);
+  const rankMale = rankIn(males, byComposite);
+  const rankFemale = rankIn(females, byComposite);
+
+  const SUBJECT_KEYS: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
 
   for (const row of rows) {
-    const overall = rankIn(rows, row, row.cohortSize);
-    const maleCohortSize = scaledSexTotal(males, row.cohortSize);
-    const femaleCohortSize = scaledSexTotal(females, row.cohortSize);
-    const male = row.sex === "MALE" ? rankIn(males, row, maleCohortSize) : null;
-    const female = row.sex === "FEMALE" ? rankIn(females, row, femaleCohortSize) : null;
+    const overall = rankOverall?.(row) ?? null;
+    const male = row.sex === "MALE" ? (rankMale?.(row) ?? null) : null;
+    const female = row.sex === "FEMALE" ? (rankFemale?.(row) ?? null) : null;
+
+    const subjectCohort: Record<string, unknown> = {};
+    for (const key of SUBJECT_KEYS) {
+      const bySubject = (r: Row) => r.subjectPercents[key] ?? 0;
+      const subjRows = [...rows].sort((a, b) => bySubject(b) - bySubject(a));
+      const subjMales = males.slice().sort((a, b) => bySubject(b) - bySubject(a));
+      const subjFemales = females.slice().sort((a, b) => bySubject(b) - bySubject(a));
+      const subjOverall = rankIn(subjRows, bySubject)?.(row) ?? null;
+      const subjMale = row.sex === "MALE" ? (rankIn(subjMales, bySubject)?.(row) ?? null) : null;
+      const subjFemale = row.sex === "FEMALE" ? (rankIn(subjFemales, bySubject)?.(row) ?? null) : null;
+      subjectCohort[key] = {
+        rank: subjOverall?.rank ?? null,
+        total: rows.length,
+        percentile: subjOverall?.percentile ?? null,
+        peers: rows.length,
+        male: subjMale ? { rank: subjMale.rank, total: males.length, percentile: subjMale.percentile, peers: males.length } : null,
+        female: subjFemale ? { rank: subjFemale.rank, total: females.length, percentile: subjFemale.percentile, peers: females.length } : null,
+      };
+    }
 
     await prisma.result.update({
       where: { id: row.id },
@@ -149,14 +165,13 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
           ...row.snapshot,
           cohort: {
             rank: overall?.rank ?? null,
-            total: row.cohortSize,
+            total: rows.length,
             percentile: overall?.percentile ?? null,
             peers: rows.length,
-            // Sex-split rank blocks. `null` when the student's sex is
-            // unknown or when there are no same-sex peers yet.
-            male: male ? { rank: male.rank, total: male.total, percentile: male.percentile, peers: male.peers } : null,
-            female: female ? { rank: female.rank, total: female.total, percentile: female.percentile, peers: female.peers } : null,
+            male: male ? { rank: male.rank, total: males.length, percentile: male.percentile, peers: males.length } : null,
+            female: female ? { rank: female.rank, total: females.length, percentile: female.percentile, peers: females.length } : null,
           },
+          subjectCohort,
         } as Prisma.InputJsonValue,
       },
     });

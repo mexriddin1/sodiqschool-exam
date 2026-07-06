@@ -46,19 +46,24 @@ export interface PublicResultPayload {
   unlockedSections?: string[];
 }
 
-// Fetches the authenticated result. Returns null on any failure and
-// unconditionally clears the session cookie so we never redirect-loop into
-// /login with a stale token still present.
+/**
+ * Autentifikatsiya qilingan natijani qaytaradi. Query'da ?resultId=... bo'lsa
+ * shu ID uzatiladi (student uchun bir necha natija bo'lgan holatda tanlash);
+ * aks holda backend student uchun birinchi natijani tanlaydi.
+ */
 export async function fetchMyResult(ctx: APIContext): Promise<PublicResultPayload | null> {
   const token = getSessionToken(ctx.cookies);
   if (!token) return null;
   try {
-    const res = await fetch(`${API_URL}/api/result/me`, {
+    const resultId = ctx.url.searchParams.get("resultId");
+    const url = new URL(`${API_URL}/api/result/me`);
+    if (resultId) url.searchParams.set("resultId", resultId);
+    const res = await fetch(url, {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-      // Any non-2xx (401 archived/draft, 404 deleted, 500, etc.) means the
-      // token is no longer usable. Clear it so subsequent requests skip it.
+      // Any non-2xx (401 archived, 404 deleted, 500, etc.) means the token
+      // is no longer usable. Clear it so subsequent requests skip it.
       ctx.cookies.delete(SESSION_COOKIE, { path: "/" });
       return null;
     }
@@ -66,6 +71,47 @@ export async function fetchMyResult(ctx: APIContext): Promise<PublicResultPayloa
     return body?.data ?? null;
   } catch {
     // Network error / backend down — clear cookie so login shows properly.
+    ctx.cookies.delete(SESSION_COOKIE, { path: "/" });
+    return null;
+  }
+}
+
+// Student uchun natijalar ro'yxati elementi — /select sahifasi shuni ishlatadi.
+export interface ResultListRow {
+  id: string;
+  publicCode: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  publishedAt: string | null;
+  createdAt: string;
+  exam: {
+    title: string;
+    examDate: string;
+    academicYear: string | null;
+    grade: number;
+  };
+  compositeScore: number | null;
+}
+
+export interface ResultListPayload {
+  student: { fullName: string; grade: number };
+  results: ResultListRow[];
+}
+
+/** Studentga tegishli barcha natijalarni oladi (o'quvchi tanlash sahifasi). */
+export async function fetchMyResultList(ctx: APIContext): Promise<ResultListPayload | null> {
+  const token = getSessionToken(ctx.cookies);
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_URL}/api/result/list`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      ctx.cookies.delete(SESSION_COOKIE, { path: "/" });
+      return null;
+    }
+    const body = await res.json();
+    return body?.data ?? null;
+  } catch {
     ctx.cookies.delete(SESSION_COOKIE, { path: "/" });
     return null;
   }
