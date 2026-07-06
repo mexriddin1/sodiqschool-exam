@@ -64,7 +64,10 @@ export async function ensureUniqueLoginCode(base: string, excludeStudentId?: str
  * Yangi parol yaratilgan bo'lsa plain-text qiymatini ham qaytaradi
  * (admin panelda ko'rsatish uchun).
  */
-export async function ensureStudentCredentials(studentId: string): Promise<{
+export async function ensureStudentCredentials(
+  studentId: string,
+  opts: { bcryptCost?: number } = {},
+): Promise<{
   loginCode: string;
   plainPassword: string | null; // mavjud parolni ham qaytaradi (DB'da saqlanadi)
   generated: boolean;             // true → ushbu chaqiruvda ilk marta yaratildi
@@ -96,7 +99,7 @@ export async function ensureStudentCredentials(studentId: string): Promise<{
   });
   const loginCode = st.loginCode ?? (await ensureUniqueLoginCode(baseCode, st.id));
   const plainPassword = generatePassword();
-  const passwordHash = await bcrypt.hash(plainPassword, config.bcryptCost);
+  const passwordHash = await bcrypt.hash(plainPassword, opts.bcryptCost ?? config.bcryptCost);
   await prisma.student.update({
     where: { id: st.id },
     data: {

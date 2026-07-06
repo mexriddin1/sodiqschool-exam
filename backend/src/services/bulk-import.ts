@@ -17,18 +17,26 @@
 //     can revise later once the student actually shows up.
 //   - Snapshot + cohort ranks are recomputed once at the end, not per row.
 
-import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { Question, SubjectKey } from "@sodiq/compute";
 
 import { prisma } from "../db.js";
-import { config } from "../config.js";
 import { computeSnapshot, recomputeCohortRanks } from "./snapshot.js";
-import { generatePassword } from "@sodiq/compute";
 import { generateUniquePublicCode } from "./code.js";
 import { CsvParsedRow } from "./csv-import.js";
 import { readDefaultUnlockedSections } from "../routes/admin.settings.js";
 import { ensureStudentCredentials } from "./student-credentials.js";
+
+// Result.publicCode / accessPasswordHash columns are legacy (2026-07-03):
+// parents log in with Student.loginCode + Student.accessPasswordHash instead.
+// We still fill them because the schema requires it, but skip bcrypt to avoid
+// a 300× ~250ms bcrypt hit that pushed bulk imports past nginx's 60s timeout.
+// A raw 64-hex string cannot match any bcrypt.compare, so legacy login can't
+// be used against these rows — which is the intended behaviour.
+function unusablePasswordHash(): string {
+  return "csv-import:" + randomBytes(32).toString("hex");
+}
 
 const QUESTION_COUNTS: Record<SubjectKey, number> = {
   MATH: 25,
@@ -275,10 +283,12 @@ export async function bulkImportResults(params: {
       //    account per student — re-imports of the same UID reuse the same
       //    loginCode/password. Result.publicCode/accessPassword rows are
       //    still filled (schema NOT NULL) but never surfaced to the parent.
-      const studentCreds = await ensureStudentCredentials(student.id);
+      // Lower bcrypt cost for bulk-imported students (cost 10 ≈ 65ms vs
+      // default 12 ≈ 250ms) so a 300-row import stays under nginx's 60s
+      // proxy_read_timeout. Existing students bypass hashing entirely
+      // (early return in ensureStudentCredentials).
+      const studentCreds = await ensureStudentCredentials(student.id, { bcryptCost: 10 });
       const publicCode = await generateUniquePublicCode();
-      const throwawayPlain = generatePassword();
-      const passwordHash = await bcrypt.hash(throwawayPlain, config.bcryptCost);
 
       // 4. Create the result + three SubjectResult rows in one transaction.
       // Auto-publish so parents can log in with the code/password we hand
@@ -288,8 +298,8 @@ export async function bulkImportResults(params: {
           studentId: student.id,
           examId,
           publicCode,
-          accessPassword: throwawayPlain,
-          accessPasswordHash: passwordHash,
+          accessPassword: "",
+          accessPasswordHash: unusablePasswordHash(),
           status: "PUBLISHED",
           publishedAt: new Date(),
           manualContent: {},

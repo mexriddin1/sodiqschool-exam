@@ -82,7 +82,7 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
       id: true,
       calculatedSnapshot: true,
       examId: true,
-      student: { select: { sex: true } },
+      student: { select: { sex: true, grade: true } },
     },
   });
   if (published.length === 0) return;
@@ -93,6 +93,7 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
     subjectPercents: Record<string, number>;
     snapshot: Record<string, unknown>;
     sex: Sex;
+    grade: number;
   };
   const rows: Row[] = published
     .map((r) => {
@@ -109,12 +110,10 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
         },
         snapshot: snap,
         sex: r.student.sex as Sex,
+        grade: r.student.grade,
       };
     })
     .sort((a, b) => b.percent - a.percent);
-
-  const males = rows.filter((r) => r.sex === "MALE");
-  const females = rows.filter((r) => r.sex === "FEMALE");
 
   function rankIn(peers: Row[], getVal: (r: Row) => number) {
     if (peers.length === 0) return null;
@@ -128,33 +127,35 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
   }
 
   const byComposite = (r: Row) => r.percent;
-  const rankOverall = rankIn(rows, byComposite);
-  const rankMale = rankIn(males, byComposite);
-  const rankFemale = rankIn(females, byComposite);
-
   const SUBJECT_KEYS: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
 
+  // Cohort persentil sinf bo'yicha filtrlanadi (2026-07-06): imtihonda bir
+  // nechta sinf ishtirok etsa, boshqa sinf ishtirokchilari peer sifatida
+  // hisoblanmaydi — aks holda 5-sinf va 8-sinf birga taqqoslanardi.
+  // Bir-grade eksamlar avvalgidek ishlaydi, chunki filter ta'sirsiz.
   for (const row of rows) {
-    const overall = rankOverall?.(row) ?? null;
-    const male = row.sex === "MALE" ? (rankMale?.(row) ?? null) : null;
-    const female = row.sex === "FEMALE" ? (rankFemale?.(row) ?? null) : null;
+    const gradePeers = rows.filter((r) => r.grade === row.grade);
+    const gradeMales = gradePeers.filter((r) => r.sex === "MALE");
+    const gradeFemales = gradePeers.filter((r) => r.sex === "FEMALE");
+
+    const overall = rankIn(gradePeers, byComposite)?.(row) ?? null;
+    const male = row.sex === "MALE" ? (rankIn(gradeMales, byComposite)?.(row) ?? null) : null;
+    const female = row.sex === "FEMALE" ? (rankIn(gradeFemales, byComposite)?.(row) ?? null) : null;
 
     const subjectCohort: Record<string, unknown> = {};
     for (const key of SUBJECT_KEYS) {
       const bySubject = (r: Row) => r.subjectPercents[key] ?? 0;
-      const subjRows = [...rows].sort((a, b) => bySubject(b) - bySubject(a));
-      const subjMales = males.slice().sort((a, b) => bySubject(b) - bySubject(a));
-      const subjFemales = females.slice().sort((a, b) => bySubject(b) - bySubject(a));
-      const subjOverall = rankIn(subjRows, bySubject)?.(row) ?? null;
-      const subjMale = row.sex === "MALE" ? (rankIn(subjMales, bySubject)?.(row) ?? null) : null;
-      const subjFemale = row.sex === "FEMALE" ? (rankIn(subjFemales, bySubject)?.(row) ?? null) : null;
+      const subjOverall = rankIn(gradePeers, bySubject)?.(row) ?? null;
+      const subjMale = row.sex === "MALE" ? (rankIn(gradeMales, bySubject)?.(row) ?? null) : null;
+      const subjFemale = row.sex === "FEMALE" ? (rankIn(gradeFemales, bySubject)?.(row) ?? null) : null;
       subjectCohort[key] = {
         rank: subjOverall?.rank ?? null,
-        total: rows.length,
+        total: gradePeers.length,
         percentile: subjOverall?.percentile ?? null,
-        peers: rows.length,
-        male: subjMale ? { rank: subjMale.rank, total: males.length, percentile: subjMale.percentile, peers: males.length } : null,
-        female: subjFemale ? { rank: subjFemale.rank, total: females.length, percentile: subjFemale.percentile, peers: females.length } : null,
+        peers: gradePeers.length,
+        grade: row.grade,
+        male: subjMale ? { rank: subjMale.rank, total: gradeMales.length, percentile: subjMale.percentile, peers: gradeMales.length } : null,
+        female: subjFemale ? { rank: subjFemale.rank, total: gradeFemales.length, percentile: subjFemale.percentile, peers: gradeFemales.length } : null,
       };
     }
 
@@ -165,11 +166,12 @@ export async function recomputeCohortRanks(examId: string): Promise<void> {
           ...row.snapshot,
           cohort: {
             rank: overall?.rank ?? null,
-            total: rows.length,
+            total: gradePeers.length,
             percentile: overall?.percentile ?? null,
-            peers: rows.length,
-            male: male ? { rank: male.rank, total: males.length, percentile: male.percentile, peers: males.length } : null,
-            female: female ? { rank: female.rank, total: females.length, percentile: female.percentile, peers: females.length } : null,
+            peers: gradePeers.length,
+            grade: row.grade,
+            male: male ? { rank: male.rank, total: gradeMales.length, percentile: male.percentile, peers: gradeMales.length } : null,
+            female: female ? { rank: female.rank, total: gradeFemales.length, percentile: female.percentile, peers: gradeFemales.length } : null,
           },
           subjectCohort,
         } as Prisma.InputJsonValue,

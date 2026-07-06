@@ -2,7 +2,7 @@ import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
-import { notFound, conflict } from "../lib/errors.js";
+import { badRequest, notFound, conflict } from "../lib/errors.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { studentCreateSchema, studentUpdateSchema, studentImportSchema } from "../lib/schemas.js";
 import { audit } from "../services/audit.js";
@@ -170,6 +170,69 @@ studentsRouter.post(
       }
     }
     ok(res, { created, skipped, total: students.length });
+  }),
+);
+
+/**
+ * Kredensiallar ro'yxati: imtihon (majburiy) va sinf (ixtiyoriy) bo'yicha
+ * filtrlangan studentlar + loginCode + parol. UI text/PDF eksportida
+ * ishlatiladi. Faqat imtihonda natijasi bo'lgan studentlar qaytadi
+ * (ARCHIVED emas), shu bilan admin natijasi yo'q studentlar uchun ortiqcha
+ * parol tarqatmaydi.
+ */
+studentsRouter.get(
+  "/credentials",
+  asyncHandler(async (req, res) => {
+    const examId = String(req.query.examId ?? "").trim();
+    if (!examId) throw badRequest("EXAM_REQUIRED", "examId majburiy");
+    const grade = req.query.grade ? Number(req.query.grade) : undefined;
+    const results = await prisma.result.findMany({
+      where: {
+        examId,
+        status: { not: "ARCHIVED" },
+        ...(Number.isFinite(grade) && { student: { grade } }),
+      },
+      orderBy: [{ student: { grade: "asc" } }, { student: { fullName: "asc" } }],
+      select: {
+        id: true,
+        status: true,
+        publicCode: true,
+        student: {
+          select: {
+            id: true, fullName: true, grade: true, uid: true,
+            loginCode: true, accessPassword: true,
+          },
+        },
+      },
+    });
+    // Har student uchun bitta yozuv (dublikat natijalar bo'lsa ham). Login/parol
+    // studentga tegishli — bir necha natija bir kredensialdan foydalanadi.
+    const seen = new Set<string>();
+    const rows: {
+      studentId: string;
+      fullName: string;
+      grade: number;
+      uid: string | null;
+      loginCode: string | null;
+      password: string | null;
+      resultCode: string;
+      hasCredentials: boolean;
+    }[] = [];
+    for (const r of results) {
+      if (seen.has(r.student.id)) continue;
+      seen.add(r.student.id);
+      rows.push({
+        studentId: r.student.id,
+        fullName: r.student.fullName,
+        grade: r.student.grade,
+        uid: r.student.uid,
+        loginCode: r.student.loginCode,
+        password: r.student.accessPassword,
+        resultCode: r.publicCode,
+        hasCredentials: !!(r.student.loginCode && r.student.accessPassword),
+      });
+    }
+    ok(res, { examId, grade: grade ?? null, count: rows.length, rows });
   }),
 );
 

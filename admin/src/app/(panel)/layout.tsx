@@ -19,6 +19,7 @@ const NAV = [
   { href: "/exams", label: "Imtihonlar" },
   { href: "/test-templates", label: "Test shablonlari" },
   { href: "/results", label: "Natijalar" },
+  { href: "/credentials", label: "Login/Parol ro'yxati" },
   { href: "/audit", label: "Audit jurnali" },
   { href: "/docs", label: "Namunalar (JSON)" },
   { href: "/settings", label: "Sozlamalar", adminOnly: true },
