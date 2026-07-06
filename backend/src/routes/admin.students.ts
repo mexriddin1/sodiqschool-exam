@@ -2,7 +2,7 @@ import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
-import { notFound } from "../lib/errors.js";
+import { notFound, conflict } from "../lib/errors.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { studentCreateSchema, studentUpdateSchema, studentImportSchema } from "../lib/schemas.js";
 import { audit } from "../services/audit.js";
@@ -81,22 +81,37 @@ studentsRouter.post(
   asyncHandler(async (req, res) => {
     const data = studentCreateSchema.parse(req.body);
     const names = normaliseNames(data);
-    const student = await prisma.student.create({
-      data: {
-        fullName: names.fullName,
-        firstName: names.firstName,
-        lastName: names.lastName,
-        uid: data.uid ?? null,
-        examLanguage: data.examLanguage ?? null,
-        studentNumber: data.studentNumber ?? null,
-        phone: data.phone ?? null,
-        sex: data.sex ?? null,
-        birthDate: data.birthDate ? new Date(data.birthDate) : null,
-        grade: data.grade,
-        groupName: data.groupName ?? null,
-        metadata: jsonOrNull(data.metadata),
-      },
-    });
+    let student;
+    try {
+      student = await prisma.student.create({
+        data: {
+          fullName: names.fullName,
+          firstName: names.firstName,
+          lastName: names.lastName,
+          uid: data.uid ?? null,
+          examLanguage: data.examLanguage ?? null,
+          studentNumber: data.studentNumber ?? null,
+          phone: data.phone ?? null,
+          sex: data.sex ?? null,
+          birthDate: data.birthDate ? new Date(data.birthDate) : null,
+          grade: data.grade,
+          groupName: data.groupName ?? null,
+          metadata: jsonOrNull(data.metadata),
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const target = (e.meta?.target as string[] | string | undefined) ?? "";
+        const field = Array.isArray(target) ? target[0] : String(target);
+        const label =
+          field === "uid" ? "UID"
+          : field === "studentNumber" ? "Talaba raqami"
+          : field === "loginCode" ? "Login kod"
+          : field;
+        throw conflict(`${label} allaqachon band. Boshqa qiymat kiriting.`);
+      }
+      throw e;
+    }
     // Studentga bir marta login+parol biriktirish. Result yaratilganda
     // qayta yaratilmaydi — o'sha kredensial barcha natijalar uchun ishlaydi.
     await ensureStudentCredentials(student.id);

@@ -213,11 +213,9 @@ model TestTemplate {
 
   exam      Exam?      @relation(fields: [examId], references: [id], onDelete: SetNull)
 
-  // A given (exam, subject, grade) combo has ONE template. When examId is
-  // null (legacy shared library) the older (subject, grade) uniqueness
-  // still applies via the second index.
+  // A given (exam, subject, grade) combo has ONE template. Templates with
+  // examId=null form a shared library and can coexist with per-exam clones.
   @@unique([examId, subject, grade])
-  @@unique([subject, grade], name: "subject_grade_legacy")
   @@index([examId])
 }
 

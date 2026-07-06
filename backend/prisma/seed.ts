@@ -43,22 +43,33 @@ async function main() {
   });
   console.log(`✔ admin: ${admin.email} (password: ${adminPassword})`);
 
-  const exam = await prisma.exam.upsert({
-    where: { id: "seed-exam-grade5" },
-    update: {},
-    create: {
-      id: "seed-exam-grade5",
-      title: "Sodiq School kirish imtihoni — 5-sinf (seed)",
-      description: "Seed exam: per-grade thresholds from resource/result.text",
-      examDate: new Date(),
-      academicYear: "2025-2026",
-      status: "ACTIVE",
-      grade: 5,
-      admissionThresholds: DEFAULT_ADMISSION_THRESHOLDS as unknown as Prisma.InputJsonValue,
-      gradingConfiguration: {},
-      cohortSize: 240,
-    },
+  // Look up an existing seed exam by title to keep re-runs idempotent without
+  // hard-coding a non-UUID id (which broke every route that validates examId
+  // as z.string().uuid()).
+  const existingExam = await prisma.exam.findFirst({
+    where: { title: "Sodiq School kirish imtihoni — 5-sinf (seed)" },
+    select: { id: true },
   });
+  const exam = existingExam
+    ? await prisma.exam.update({
+        where: { id: existingExam.id },
+        data: {},
+      })
+    : await prisma.exam.create({
+        data: {
+          title: "Sodiq School kirish imtihoni — 5-sinf (seed)",
+          description: "Seed exam: per-grade thresholds from resource/result.text",
+          examDate: new Date(),
+          academicYear: "2025-2026",
+          status: "ACTIVE",
+          grade: 5,
+          grades: [5],
+          subjectKeys: ["MATH", "ENGLISH", "CRITICAL_THINKING"],
+          admissionThresholds: DEFAULT_ADMISSION_THRESHOLDS as unknown as Prisma.InputJsonValue,
+          gradingConfiguration: {},
+          cohortSize: 240,
+        },
+      });
   console.log(`✔ exam: ${exam.title}`);
 
   const math = loadSubject("student.json");
