@@ -16,12 +16,22 @@ import {
 
 const RESULT_COOKIE_AGE_MS = 1 * 24 * 60 * 60 * 1000;
 
-// Public login rate limit — 6 attempts / 15 min / IP.
+// Public login rate limit — 20 FAILED attempts / 15 min per (IP, code) pair.
+// Reason: O'zbekistondagi mobil operatorlar CGNAT ishlatadi — minglab
+// ota-ona bir xil chiquv IP dan keladi. Faqat IP bo'yicha throttling
+// hammani bir zumda bloklaydi. IP+code kombinatsiyasi har bir bola uchun
+// alohida bucket beradi va muvaffaqiyatli kirishlar sanalmaydi.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 6,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const rawCode = typeof req.body?.code === "string" ? req.body.code : "";
+    const code = rawCode.trim().toLowerCase().slice(0, 64);
+    return `${req.ip}|${code}`;
+  },
   message: { success: false, error: { code: "TOO_MANY_ATTEMPTS", message: "Try again later" } },
 });
 
