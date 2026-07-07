@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiException } from "@/lib/api";
+import { api, ApiException, API_BASE } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Icon, IconButton } from "@/components/Icon";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
@@ -47,6 +47,40 @@ export default function ResultsPage() {
   const [delTarget, setDelTarget] = useState<ResultRow | null>(null);
   const [delPending, setDelPending] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exportPending, setExportPending] = useState(false);
+
+  async function onExport() {
+    setError(null);
+    setExportPending(true);
+    try {
+      const qs = new URLSearchParams();
+      if (q) qs.set("q", q);
+      if (status) qs.set("status", status);
+      if (examId) qs.set("examId", examId);
+      if (grade) qs.set("grade", grade);
+      if (sort !== "created-desc") qs.set("sort", sort);
+      const res = await fetch(`${API_BASE}/api/admin/results/export.csv?${qs}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      const filename = match?.[1] ?? `natijalar-${new Date().toISOString().slice(0, 10)}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? `Eksport xato: ${e.message}` : "Eksport xato");
+    } finally {
+      setExportPending(false);
+    }
+  }
 
   useEffect(() => {
     // Combobox needs the full roster; endpoint is paginated so pass a big take.
@@ -104,6 +138,15 @@ export default function ResultsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-navy">Natijalar</h1>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary inline-flex items-center gap-2"
+            disabled={total === 0 || exportPending}
+            title={total === 0 ? "Filtrga mos natija yo'q" : `Filtrga mos ${total} ta natijani CSV qilib yuklab olish`}
+            onClick={onExport}
+          >
+            <Icon name="download" size={16} /> {exportPending ? "Tayyorlanmoqda…" : "CSV eksport"}
+          </button>
           <Link href="/results/import" className="btn-secondary inline-flex items-center gap-2">
             <Icon name="upload" size={16} /> CSV/JSON import
           </Link>

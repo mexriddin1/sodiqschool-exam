@@ -2,6 +2,10 @@
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+// Exposed so components that trigger a browser-native download (window.open,
+// <a href>) can build the same absolute URL the fetch wrapper uses.
+export const API_BASE = BASE;
+
 export interface ApiError {
   code: string;
   message: string;

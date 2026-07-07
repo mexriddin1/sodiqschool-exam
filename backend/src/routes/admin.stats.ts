@@ -75,7 +75,7 @@ statsRouter.get(
           aiUsage: true,
           publishedAt: true,
           examId: true,
-          student: { select: { id: true, fullName: true, grade: true } },
+          student: { select: { id: true, fullName: true, grade: true, phone: true } },
           exam: { select: { title: true, grade: true } },
         },
       }),
@@ -100,6 +100,7 @@ statsRouter.get(
       publicCode: string;
       studentName: string;
       grade: number;
+      phone: string | null;
       examTitle: string;
       math: number | null;
       english: number | null;
@@ -162,6 +163,7 @@ statsRouter.get(
         publicCode: r.publicCode,
         studentName: r.student?.fullName ?? "—",
         grade: r.student?.grade ?? 0,
+        phone: r.student?.phone ?? null,
         examTitle: r.exam?.title ?? "—",
         math: typeof per.MATH?.percent === "number" ? per.MATH!.percent! : null,
         english: typeof per.ENGLISH?.percent === "number" ? per.ENGLISH!.percent! : null,
@@ -232,8 +234,8 @@ statsRouter.get(
 // table renders (see `SortKey` in admin/src/app/(panel)/dashboard/page.tsx).
 type StudentRow = {
   resultId: string; publicCode: string; studentName: string; grade: number;
-  examTitle: string; math: number | null; english: number | null; ct: number | null;
-  composite: number | null; band: string | null; verdict: string | null;
+  phone: string | null; examTitle: string; math: number | null; english: number | null;
+  ct: number | null; composite: number | null; band: string | null; verdict: string | null;
   verdictSub: string | null; passed: boolean | null; publishedAt: string | null;
 };
 function paginateStudents(rows: StudentRow[], req: import("express").Request) {

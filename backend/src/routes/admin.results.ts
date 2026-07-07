@@ -70,25 +70,31 @@ function validateAllSubjects(subjects: { subject: SubjectKey; questions: Questio
   }
 }
 
+// Same filter block used by list + export so the two paths always agree on
+// what "current filters" means. Pass the raw request query in.
+function buildResultsFilter(query: Record<string, unknown>): Prisma.ResultWhereInput {
+  const examId = query.examId ? String(query.examId) : undefined;
+  const status = query.status ? String(query.status) : undefined;
+  const grade = query.grade ? Number(query.grade) : undefined;
+  const q = String(query.q ?? "").trim();
+  return {
+    ...(examId && { examId }),
+    ...(status && { status: status as Prisma.EnumResultStatusFilter }),
+    ...(Number.isFinite(grade) && { student: { grade } }),
+    ...(q && {
+      OR: [
+        { publicCode: { contains: q.toUpperCase() } },
+        { student: { fullName: { contains: q, mode: "insensitive" } } },
+      ],
+    }),
+  };
+}
+
 resultsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const examId = req.query.examId ? String(req.query.examId) : undefined;
-    const status = req.query.status ? String(req.query.status) : undefined;
-    const grade = req.query.grade ? Number(req.query.grade) : undefined;
-    const q = String(req.query.q ?? "").trim();
     const sort = String(req.query.sort ?? "created-desc");
-    const where: Prisma.ResultWhereInput = {
-      ...(examId && { examId }),
-      ...(status && { status: status as Prisma.EnumResultStatusFilter }),
-      ...(Number.isFinite(grade) && { student: { grade } }),
-      ...(q && {
-        OR: [
-          { publicCode: { contains: q.toUpperCase() } },
-          { student: { fullName: { contains: q, mode: "insensitive" } } },
-        ],
-      }),
-    };
+    const where = buildResultsFilter(req.query as Record<string, unknown>);
     const orderBy: Prisma.ResultOrderByWithRelationInput =
       sort === "created-asc" ? { createdAt: "asc" }
       : sort === "code-asc" ? { publicCode: "asc" }
@@ -113,6 +119,126 @@ resultsRouter.get(
       prisma.result.count({ where }),
     ]);
     ok(res, wrapPaginated(rows, total, p));
+  }),
+);
+
+// CSV export — takes the same query filters as GET /, but streams every
+// matching row (up to a hard cap). One row per (result, subject) collapsed
+// into a wide layout: fixed columns first, then a group of columns per
+// subject (raw / max / percent). The header row is fully Uzbek so it opens
+// cleanly in Excel/Google Sheets.
+resultsRouter.get(
+  "/export.csv",
+  asyncHandler(async (req, res) => {
+    const sort = String(req.query.sort ?? "created-desc");
+    const where = buildResultsFilter(req.query as Record<string, unknown>);
+    const orderBy: Prisma.ResultOrderByWithRelationInput =
+      sort === "created-asc" ? { createdAt: "asc" }
+      : sort === "code-asc" ? { publicCode: "asc" }
+      : { createdAt: "desc" };
+    // 10k cap keeps the response bounded — plenty of headroom for a single
+    // exam cohort but a safety net against pathological queries.
+    const rows = await prisma.result.findMany({
+      where,
+      orderBy,
+      take: 10_000,
+      select: {
+        publicCode: true, status: true, createdAt: true,
+        student: { select: { fullName: true, grade: true, phone: true, uid: true } },
+        exam: { select: { title: true, subjectKeys: true } },
+        subjects: {
+          select: { subject: true, totalMarks: true, questions: true },
+        },
+      },
+    });
+
+    const statusLabel = (s: "DRAFT" | "PUBLISHED" | "ARCHIVED") =>
+      s === "PUBLISHED" ? "Nashr etilgan" : s === "ARCHIVED" ? "Arxiv" : "Qoralama";
+    // Union of every subject that appears in the export — needed for a
+    // stable column set even when different rows carry different subjects.
+    const subjectSet = new Set<SubjectKey>();
+    for (const r of rows) for (const s of r.subjects) subjectSet.add(s.subject);
+    const subjectOrder: SubjectKey[] = (["MATH", "ENGLISH", "CRITICAL_THINKING"] as SubjectKey[])
+      .filter((s) => subjectSet.has(s));
+
+    // Excel dislikes commas / quotes / newlines inside cells. Wrap defensively.
+    const esc = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const header: string[] = [
+      "#", "Kod", "O'quvchi", "Sinf", "UID", "Telefon",
+      "Imtihon", "Holat", "Yaratilgan",
+      "Umumiy ball", "Umumiy max", "Umumiy %",
+    ];
+    for (const s of subjectOrder) {
+      const name = SUBJECT_NAMES[s];
+      header.push(`${name} — ball`, `${name} — max`, `${name} — %`);
+    }
+
+    const lines: string[] = [header.map(esc).join(",")];
+
+    rows.forEach((r, i) => {
+      // Sum earned & max per subject from stored questions Json.
+      const perSubject = new Map<SubjectKey, { earned: number; max: number }>();
+      let overallEarned = 0;
+      let overallMax = 0;
+      for (const s of r.subjects) {
+        const qs = Array.isArray(s.questions) ? (s.questions as Array<{ earned?: number; marks?: number }>) : [];
+        let earned = 0;
+        let max = 0;
+        for (const q of qs) {
+          earned += Number(q.earned ?? 0);
+          max += Number(q.marks ?? 0);
+        }
+        // Fall back to totalMarks if question rows are missing marks.
+        if (max === 0) max = s.totalMarks;
+        perSubject.set(s.subject, { earned, max });
+        overallEarned += earned;
+        overallMax += max;
+      }
+      const pct = (earned: number, max: number) =>
+        max > 0 ? Math.round((earned / max) * 1000) / 10 : "";
+
+      const base = [
+        i + 1,
+        r.publicCode,
+        r.student.fullName,
+        r.student.grade,
+        r.student.uid ?? "",
+        r.student.phone ?? "",
+        r.exam.title,
+        statusLabel(r.status),
+        r.createdAt.toISOString().slice(0, 10),
+        overallEarned,
+        overallMax,
+        pct(overallEarned, overallMax),
+      ];
+      for (const s of subjectOrder) {
+        const v = perSubject.get(s);
+        if (v) {
+          base.push(v.earned, v.max, pct(v.earned, v.max));
+        } else {
+          base.push("", "", "");
+        }
+      }
+      lines.push(base.map(esc).join(","));
+    });
+
+    const filenameParts = [
+      "natijalar",
+      String(req.query.examId ?? "").slice(0, 8) || null,
+      req.query.grade ? `${req.query.grade}sinf` : null,
+      req.query.status ? String(req.query.status).toLowerCase() : null,
+      new Date().toISOString().slice(0, 10),
+    ].filter(Boolean).join("-");
+
+    // BOM makes Excel auto-detect UTF-8 (o'zbekcha diakritiklar to'g'ri).
+    const body = "﻿" + lines.join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filenameParts}.csv"`);
+    res.send(body);
   }),
 );
 

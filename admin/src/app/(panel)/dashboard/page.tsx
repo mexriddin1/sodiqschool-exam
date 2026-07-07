@@ -26,6 +26,7 @@ interface StudentRow {
   publicCode: string;
   studentName: string;
   grade: number;
+  phone: string | null;
   examTitle: string;
   math: number | null;
   english: number | null;
@@ -163,11 +164,12 @@ export default function DashboardPage() {
   function exportCsv() {
     if (!stats) return;
     const rows = [
-      ["Kod", "Ism", "Sinf", "Imtihon", "Matematika", "Ingliz", "Tanqidiy", "Umumiy", "Band", "Qaror", "Qaror tavsifi", "O'tdi", "Nashr"],
+      ["Kod", "Ism", "Sinf", "Telefon", "Imtihon", "Matematika", "Ingliz", "Tanqidiy", "Umumiy", "Band", "Qaror", "Qaror tavsifi", "O'tdi", "Nashr"],
       ...studentRows.map((s) => [
         s.publicCode,
         s.studentName,
         String(s.grade),
+        s.phone ?? "",
         s.examTitle,
         s.math ?? "",
         s.english ?? "",
@@ -406,6 +408,7 @@ export default function DashboardPage() {
                   <th className="text-left px-3 py-2">Kod</th>
                   <SortTh k="studentName" cur={sortKey} asc={sortAsc} onClick={toggleSort}>O'quvchi</SortTh>
                   <SortTh k="grade" cur={sortKey} asc={sortAsc} onClick={toggleSort} align="right">Sinf</SortTh>
+                  <th className="text-left px-3 py-2">Telefon</th>
                   <th className="text-left px-3 py-2">Imtihon</th>
                   <SortTh k="math" cur={sortKey} asc={sortAsc} onClick={toggleSort} align="right">Mat.</SortTh>
                   <SortTh k="english" cur={sortKey} asc={sortAsc} onClick={toggleSort} align="right">Ing.</SortTh>
@@ -424,6 +427,7 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-3 py-2">{s.studentName}</td>
                     <td className="px-3 py-2 text-right">{s.grade}</td>
+                    <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{s.phone ?? "—"}</td>
                     <td className="px-3 py-2 text-gray-600">{s.examTitle}</td>
                     <td className="px-3 py-2 text-right font-mono">
                       <ScoreCell v={s.math} />
@@ -454,7 +458,7 @@ export default function DashboardPage() {
                 ))}
                 {studentRows.length === 0 && !studentsLoading && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                       Filtrga mos natija topilmadi
                     </td>
                   </tr>
