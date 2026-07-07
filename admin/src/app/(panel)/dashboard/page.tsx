@@ -161,38 +161,61 @@ export default function DashboardPage() {
     [stats],
   );
 
-  function exportCsv() {
+  const [exportPending, setExportPending] = useState(false);
+
+  async function exportCsv() {
     if (!stats) return;
-    const rows = [
-      ["Kod", "Ism", "Sinf", "Telefon", "Imtihon", "Matematika", "Ingliz", "Tanqidiy", "Umumiy", "Band", "Qaror", "Qaror tavsifi", "O'tdi", "Nashr"],
-      ...studentRows.map((s) => [
-        s.publicCode,
-        s.studentName,
-        String(s.grade),
-        s.phone ?? "",
-        s.examTitle,
-        s.math ?? "",
-        s.english ?? "",
-        s.ct ?? "",
-        s.composite ?? "",
-        s.band ?? "",
-        s.verdict ?? "",
-        s.verdictSub ?? "",
-        s.passed == null ? "" : s.passed ? "Ha" : "Yo'q",
-        s.publishedAt ?? "",
-      ]),
-    ];
-    const csv = rows.map((r) => r.map((c) => {
-      const v = String(c ?? "");
-      return v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
-    }).join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sodiq-natijalar-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setExportPending(true);
+    try {
+      // Re-fetch with take=10000 so we export EVERY filtered row rather
+      // than only the current page's 50. Reuses the same filter params
+      // the visible table is using.
+      const qs = new URLSearchParams();
+      qs.set("page", "1");
+      qs.set("take", "10000");
+      if (query) qs.set("q", query);
+      if (verdictFilter) qs.set("verdict", verdictFilter);
+      if (gradeFilter) qs.set("grade", gradeFilter);
+      if (examFilter) qs.set("examTitle", examFilter);
+      qs.set("sortKey", sortKey);
+      qs.set("sortAsc", String(sortAsc));
+      const full = await api<Stats>(`/api/admin/stats?${qs}`);
+      const items = full.students.items;
+      const rows = [
+        ["Kod", "Ism", "Sinf", "Telefon", "Imtihon", "Matematika", "Ingliz", "Tanqidiy", "Umumiy", "Band", "Qaror", "Qaror tavsifi", "O'tdi", "Nashr"],
+        ...items.map((s) => [
+          s.publicCode,
+          s.studentName,
+          String(s.grade),
+          s.phone ?? "",
+          s.examTitle,
+          s.math ?? "",
+          s.english ?? "",
+          s.ct ?? "",
+          s.composite ?? "",
+          s.band ?? "",
+          s.verdict ?? "",
+          s.verdictSub ?? "",
+          s.passed == null ? "" : s.passed ? "Ha" : "Yo'q",
+          s.publishedAt ?? "",
+        ]),
+      ];
+      const csv = rows.map((r) => r.map((c) => {
+        const v = String(c ?? "");
+        return v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
+      }).join(",")).join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sodiq-natijalar-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setStatsError(e instanceof Error ? `Eksport xato: ${e.message}` : "Eksport xato");
+    } finally {
+      setExportPending(false);
+    }
   }
 
   return (
@@ -377,8 +400,14 @@ export default function DashboardPage() {
                 {studentsTotal} ta{studentsLoading ? " · yuklanmoqda…" : ""}
               </span>
             </div>
-            <button type="button" className="btn-secondary text-sm" onClick={exportCsv}>
-              Ushbu sahifani CSV
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={exportCsv}
+              disabled={exportPending || studentsTotal === 0}
+              title={`Filtrga mos ${studentsTotal} ta natija (barchasi) CSV formatida`}
+            >
+              {exportPending ? "Tayyorlanmoqda…" : `Barcha CSV (${studentsTotal})`}
             </button>
           </div>
           <div className="px-4 py-3 border-b grid md:grid-cols-4 gap-2 bg-gray-50">

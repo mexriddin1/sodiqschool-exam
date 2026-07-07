@@ -240,7 +240,10 @@ type StudentRow = {
 };
 function paginateStudents(rows: StudentRow[], req: import("express").Request) {
   const filtered = applyStudentFilters(rows, req);
-  const p = parsePagination(req, { defaultTake: 100, maxTake: 500 });
+  // maxTake raised to 10k so the dashboard "Barcha CSV" export can grab
+  // every filtered row in a single request; regular list views still hit
+  // the small defaultTake.
+  const p = parsePagination(req, { defaultTake: 100, maxTake: 10_000 });
   return wrapPaginated(filtered.slice(p.skip, p.skip + p.take), filtered.length, p);
 }
 function applyStudentFilters(rows: StudentRow[], req: import("express").Request): StudentRow[] {
