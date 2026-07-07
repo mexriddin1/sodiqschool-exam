@@ -6,10 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 
-// Edit form kept in sync with the create form on /students. Legacy fields
-// (fullName, groupName, studentNumber, phone) are still tolerated by the
-// backend but no longer edited from the UI — the parent-facing schema is
-// firstName + lastName + uid + examLanguage + sex + grade.
+// Edit form kept in sync with the create form on /students.
 interface Student {
   id: string;
   fullName: string;
@@ -19,6 +16,7 @@ interface Student {
   examLanguage?: string | null;
   grade: number;
   sex?: "MALE" | "FEMALE" | null;
+  phone?: string | null;
 }
 
 export default function EditStudentPage() {
@@ -49,6 +47,7 @@ export default function EditStudentPage() {
           examLanguage: (fd.get("examLanguage") as string) || null,
           grade: Number(fd.get("grade")),
           sex: (fd.get("sex") as string) || null,
+          phone: (String(fd.get("phone") ?? "").trim()) || null,
         }),
       });
       router.push(`/students/${s.id}`);
@@ -110,6 +109,10 @@ export default function EditStudentPage() {
             <option value="RU">Ruscha</option>
             <option value="EN">Inglizcha</option>
           </select>
+        </div>
+        <div>
+          <label className="label">Telefon</label>
+          <input name="phone" defaultValue={s.phone ?? ""} className="input" placeholder="+998 90 123 45 67" inputMode="tel" />
         </div>
       </div>
 

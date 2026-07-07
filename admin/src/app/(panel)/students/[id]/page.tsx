@@ -13,6 +13,7 @@ interface StudentDetail {
   grade: number;
   groupName?: string | null;
   studentNumber?: string | null;
+  phone?: string | null;
   sex?: "MALE" | "FEMALE" | null;
   results: {
     id: string;
@@ -77,11 +78,12 @@ export default function StudentDetailPage() {
         </div>
       </div>
 
-      <div className="card p-4 grid grid-cols-4 gap-3 text-sm">
+      <div className="card p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <Field label="Sinf" value={`${s.grade}-sinf`} />
         <Field label="Guruh" value={s.groupName ?? "—"} />
         <Field label="Jinsi" value={s.sex === "MALE" ? "O'g'il" : s.sex === "FEMALE" ? "Qiz" : "—"} />
         <Field label="Raqam" value={s.studentNumber ?? "—"} />
+        <Field label="Telefon" value={s.phone ?? "—"} />
       </div>
 
       {error && <div className="text-bad text-sm">{error}</div>}

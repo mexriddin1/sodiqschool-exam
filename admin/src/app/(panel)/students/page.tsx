@@ -19,6 +19,7 @@ interface Student {
   grade: number;
   groupName?: string | null;
   studentNumber?: string | null;
+  phone?: string | null;
   sex?: "MALE" | "FEMALE" | null;
 }
 
@@ -104,6 +105,7 @@ export default function StudentsPage() {
           examLanguage: (fd.get("examLanguage") as string) || null,
           grade: Number(fd.get("grade")),
           sex: (fd.get("sex") as string) || null,
+          phone: (String(fd.get("phone") ?? "").trim()) || null,
         }),
       });
       setShowForm(false);
@@ -131,6 +133,7 @@ export default function StudentsPage() {
           sex: "MALE",
           grade: 10,
           examLanguage: "UZ",
+          phone: "+998901234567",
         },
         {
           firstName: "Sabina",
@@ -139,6 +142,7 @@ export default function StudentsPage() {
           sex: "FEMALE",
           grade: 5,
           examLanguage: "RU",
+          phone: "+998907654321",
         },
       ],
     },
@@ -297,6 +301,10 @@ export default function StudentsPage() {
               <option value="EN">Inglizcha</option>
             </select>
           </div>
+          <div>
+            <label className="label">Telefon</label>
+            <input name="phone" className="input" placeholder="+998 90 123 45 67" inputMode="tel" />
+          </div>
           {error && <div className="col-span-full text-bad text-sm">{error}</div>}
           <div className="col-span-full">
             <button className="btn-primary inline-flex items-center gap-2" type="submit">
@@ -354,6 +362,7 @@ export default function StudentsPage() {
               <th className="text-left px-4 py-2">Ism, Familya</th>
               <th className="text-left px-4 py-2">Sinf</th>
               <th className="text-left px-4 py-2">UID</th>
+              <th className="text-left px-4 py-2">Telefon</th>
               <th className="text-left px-4 py-2">Imtihon tili</th>
               <th className="text-right px-4 py-2 w-32">Amallar</th>
             </tr>
@@ -372,6 +381,7 @@ export default function StudentsPage() {
                 </td>
                 <td className="px-4 py-2">{s.grade}</td>
                 <td className="px-4 py-2 font-mono text-xs">{s.uid ?? "—"}</td>
+                <td className="px-4 py-2 whitespace-nowrap">{s.phone ?? "—"}</td>
                 <td className="px-4 py-2">{s.examLanguage ?? "—"}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="inline-flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -382,7 +392,7 @@ export default function StudentsPage() {
               </tr>
             ))}
             {list.length === 0 && !loading && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">
                 {total === 0 ? "O'quvchi yo'q. Yangi qo'shing." : "Filtrlarga mos o'quvchi topilmadi."}
               </td></tr>
             )}
