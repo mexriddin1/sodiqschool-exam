@@ -133,7 +133,6 @@ export default function StudentsPage() {
           sex: "MALE",
           grade: 10,
           examLanguage: "UZ",
-          phone: "+998901234567",
         },
         {
           firstName: "Sabina",
@@ -142,7 +141,6 @@ export default function StudentsPage() {
           sex: "FEMALE",
           grade: 5,
           examLanguage: "RU",
-          phone: "+998907654321",
         },
       ],
     },
