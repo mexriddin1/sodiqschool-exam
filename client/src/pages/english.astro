@@ -31,7 +31,6 @@ const m = r.meta;
 const programs = buildEnglishPrograms(r);
 const gate = {
   roadmap: isUnlocked(me.unlockedSections, 'roadmap'),
-  risks_notes: isUnlocked(me.unlockedSections, 'risks_notes'),
 };
 // roadmap stops (essentials only) + the journey's end-goal label
 const roadStops = programs.map((p, i) => ({ n: i + 1, range: p.range, label: p.road.label, gain: p.road.gain, note: p.road.note, color: p.priority.color }));
@@ -155,11 +154,6 @@ const potentialBand = scoreBand(r.potential); // band for the POTENTIAL (not tod
 const adjustedBand = scoreBand(r.adjusted);   // band for the adjusted score (tuzatilgan)
 
 
-const palette = { ink: '#0F1629', muted: '#6B7385', faint: '#9AA1B2', grid: '#EEF0F4', border: '#E8EAEF', navy: '#06113C', accent: '#FF8A32', pos: '#2F9E6B', warn: '#C98A12', neg: '#D2503F', info: '#3266C9', mono: "'Space Mono', monospace" };
-const chartData = {
-  growth: r.growthForecast,
-  palette,
-};
 
 // Dynamic Mundarija — sections are driven by the ACTUAL question labels,
 // not by admin fallbacks. If the test doesn't carry a dimension (skill,
@@ -171,7 +165,6 @@ const hasSkillTag  = r.bySkill.length > 0;
 const hasBloomTag  = r.byBloom.length > 0;
 const hasReasonTag = r.byReasoning.length > 0;
 const hasDifficulty = r.tiers['Oson'].n + r.tiers["O'rta"].n + r.tiers['Qiyin'].n > 0;
-const perfectScore = r.percent >= 95;
 const rawSections = [
   { id: 'sec1',  t: 'Bir qarashda — eng muhimi',    show: true },
   { id: 'sec2',  t: 'Umumiy natija va xatolar',    show: true },
@@ -185,7 +178,6 @@ const rawSections = [
   { id: 'secReason', t: 'Fikrlash turlari',        show: hasReasonTag },
   { id: 'sec9',  t: "Rivojlanish yo'li (yo'l xaritasi)", show: programs.length > 0 },
   { id: 'sec10', t: "O'sish imkoniyati",           show: growthGroups.length > 0 },
-  { id: 'sec11', t: 'Kelajak prognozi',            show: r.growthForecast.length > 0 },
 ];
 const sections = rawSections.filter((s) => s.show).map((s, i) => ({ ...s, n: i + 1 }));
 const showSection = (id) => sections.some((s) => s.id === id);
@@ -542,79 +534,9 @@ const nn = (id) => {
     </LockedSection>
     )}
 
-    {/* ===================== PART IV ===================== */}
-    <div class="part"><span class="pn">IV</span><span class="pt">Xulosa</span><span class="pr"></span><span class="pe">§11</span></div>
-
-    {/* 11 · OUTLOOK — yopiq bo'lsa real chart blur ko'rinadi. */}
-    {showSection('sec11') && (
-    <LockedSection eyebrow="11+" title="Xulosa va tavsiyalar"
-      hint="Kelajak prognozi va yakuniy tavsiyalar."
-      locked={!gate.risks_notes}>
-      <section class="section" id="sec11">
-        <header class="sec-head">
-          <div class="eyebrow">{nn('sec11')}</div>
-          <h2>Kelajak prognozi</h2>
-          <p class="lead">
-            {perfectScore
-              ? "Farzandingiz allaqachon eng yuqori darajada — endilikda maqsad shu darajani saqlab qolish."
-              : "Reja bajarilsa, qanday o'sish kutiladi (mezonlarga asoslangan taxmin — aniq kafolat emas)."}
-          </p>
-        </header>
-        {perfectScore ? (
-          <div class="perfect-card">
-            <h3>Barcha ko'rsatkichlar juda a'lo darajada</h3>
-            <p>
-              Farzandingiz til bo'yicha materialni to'liq egallagan va topshiriqni
-              kutilgandan yuqori bajardi. Bu bosqichda o'sish emas, <b>saqlab
-              qolish</b> muhim: muntazam o'qish, yozuv mashqi va yangi lug'at
-              orqali darajani doim faol tuting.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div id="growth" class="chart" style="width:100%;height:240px"></div>
-            <p class="caption center">Chiziq — hozir → 3 oy → 6 oy → 12 oy davomida kutilayotgan ball. Bu taxminiy yo'nalish, kafolat emas.</p>
-          </>
-        )}
-      </section>
-    </LockedSection>
-    )}
   </div>
 
-  {/* chart payload + init (one shared theme) */}
-  <script type="application/json" id="chart-data" set:html={JSON.stringify(chartData)} />
   <script>
-    import * as echarts from 'echarts';
-    const data = JSON.parse(document.getElementById('chart-data').textContent);
-    const P = data.palette;
-    const base = {
-      textStyle: { fontFamily: 'Hanken Grotesk, system-ui, sans-serif', color: P.muted },
-      grid: { left: 36, right: 14, top: 20, bottom: 26 },
-    };
-    const axisLabel = { color: P.faint, fontSize: 9.5, fontFamily: P.mono };
-    const splitLine = { lineStyle: { color: P.grid } };
-
-    // Perfect-score case: §11 renders a celebration card instead of the chart.
-    const growthEl = document.getElementById('growth');
-    const growth = growthEl ? echarts.init(growthEl) : null;
-    if (growth) {
-      // tight y-axis: start score sits at the bottom, 12-month value at the top
-      const gv = data.growth.map((g) => g.v);
-      const gyMin = Math.min(...gv);
-      const gyMax = Math.max(...gv) > gyMin ? Math.max(...gv) : gyMin + 1;
-      const gInt = Math.max(1, Math.ceil((gyMax - gyMin) / 3));
-      growth.setOption({
-        ...base,
-        tooltip: { trigger: 'axis', formatter: (p) => `${p[0].name}: ${p[0].value}/100` },
-        xAxis: { type: 'category', boundaryGap: false, data: data.growth.map((g) => g.label), axisLine: { lineStyle: { color: P.border } }, axisTick: { show: false }, axisLabel: { color: P.muted, fontSize: 11 } },
-        yAxis: { type: 'value', min: gyMin, max: gyMax, interval: gInt, splitLine, axisLabel },
-        series: [{ type: 'line', smooth: true, data: data.growth.map((g) => g.v), symbolSize: 8, lineStyle: { color: P.accent, width: 2.5 }, itemStyle: { color: P.accent, borderColor: '#fff', borderWidth: 2 }, areaStyle: { color: 'rgba(255,138,50,.12)' }, label: { show: true, position: 'top', fontFamily: P.mono, fontWeight: 700, fontSize: 11, color: P.pos } }],
-      });
-    }
-
-    const all = growth ? [growth] : [];
-    window.addEventListener('resize', () => all.forEach((c) => c.resize()));
-
     // cyclist rides the road as the section scrolls through the viewport
     const road = document.querySelector('.skill-road');
     const path = document.getElementById('roadPath');
