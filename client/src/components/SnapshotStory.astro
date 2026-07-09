@@ -1,0 +1,217 @@
+---
+// "Bir qarashda" — 11-blokli tuzilma (ballar, tuzatilgan/salohiyat, reyting,
+// qiyinlik, bo'limlar, mavzular, ko'nikmalar, Bloom, fikrlash, yo'l xaritasi).
+// Prose ko'rinishida chiqadi (ustma-ust <p>), lekin har paragraf spetsifikatsiya
+// blokining bittasiga to'g'ri keladi. Ma'lumot yo'q bloklar tashlab yuboriladi.
+//
+// Ishlatilishi (uch fan sahifasi bir xil):
+//   <SnapshotStory r={r} subject="matematika" hasCohort={hasCohort}
+//     cohort={cohort} studentSex={studentSex}
+//     weakestTopic={weakestTopic} strongTopics={strongTopics}
+//     skillRadar={skillRadar} bloomData={bloomData} reasoningTypes={reasoningTypes}
+//     hasStrand={hasStrand} hasTopic={hasTopic} hasSkill={hasSkillTag}
+//     hasBloom={hasBloomTag} hasReason={hasReasonTag} hasDifficulty={hasDifficulty}
+//     hasRoadmap={programs.length > 0} />
+
+interface Props {
+  r: any;
+  subject: string;
+  hasCohort: boolean;
+  cohort: any;
+  studentSex: 'male' | 'female' | null | undefined;
+  weakestTopic: any;
+  strongTopics: string[];
+  skillRadar: { name: string; value: number }[];
+  bloomData: { key: string; percent: number }[];
+  reasoningTypes: { name: string; value: number }[];
+  hasStrand: boolean;
+  hasTopic: boolean;
+  hasSkill: boolean;
+  hasBloom: boolean;
+  hasReason: boolean;
+  hasDifficulty: boolean;
+  hasRoadmap: boolean;
+}
+
+const {
+  r, subject, hasCohort, cohort, studentSex,
+  weakestTopic, strongTopics,
+  skillRadar, bloomData, reasoningTypes,
+  hasStrand, hasTopic, hasSkill, hasBloom, hasReason, hasDifficulty, hasRoadmap,
+} = Astro.props as Props;
+
+// ---- Blok 1: ball, daraja, ishonch oralig'i ----
+const totalCorrect = r.correctCount + r.partialCount;
+const bandLabel = r.band?.label ?? '';
+const bandTavsif = (r.band?.tavsif ?? '').toLowerCase();
+
+// ---- Blok 2: tuzatilgan baho ----
+const technicalPctOfLost = r.lostTotal ? Math.round((r.technicalLost / r.lostTotal) * 100) : 0;
+const hasErrors = r.lostTotal > 0;
+const hasTechnical = r.technicalLost > 0;
+
+// ---- Blok 4: reyting / persentil ----
+const genderLabel = studentSex === 'female' ? 'qizlar' : studentSex === 'male' ? 'yigitlar' : null;
+const genderRank = studentSex === 'female' ? cohort?.femaleRank : studentSex === 'male' ? cohort?.maleRank : null;
+
+// ---- Blok 5: qiyinlik kesimi ----
+const oson = r.tiers?.['Oson']?.pct ?? 0;
+const orta = r.tiers?.["O'rta"]?.pct ?? 0;
+const qiyin = r.tiers?.['Qiyin']?.pct ?? 0;
+const allPerfect = oson >= 100 && orta >= 100 && qiyin >= 100;
+const strongHardWeakMid = qiyin > orta && orta < 80;
+const strongMidWeakHard = orta > qiyin && qiyin < 70;
+
+// ---- Blok 6: bo'limlar ----
+const strandsSorted = [...(r.byStrand ?? [])].sort((a, b) => b.percent - a.percent);
+const topStrands = strandsSorted.slice(0, 2);
+const weakStrand = strandsSorted[strandsSorted.length - 1];
+
+// ---- Blok 7: mavzular ----
+// Weak topics: below subject average AND below 100%. Sorted by lowest.
+const topicsBelowAvg = (r.topics ?? []).filter((t: any) => t.percent < r.percent && t.percent < 100).sort((a: any, b: any) => a.percent - b.percent);
+const namedWeakTopics = topicsBelowAvg.slice(0, 4);
+const namedStrongTopics = (strongTopics ?? []).slice(0, 3);
+
+// ---- Blok 8: ko'nikmalar ----
+const skillsSorted = [...(skillRadar ?? [])].sort((a, b) => b.value - a.value);
+const topSkills = skillsSorted.slice(0, 2);
+const weakSkills = skillsSorted.slice(-2).filter((s) => s.value < 100).sort((a, b) => a.value - b.value);
+
+// ---- Blok 9: Bloom ----
+const bloomSorted = [...(bloomData ?? [])].sort((a, b) => b.percent - a.percent);
+const topBlooms = bloomSorted.slice(0, 2);
+const midBlooms = bloomSorted.slice(2, 4);
+
+// ---- Blok 10: fikrlash turlari ----
+const reasoningSorted = [...(reasoningTypes ?? [])].sort((a, b) => b.value - a.value);
+const topReasoning = reasoningSorted.slice(0, 2);
+const restReasoning = reasoningSorted.slice(2, 4);
+
+// ---- Blok 11: yo'l xaritasiga ishora ----
+const growthPoints: string[] = [];
+namedWeakTopics.slice(0, 2).forEach((t: any) => growthPoints.push(t.name.toLowerCase()));
+if (weakSkills[0]) growthPoints.push(weakSkills[0].name.toLowerCase());
+const growthLabel = growthPoints.length > 0 ? growthPoints.join(', ') : "yuqorida sanalgan o'sish nuqtalari";
+---
+
+{/* Blok 1 — ball, daraja, ishonch oralig'i */}
+<p>
+  Farzandingiz {subject} imtihonida <b>{r.totalQuestions} savoldan {totalCorrect} tasini to'g'ri yechib</b>,
+  100 balldan <b>{r.percent} ball</b> oldi. Bu bizning shkalamizda <b>{bandLabel}</b> daraja
+  {bandTavsif && <> — {bandTavsif}</>}. Bu bir kunda topshirilgan bitta test, shuning uchun haqiqiy daraja
+  taxminan <b>{r.ci.low}–{r.ci.high}</b> oralig'ida yotadi.
+</p>
+
+{/* Blok 2 — tuzatilgan baho */}
+{hasErrors && hasTechnical && (
+  <p>
+    Tuzatilgan baho — <b>~{r.adjusted}</b>. Bu e'tiborsizlik (texnik) xatolari olib tashlanganda
+    chiqadigan ball. Yo'qotilgan ballarning <b>{technicalPctOfLost}%</b> i bilmaslikdan emas,
+    shoshqaloqlik va tekshirmaslikdan kelgan. Bu quvonarli: diqqat va tekshirish odati
+    bilim bo'shlig'ini to'ldirishdan ancha tez shakllanadi.
+  </p>
+)}
+{hasErrors && !hasTechnical && (
+  <p>
+    Tuzatilgan baho — <b>{r.adjusted}</b>. E'tiborsizlik xatolari yo'q — har bir yo'qotilgan ball
+    aniq bilim bo'shlig'iga to'g'ri keladi. Bu foydali: o'sish nuqtalari aniq belgilangan va
+    reja bilan mustahkamlash mumkin.
+  </p>
+)}
+
+{/* Blok 3 — salohiyat bahosi */}
+<p>
+  Salohiyat bahosi — <b>{r.potential}</b>. U uch ko'rsatkichdan hisoblanadi:
+  bugungi ball ({r.percent}), qiyin savollardagi to'g'ri javoblar foizi ({r.hardTierPct}%)
+  va tuzatilgan baho ({r.adjusted}) — uchalasining o'rtachasi. Ya'ni bu bugungi natija,
+  eng og'ir sharoitdagi ish va xatosiz bilimni birlashtirgan istiqbol ko'rsatkichi.
+</p>
+
+{/* Blok 4 — reyting va persentil */}
+{hasCohort && (
+  <p>
+    {subject.charAt(0).toUpperCase() + subject.slice(1)} bo'yicha farzandingiz
+    <b> {cohort.total} nomzod orasida {cohort.rank}-o'rinni</b>
+    {genderLabel && genderRank != null && <>, {genderLabel} orasida esa <b>{genderRank}-o'rinni</b></>} egalladi.
+    Persentili <b>{cohort.percentile}</b> — bu farzandingiz ushbu fan imtihonida nomzodlarning
+    <b> {cohort.percentile} foizidan yuqori</b> natija ko'rsatgani degani.
+  </p>
+)}
+
+{/* Blok 5 — qiyinlik kesimi */}
+{hasDifficulty && (
+  <p>
+    Qiyinlik kesimida manzara e'tiborli: <b>Oson {oson}%</b>, <b>O'rta {orta}%</b>, <b>Qiyin {qiyin}%</b>.
+    {allPerfect && <> Bola barcha darajadagi savollarni to'liq uddalagan — bilim chuqurligi teng.</>}
+    {!allPerfect && strongHardWeakMid && <> Bola eng murakkab masalalardan cho'chimaydi — ballni aynan o'rta darajada boy bergan. Bu odatda bilim emas, diqqat masalasi ekanini ko'rsatadi.</>}
+    {!allPerfect && strongMidWeakHard && <> Oddiy va o'rtacha savollar mustahkam, lekin qiyin darajada bilim chuqurlashishi kerak — asosiy o'sish nuqtasi shu yerda.</>}
+    {!allPerfect && !strongHardWeakMid && !strongMidWeakHard && <> Darajalar bo'yicha muvozanatli — hech bir bosqichda keskin cho'kish yo'q.</>}
+  </p>
+)}
+
+{/* Blok 6 — bo'limlar */}
+{hasStrand && topStrands.length > 0 && (
+  <p>
+    Bo'limlar bo'yicha: {topStrands.map((s, i) => (<>{i > 0 && ' hamda '}<b>{s.name} ({s.percent}%)</b></>))}
+    {' '}— eng kuchli tomonlar, bola bu yo'nalishlarda ishonchli ishlaydi.
+    {weakStrand && weakStrand.percent < 100 && weakStrand.name !== topStrands[0]?.name && (
+      <> <b>{weakStrand.name} ({weakStrand.percent}%)</b> esa hozircha eng bo'sh bo'lim — asosiy e'tibor shu yerga.</>
+    )}
+  </p>
+)}
+
+{/* Blok 7 — mavzular */}
+{hasTopic && (namedWeakTopics.length > 0 || namedStrongTopics.length > 0) && (
+  <p>
+    {namedWeakTopics.length > 0 && (
+      <>
+        Mavzular kesimida aniq o'sish nuqtalari: {namedWeakTopics.map((t: any, i: number) => (
+          <>{i > 0 && (i === namedWeakTopics.length - 1 ? ' va ' : ', ')}<b>{t.name.toLowerCase()} ({t.percent}%)</b></>
+        ))}.
+      </>
+    )}
+    {namedStrongTopics.length > 0 && (
+      <>
+        {' '}{namedStrongTopics.slice(0, 3).map((n, i) => (<>{i > 0 && ', '}<b>{n.toLowerCase()}</b></>))}
+        {' '}kabi mavzular esa to'liq o'zlashtirilgan.
+      </>
+    )}
+  </p>
+)}
+
+{/* Blok 8 — ko'nikmalar profili */}
+{hasSkill && topSkills.length > 0 && (
+  <p>
+    Ko'nikmalar profilida {topSkills.map((s, i) => (<>{i > 0 && ' va '}<b>{s.name} ({s.value}%)</b></>))} yetakchi.
+    {weakSkills.length > 0 && (
+      <> {weakSkills.map((s, i) => (<>{i > 0 && ' va '}<b>{s.name} ({s.value}%)</b></>))} esa mustahkamlanishi kerak — bu bola qoidani biladi, ammo amalda tez bajarish va shartlarni sinchiklab o'qishda ball yo'qotadi degani.</>
+    )}
+  </p>
+)}
+
+{/* Blok 9 — Bloom */}
+{hasBloom && topBlooms.length > 0 && (
+  <p>
+    Fikrlash darajalari bo'yicha {topBlooms.map((b, i) => (<>{i > 0 && ' va '}<b>{b.key} ({b.percent}%)</b></>))} yuqori
+    {midBlooms.length > 0 && <>, {midBlooms.map((b, i) => (<>{i > 0 && ' va '}<b>{b.key} ({b.percent}%)</b></>))} yaxshi darajada</>}.
+    Bola yuqori darajali fikrlashni uddalaydi — bu chuqur o'zlashtirish belgisi.
+  </p>
+)}
+
+{/* Blok 10 — fikrlash turlari */}
+{hasReason && topReasoning.length > 0 && (
+  <p>
+    Fikrlash turlarida {topReasoning.map((t, i) => (<>{i > 0 && ' va '}<b>{t.name} ({t.value}%)</b></>))} kuchli
+    {restReasoning.length > 0 && <>, {restReasoning.map((t, i) => (<>{i > 0 && ' va '}<b>{t.name} ({t.value}%)</b></>))} ham yaxshi darajada</>}
+    {' '}— profil muvozanatli.
+  </p>
+)}
+
+{/* Blok 11 — yo'l xaritasiga ishora */}
+{hasRoadmap && (
+  <p>
+    Hisobot oxiridagi <b>yo'l xaritasiga</b> alohida e'tibor bering: u yuqorida sanalgan o'sish
+    nuqtalarini — <b>{growthLabel}</b> ni — bosqichma-bosqich mustahkamlashga qaratilgan.
+  </p>
+)}

@@ -91,8 +91,6 @@ const compCi = { low: Math.max(0, composite - 3), high: Math.min(100, composite 
 // visits the school (admin toggles Result.unlockedSections).
 const gate = {
   narrative: isUnlocked(me.unlockedSections, 'narrative'),
-  roadmap: isUnlocked(me.unlockedSections, 'roadmap'),
-  risks_notes: isUnlocked(me.unlockedSections, 'risks_notes'),
 };
 const m = {
   ...mathData.meta,
@@ -101,12 +99,6 @@ const m = {
 };
 const chip = (c) => `background:${c}1A;color:${c};border-color:${c}55`;
 const growthList = subjects.filter((s) => s.growthLabel !== '—').map((s) => `${s.name.toLowerCase()} - ${s.growthLabel}`).join('; ');
-// AI narrative for §4 Umumiy manzara + §5 Yakuniy tavsiya. Falls back to
-// deterministic short blurbs when generation hasn't run yet.
-import { aiParagraphs, hasAiText } from '../lib/ai-md';
-const aiCross = me.aiNarrative?.summary?.crossCutting ?? null;
-const aiFinal = me.aiNarrative?.summary?.finalRecommendation ?? null;
-
 // If admin manualContent didn't set strength/growthLabel we derive them from
 // bySkill (the radar/spider axes). Ties are included — if multiple skills share
 // the top (or bottom) percent they are all listed. 100% total = special labels.
@@ -341,67 +333,5 @@ subjects.forEach((s, i) => {
       </div>
     </section>
 
-    {/* ---- cross-cutting insights (gated: narrative). Yopiq bo'lsa real blur. */}
-    <LockedSection eyebrow="04" title="Umumiy manzara"
-      hint="Uch fandagi kuchli tomonlar, o'sish yo'nalishlari va xato tahlili."
-      locked={!gate.narrative}>
-      <section class="section" id="sec4">
-        <header class="sec-head">
-          <div class="eyebrow">04</div>
-          <h2>Umumiy manzara</h2>
-          <p class="lead">Uch fanni birga ko'rganda chiqadigan asosiy xulosalar.</p>
-        </header>
-        {hasAiText(aiCross) ? (
-          <div class="ai-narrative">
-            {aiParagraphs(aiCross).map((h) => (<p set:html={h} />))}
-          </div>
-        ) : (
-          <div class="insight-grid">
-            {crossStrength && (
-              <div class="insight">
-                <h4>Eng kuchli umumiy tomon</h4>
-                <p><b>{crossStrength}.</b> Matematika ({subjects[0].percent}), ingliz tili ({subjects[1].percent}) va tanqidiy fikrlash ({subjects[2].percent}) bo'yicha umumiy manzara.</p>
-              </div>
-            )}
-            <div class="insight">
-              <h4>Asosiy o'sish yo'nalishlari</h4>
-              <ul class="ticks">
-                {subjects.map((s) => (<li><b>{s.name}:</b> {s.growthLabel}</li>))}
-              </ul>
-            </div>
-            <div class="insight">
-              <h4>Xato tahlili (uch fan)</h4>
-              <p>Yo'qotilgan ballarning <b>~{avgTechPct}%</b> i e'tiborsizlik (texnik) xatosi — bilmaslik emas. Diqqat va <b>javobni tekshirish</b> odati uch fanda ham tez natija beradi.</p>
-            </div>
-          </div>
-        )}
-      </section>
-    </LockedSection>
-
-    {/* ---- final recommendation (gated: risks_notes). Yopiq bo'lsa real blur. */}
-    <LockedSection eyebrow="05" title="Yakuniy tavsiya va xulosalar"
-      hint="Komissiya xulosasi, oilaviy tavsiyalar va batafsil rivojlanish yo'nalishlari."
-      locked={!gate.risks_notes}>
-      <section class="section" id="sec5">
-        <header class="sec-head">
-          <div class="eyebrow">05</div>
-          <h2>Yakuniy tavsiya</h2>
-        </header>
-        {hasAiText(aiFinal) ? (
-          <div class="ai-narrative note pos">
-            {aiParagraphs(aiFinal).map((h) => (<p set:html={h} />))}
-          </div>
-        ) : (
-          <div class="note pos sum-final">
-            <b>Umumiy xulosa.</b> Uch fan bo'yicha o'rtacha ball <b>{composite}</b>, salohiyat o'rtachasi <b>{compPotential}</b> ({compBand.label.toLowerCase()} daraja).
-            E'tiborsizlik xatolari kamaytirilsa va har fandagi tor o'sish yo'nalishi ustida ishlansa, natija sezilarli ko'tariladi.
-            Tavsiya — <b>{verdict.label.toLowerCase()}</b>.
-          </div>
-        )}
-        <div class="report-links">
-          {subjects.map((s) => (<a class="report-link" href={s.href} style={`--bc:${s.band.color}`}><b>{s.name}</b><span>to'liq hisobot →</span></a>))}
-        </div>
-      </section>
-    </LockedSection>
   </div>
 </Layout>
