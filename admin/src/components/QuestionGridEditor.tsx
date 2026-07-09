@@ -164,6 +164,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
   const [tpls, setTpls] = useState<TemplateRow[]>([]);
   const [tplsLoading, setTplsLoading] = useState(false);
   const [tplsErr, setTplsErr] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ row: number; x: number; y: number } | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   function patch(i: number, p: Partial<Question>) {
@@ -473,16 +474,51 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
               const rowCls = unscored ? "bg-gray-50" : wrong ? "bg-bad/5" : "";
               const markCorrect = () => patch(i, { result: "To'g'ri", earned: q.marks, errorType: null });
               const markWrong = () => patch(i, { result: "Noto'g'ri", earned: 0, errorType: undefined });
+              const overlayVisible = hover?.row === i;
               return (
-                <tr key={i} className={`group border-t align-top ${rowCls}`}>
-                  <td className="p-2 font-mono text-gray-700">{q.id}</td>
+                <tr key={i} className={`relative border-t align-top ${rowCls}`}
+                  onMouseMove={(e) => {
+                    const t = e.target as HTMLElement;
+                    if (t.closest("[data-hover-overlay]")) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    setHover((prev) =>
+                      prev && prev.row === i && Math.abs(prev.x - x) < 8 && Math.abs(prev.y - y) < 4
+                        ? prev
+                        : { row: i, x, y },
+                    );
+                  }}
+                  onMouseLeave={() => setHover((h) => (h?.row === i ? null : h))}
+                >
+                  <td className="p-2 font-mono text-gray-700">
+                    {q.id}
+                    {overlayVisible && (
+                      <div
+                        data-hover-overlay
+                        className="absolute z-30 pointer-events-auto"
+                        style={{ left: hover.x, top: hover.y }}
+                      >
+                        <div className="flex gap-1 bg-white shadow-lg border rounded-md p-1 translate-x-3 translate-y-3">
+                          <button type="button" onClick={markCorrect} title="To'g'ri"
+                            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded font-semibold text-base text-good bg-good/10 hover:bg-good/25 border ${q.result === "To'g'ri" ? "border-good" : "border-transparent"}`}>
+                            <Icon name="check" size={18} /> To'g'ri
+                          </button>
+                          <button type="button" onClick={markWrong} title="Noto'g'ri"
+                            className={`inline-flex items-center gap-1.5 h-9 px-3 rounded font-semibold text-base text-bad bg-bad/10 hover:bg-bad/25 border ${q.result === "Noto'g'ri" ? "border-bad" : "border-transparent"}`}>
+                            <Icon name="x" size={18} /> Noto'g'ri
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </td>
                   <td className="p-2 text-gray-700">
                     <div className="font-medium">{q.subTopic || q.topic}</div>
                     <div className="text-gray-400 text-[11px]">{q.strand} · {q.skill} · {q.bloom}</div>
                   </td>
                   <td className="p-2 text-gray-700">{q.difficulty}</td>
                   <td className="p-2 text-gray-700">{q.marks}</td>
-                  <td className="p-1 relative">
+                  <td className="p-1">
                     <select className={`input py-1.5 px-2 text-sm w-full ${unscored ? "border-bad text-bad" : ""}`} value={q.result ?? ""}
                       onChange={(e) => {
                         const raw = e.target.value;
@@ -501,18 +537,6 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                       <option value="">—</option>
                       {QRES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
-                    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-20 opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-                      <div className="flex gap-1 bg-white shadow-lg border rounded-md p-1">
-                        <button type="button" onClick={markCorrect} title="To'g'ri"
-                          className={`inline-flex items-center gap-1 h-9 px-3 rounded font-semibold text-base text-good bg-good/10 hover:bg-good/25 border ${q.result === "To'g'ri" ? "border-good" : "border-transparent"}`}>
-                          <Icon name="check" size={18} /> To'g'ri
-                        </button>
-                        <button type="button" onClick={markWrong} title="Noto'g'ri"
-                          className={`inline-flex items-center gap-1 h-9 px-3 rounded font-semibold text-base text-bad bg-bad/10 hover:bg-bad/25 border ${q.result === "Noto'g'ri" ? "border-bad" : "border-transparent"}`}>
-                          <Icon name="x" size={18} /> Noto'g'ri
-                        </button>
-                      </div>
-                    </div>
                   </td>
                   <td className="p-1">
                     <input type="number" min={0} max={q.marks} className="input py-1.5 px-2 text-sm"
