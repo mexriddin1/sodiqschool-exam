@@ -27,6 +27,8 @@ interface Props {
   locked?: boolean;
 }
 const { title, hint, eyebrow, locked = true } = Astro.props;
+import { getContactPhone, telHref } from '../lib/public-config';
+const phone = locked ? await getContactPhone() : "";
 ---
 {locked ? (
   <section class="section locked-section" aria-label={`${title} — yopiq bo'lim`}>
@@ -55,6 +57,14 @@ const { title, hint, eyebrow, locked = true } = Astro.props;
           Farzandingiz haqidagi to'liq maslahat va rivojlanish yo'lini ota-ona
           bilan uchrashuvda muhokama qilamiz.
         </p>
+        {phone && (
+          <a class="lock-phone" href={telHref(phone)}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+            </svg>
+            <span>{phone}</span>
+          </a>
+        )}
       </div>
     </div>
   </section>
@@ -114,6 +124,19 @@ const { title, hint, eyebrow, locked = true } = Astro.props;
   .lock-cta {
     margin: 0; font-size: 13.5px; color: #374151; line-height: 1.55;
   }
+  .lock-phone {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 6px;
+    padding: 8px 14px;
+    background: #06113C; color: #fff;
+    border-radius: 999px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700; font-size: 14px;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .lock-phone:hover { background: #FF8A32; }
+  .lock-phone:active { transform: scale(0.97); }
 
   /* Print: blur'ni yopish, faqat xabar chiqsin (PDF ekspertlar uchun). */
   @media print {

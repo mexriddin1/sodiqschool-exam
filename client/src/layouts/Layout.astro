@@ -1,11 +1,13 @@
 ---
 import '../styles/global.css';
 import { getSessionToken } from '../lib/session';
+import { getContactPhone, telHref } from '../lib/public-config';
 
 const { title = 'Sodiq School — Diagnostika hisoboti', meta = {} } = Astro.props;
 const isLoggedIn = !!getSessionToken(Astro.cookies);
 const isLoginPage = Astro.url.pathname === '/login';
 const path = Astro.url.pathname;
+const contactPhone = await getContactPhone();
 
 // Navigation tabs shown on report pages when logged in.
 const TABS = [
@@ -61,6 +63,13 @@ function isActive(href: string): boolean {
       </nav>
     )}
     <slot />
+    {contactPhone && (
+      <a class="contact-fab" href={telHref(contactPhone)} aria-label={`Bog'lanish: ${contactPhone}`} title={contactPhone}>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+        </svg>
+      </a>
+    )}
     {!isLoginPage && (
       <div class="wrap">
         <footer>
@@ -136,6 +145,33 @@ function isActive(href: string): boolean {
       }
       @media print {
         .topnav { display: none !important; }
+      }
+
+      /* Floating contact button — bottom-right, visible on every page.
+         Icon-only pill. */
+      .contact-fab {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        z-index: 90;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        background: #06113C;
+        color: #fff;
+        border-radius: 999px;
+        text-decoration: none;
+        box-shadow: 0 8px 24px rgba(6, 17, 60, 0.28);
+        transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      }
+      .contact-fab:hover {
+        background: #FF8A32;
+        box-shadow: 0 10px 28px rgba(255, 138, 50, 0.35);
+      }
+      .contact-fab:active { transform: scale(0.97); }
+      @media print {
+        .contact-fab { display: none !important; }
       }
     </style>
   </body>

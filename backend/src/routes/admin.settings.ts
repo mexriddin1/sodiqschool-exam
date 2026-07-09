@@ -14,7 +14,15 @@ export const settingsRouter = Router();
 settingsRouter.use(requireAdmin);
 
 export const DEFAULT_UNLOCKED_SECTIONS_KEY = "result.defaultUnlockedSections";
+export const CONTACT_PHONE_KEY = "contact.phone";
 const ALLOWED_SECTION_KEYS = ["narrative", "roadmap", "risks_notes"] as const;
+
+/** Read the school contact phone, falling back to empty string. */
+export async function readContactPhone(): Promise<string> {
+  const row = await prisma.setting.findUnique({ where: { key: CONTACT_PHONE_KEY } });
+  const raw = row?.value;
+  return typeof raw === "string" ? raw : "";
+}
 
 /** Read the default-unlocked-sections list, falling back to [] (all closed). */
 export async function readDefaultUnlockedSections(): Promise<string[]> {
@@ -54,6 +62,37 @@ settingsRouter.put(
       { value: prev?.value ?? null }, { value: updated.value },
     );
     ok(res, { sections: cleaned });
+  }),
+);
+
+// ---- CONTACT PHONE -----------------------------------------------------------
+// Maktabning umumiy aloqa raqami. Yopiq bo'lim kartasida va sahifadagi
+// "Bog'lanish" tugmasida ishlatiladi. Sozlamalar → foydalanuvchi ochiq matn
+// kiritadi; raqam formatidan cheklov qo'yilmagan (xalqaro, mahalliy, ichki).
+
+settingsRouter.get(
+  "/contact-phone",
+  asyncHandler(async (_req, res) => {
+    const phone = await readContactPhone();
+    ok(res, { phone });
+  }),
+);
+
+settingsRouter.put(
+  "/contact-phone",
+  asyncHandler(async (req, res) => {
+    const raw = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
+    const prev = await prisma.setting.findUnique({ where: { key: CONTACT_PHONE_KEY } });
+    const updated = await prisma.setting.upsert({
+      where: { key: CONTACT_PHONE_KEY },
+      create: { key: CONTACT_PHONE_KEY, value: raw as unknown as Prisma.InputJsonValue },
+      update: { value: raw as unknown as Prisma.InputJsonValue },
+    });
+    await audit(
+      req.admin!.id, "update", "Setting", CONTACT_PHONE_KEY,
+      { value: prev?.value ?? null }, { value: updated.value },
+    );
+    ok(res, { phone: raw });
   }),
 );
 

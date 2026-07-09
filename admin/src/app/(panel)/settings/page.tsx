@@ -27,6 +27,13 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
+  // ---- contact phone state ----
+  const [phone, setPhone] = useState<string>("");
+  const [phoneLoading, setPhoneLoading] = useState(true);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneSavedAt, setPhoneSavedAt] = useState<Date | null>(null);
+
   // ---- clear-data state ----
   const [clearStep, setClearStep] = useState<ClearStep>("idle");
   const [clearWord, setClearWord] = useState("");
@@ -40,7 +47,28 @@ export default function SettingsPage() {
       .then((d) => setUnlocked(new Set(d.sections)))
       .catch(() => undefined)
       .finally(() => setLoading(false));
+    api<{ phone: string }>(`/api/admin/settings/contact-phone`)
+      .then((d) => setPhone(d.phone ?? ""))
+      .catch(() => undefined)
+      .finally(() => setPhoneLoading(false));
   }, []);
+
+  async function onSavePhone() {
+    setPhoneSaving(true);
+    setPhoneError(null);
+    try {
+      const r = await api<{ phone: string }>(`/api/admin/settings/contact-phone`, {
+        method: "PUT",
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      setPhone(r.phone ?? "");
+      setPhoneSavedAt(new Date());
+    } catch (e) {
+      setPhoneError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
 
   function toggle(key: string) {
     setUnlocked((prev) => {
@@ -168,6 +196,43 @@ export default function SettingsPage() {
       <div className="text-xs text-gray-500">
         Eslatma: bu sozlama <b>faqat yangi yaratilgan natijalar</b>ga ta'sir qiladi. Mavjud natijalar uchun
         "Ota-ona uchun bo'limlar" panelini natija sahifasida alohida boshqaring.
+      </div>
+
+      {/* ---- contact phone ---- */}
+      <div className="card p-4 space-y-3">
+        <div>
+          <div className="font-medium text-navy">Aloqa telefon raqami</div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            Yopiq bo'lim kartasida va hisobot sahifasidagi "Bog'lanish" tugmasida ko'rsatiladi.
+            Ota-ona shu raqam orqali maktab bilan bog'lanishi mumkin.
+          </div>
+        </div>
+        {phoneLoading ? (
+          <div className="text-sm text-gray-500 py-6 text-center">Yuklanmoqda…</div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="tel"
+              className="input flex-1 max-w-sm"
+              placeholder="+998 90 123 45 67"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={phoneSaving}
+            />
+            <button
+              className="btn-primary inline-flex items-center gap-2"
+              onClick={onSavePhone}
+              disabled={phoneSaving}
+            >
+              <Icon name="save" size={14} />
+              {phoneSaving ? "Saqlanmoqda…" : "Saqlash"}
+            </button>
+            {phoneSavedAt && !phoneSaving && (
+              <span className="text-xs text-good">✓ Saqlandi ({phoneSavedAt.toLocaleTimeString()})</span>
+            )}
+          </div>
+        )}
+        {phoneError && <div className="text-bad text-sm">{phoneError}</div>}
       </div>
 
       {/* ---- danger zone: clear all data ---- */}
