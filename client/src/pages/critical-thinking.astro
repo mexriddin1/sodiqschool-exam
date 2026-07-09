@@ -336,8 +336,16 @@ const nn = (id) => {
               {r.errorRoster.map((e) => (
                 <tr>
                   <td class="q">{e.id}</td>
-                  <td><span class={`status ${e.isTechnical ? 'info' : 'neg'}`}>{e.isTechnical ? 'Texnik xato' : "Bilim bo'shlig'i"}</span></td>
-                  <td class="muted">{e.techNotes?.length ? e.techNotes.join(' · ') : e.evidence}</td>
+                  {(() => {
+                    const hasEvidence = (e.techNotes?.length ?? 0) > 0;
+                    const showTechnical = e.isTechnical && hasEvidence;
+                    return (
+                      <>
+                        <td><span class={`status ${showTechnical ? 'info' : 'neg'}`}>{showTechnical ? 'Texnik xato' : "Bilim bo'shlig'i"}</span></td>
+                        <td class="muted">{hasEvidence ? e.techNotes.join(' · ') : e.evidence}</td>
+                      </>
+                    );
+                  })()}
                 </tr>
               ))}
             </tbody>

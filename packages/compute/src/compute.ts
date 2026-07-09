@@ -210,24 +210,16 @@ export function computeReport(data: SubjectInput): SubjectReport {
   const kdi = round(kdiExact);
   const mastery = masteryFromKDI(kdi);
 
-  // Detect technical errors (careless mistakes). Priority chain:
+  // Detect technical errors (careless mistakes). Evidence must be explicit:
   //   1) admin's explicit `errorType === "Texnik"` — always wins
-  //   2) template-level `techErrorIds` — if any linked question was solved correctly,
-  //      this is teknik xato regardless of the UI-auto-set "Bilim bo'shlig'i".
-  //      (UI defaults to "Bilim bo'shlig'i" on every wrong answer, so letting that
-  //      short-circuit before techErrorIds would silently break the template logic.)
-  //   3) explicit `errorType === "Bilim bo'shlig'i"` — only blocks auto-heuristic,
-  //      not the techErrorIds rule above.
-  //   4) auto: same skill + ≥ same difficulty solved elsewhere
+  //   2) template-level `techErrorIds` — if any linked question was solved correctly.
+  // No auto-heuristic: without a linked harder-solved question, we cannot show the
+  // reader WHY a wrong answer is "technical" rather than a knowledge gap.
   function isTechnicalError(q: Question): boolean {
     if (q.errorType === "Texnik") return true;
     const manual: TechErrorRef[] = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
     if (manual.length > 0) return questions.some((o) => manual.some((r) => techRefId(r) === o.id) && isCorrect(o));
-    if (q.errorType === "Bilim bo'shlig'i") return false;
-    return questions.some(
-      (o) => o.skill === q.skill && isCorrect(o)
-        && DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
-    );
+    return false;
   }
   const technicalLost = questions
     .filter((q) => !isCorrect(q) && isTechnicalError(q))
@@ -353,41 +345,32 @@ export function computeReport(data: SubjectInput): SubjectReport {
   ];
 
   const wrong = questions.filter((q) => !isCorrect(q));
-  // Technical-error detector:
-  //   1) If the question carries a manual `techErrorIds` list, we look at
-  //      those specific harder questions. Any of them solved → technical.
-  //   2) Otherwise fall back to the automatic heuristic (same skill and
-  //      difficulty weight ≥ current).
-  //   3) Admin's explicit `errorType === "Texnik"` still wins.
+  // Technical-error detector — evidence-based only:
+  //   1) Admin's explicit `errorType === "Texnik"` wins.
+  //   2) Manual `techErrorIds` — if any linked harder question was solved.
+  // No auto-heuristic: a "Texnik xato" verdict must point to a specific
+  // solved question the reader can inspect.
   const errorRoster: ErrorRosterItem[] = wrong.map((q) => {
     const manualRefs: TechErrorRef[] = Array.isArray(q.techErrorIds) ? q.techErrorIds : [];
     const manualSolved = manualRefs.length > 0
       ? questions.filter((o) => manualRefs.some((r) => techRefId(r) === o.id) && isCorrect(o))
       : [];
-    // Collect notes from matched refs (only for solved ones).
     const techNotes = manualSolved
       .map((solved) => {
         const ref = manualRefs.find((r) => techRefId(r) === solved.id);
         return ref ? techRefNote(ref) : "";
       })
       .filter(Boolean);
-    const autoHarderSolved = manualRefs.length > 0 ? [] : questions.filter(
-      (o) =>
-        o.skill === q.skill &&
-        isCorrect(o) &&
-        DIFFICULTY_WEIGHT[o.difficulty] >= DIFFICULTY_WEIGHT[q.difficulty],
-    );
     const explicit = q.errorType === "Texnik";
+    const isTechnical = explicit || manualSolved.length > 0;
     return {
       id: q.id,
       topic: q.subTopic || q.topic,
       skill: q.skill,
       marks: q.marks,
       errorType: q.errorType ?? null,
-      isTechnical: explicit || manualSolved.length > 0 || (autoHarderSolved.length > 0 && q.errorType !== "Bilim bo'shlig'i"),
-      harderSolvedIds: (explicit || manualSolved.length > 0 || (autoHarderSolved.length > 0 && q.errorType !== "Bilim bo'shlig'i"))
-        ? (manualSolved.length > 0 ? manualSolved : autoHarderSolved).map((o) => o.id)
-        : [],
+      isTechnical,
+      harderSolvedIds: isTechnical ? manualSolved.map((o) => o.id) : [],
       techNotes,
       evidence: q.evidence,
     };
