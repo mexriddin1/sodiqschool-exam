@@ -471,8 +471,10 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
               const unscored = !q.result;
               const wrong = !unscored && q.result !== "To'g'ri";
               const rowCls = unscored ? "bg-gray-50" : wrong ? "bg-bad/5" : "";
+              const markCorrect = () => patch(i, { result: "To'g'ri", earned: q.marks, errorType: null });
+              const markWrong = () => patch(i, { result: "Noto'g'ri", earned: 0, errorType: undefined });
               return (
-                <tr key={i} className={`border-t align-top ${rowCls}`}>
+                <tr key={i} className={`group border-t align-top ${rowCls}`}>
                   <td className="p-2 font-mono text-gray-700">{q.id}</td>
                   <td className="p-2 text-gray-700">
                     <div className="font-medium">{q.subTopic || q.topic}</div>
@@ -481,27 +483,36 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                   <td className="p-2 text-gray-700">{q.difficulty}</td>
                   <td className="p-2 text-gray-700">{q.marks}</td>
                   <td className="p-1">
-                    <select className={`input py-1.5 px-2 text-sm ${unscored ? "border-bad text-bad" : ""}`} value={q.result ?? ""}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (!raw) {
-                          // Reset to unscored.
-                          patch(i, { result: "" as unknown as QResult, earned: 0, errorType: null });
-                          return;
-                        }
-                        const next = raw as QResult;
-                        const earned = next === "To'g'ri" ? q.marks : next === "Qisman" ? Math.floor(q.marks / 2) : 0;
-                        // Auto-manage errorType so it stays consistent:
-                        //  - "To'g'ri" → errorType must be null (compute validator enforces this).
-                        patch(i, {
-                          result: next,
-                          earned,
-                          errorType: next === "To'g'ri" ? null : undefined,
-                        });
-                      }}>
-                      <option value="">—</option>
-                      {QRES.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <div className="flex items-center gap-1">
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <button type="button" onClick={markCorrect} title="To'g'ri deb belgilash"
+                          className={`h-8 w-8 rounded inline-flex items-center justify-center text-good bg-good/10 hover:bg-good/25 border ${q.result === "To'g'ri" ? "border-good" : "border-transparent"}`}>
+                          <Icon name="check" size={16} />
+                        </button>
+                        <button type="button" onClick={markWrong} title="Noto'g'ri deb belgilash"
+                          className={`h-8 w-8 rounded inline-flex items-center justify-center text-bad bg-bad/10 hover:bg-bad/25 border ${q.result === "Noto'g'ri" ? "border-bad" : "border-transparent"}`}>
+                          <Icon name="x" size={16} />
+                        </button>
+                      </div>
+                      <select className={`input py-1.5 px-2 text-sm ${unscored ? "border-bad text-bad" : ""}`} value={q.result ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (!raw) {
+                            patch(i, { result: "" as unknown as QResult, earned: 0, errorType: null });
+                            return;
+                          }
+                          const next = raw as QResult;
+                          const earned = next === "To'g'ri" ? q.marks : next === "Qisman" ? Math.floor(q.marks / 2) : 0;
+                          patch(i, {
+                            result: next,
+                            earned,
+                            errorType: next === "To'g'ri" ? null : undefined,
+                          });
+                        }}>
+                        <option value="">—</option>
+                        {QRES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
                   </td>
                   <td className="p-1">
                     <input type="number" min={0} max={q.marks} className="input py-1.5 px-2 text-sm"
