@@ -215,3 +215,130 @@ const growthLabel = growthPoints.length > 0 ? growthPoints.join(', ') : "yuqorid
     nuqtalarini — <b>{growthLabel}</b> ni — bosqichma-bosqich mustahkamlashga qaratilgan.
   </p>
 )}
+
+{/* Atamalar izohi — tugmani bosilganda ochiladigan panel. Yuqoridagi
+    hikoyada uchraydigan texnik atamalar (persentil, salohiyat, tuzatilgan
+    baho, ishonch oralig'i, Bloom v.b.) uchun bir joyda qisqa lug'at. */}
+<button class="glossary-toggle info-btn" type="button"
+        aria-expanded="false" aria-controls="snap-glossary"
+        aria-label="Atamalar izohi">
+  <span class="gt-icon" aria-hidden="true">i</span>
+  <span class="gt-label">Atamalar izohi</span>
+</button>
+
+<div class="term-help snap-help" id="snap-glossary" hidden>
+  <div class="th-label">Atamalar — qisqacha izoh</div>
+  <dl>
+    <div>
+      <dt>Ball va daraja</dt>
+      <dd>100 balldan ko'rsatilgan natija va bizning shkalamizdagi rangli toifa (Sayoz → Zaif → O'rtacha → Yaxshi → Juda yuqori).</dd>
+    </div>
+    <div>
+      <dt>Ishonch oralig'i (taxmin oralig'i)</dt>
+      <dd>Bitta test bir kunlik natija — haqiqiy daraja shu oraliqda yotadi. Boshqa kuni yana testda ball taxminan shu chegaralar ichida turadi.</dd>
+    </div>
+    {hasErrors && hasTechnical && (
+      <div>
+        <dt>Tuzatilgan baho</dt>
+        <dd>E'tiborsizlik (texnik) xatolari olib tashlansa erishiladigan ball. Ya'ni bola bilgan, ammo shoshqaloqlik yoki tekshirmaslikdan boy bergan ballar hisobga olinadi.</dd>
+      </div>
+    )}
+    <div>
+      <dt>Salohiyat bahosi</dt>
+      <dd>Uchta ko'rsatkichning o'rtachasi: bugungi ball, qiyin savollardagi to'g'ri javob foizi va tuzatilgan baho. Bir kunlik natijadan tashqaridagi istiqbol darajasi.</dd>
+    </div>
+    {hasCohort && (
+      <div>
+        <dt>Persentil</dt>
+        <dd>Nomzodlarning necha foizidan yuqori natija ko'rsatilgani. Masalan, 76-persentil = boshqa nomzodlarning 76 foizidan yuqori ball to'plangan (24 foizi shu balldan yuqori).</dd>
+      </div>
+    )}
+    {hasDifficulty && (
+      <div>
+        <dt>Qiyinlik darajasi (Oson / O'rta / Qiyin)</dt>
+        <dd>Har bir savolga ekspert baholagan murakkablik darajasi. Bu kesim bilim chuqurligini ko'rsatadi: bola qay darajadagi savollargacha uddalaydi.</dd>
+      </div>
+    )}
+    {hasStrand && (
+      <div>
+        <dt>Bo'lim (strand)</dt>
+        <dd>Fanning yirik yo'nalishlari — masalan, matematikada Algebra, Geometriya; ingliz tilida Grammar, Reading. Har bo'lim bir nechta mavzudan iborat.</dd>
+      </div>
+    )}
+    {hasTopic && (
+      <div>
+        <dt>Mavzu (topic)</dt>
+        <dd>Bo'lim ichidagi aniq o'quv birligi (masalan: "kasrlarni qo'shish", "past simple"). Aynan mavzular reja va o'sish nuqtalarining eng aniq maqsadi bo'ladi.</dd>
+      </div>
+    )}
+    {hasSkill && (
+      <div>
+        <dt>Ko'nikma (skill)</dt>
+        <dd>Mavzudan mustaqil kognitiv qobiliyatlar: protsedural ravonlik, konseptual tushunish, mantiqiy xulosa v.h.k. Ko'nikmalar bir necha mavzuda birga ishlaydi.</dd>
+      </div>
+    )}
+    {hasBloom && (
+      <div>
+        <dt>Bloom darajalari</dt>
+        <dd>Fikrlashning chuqurligi — pastdan yuqoriga: Eslab qolish → Tushunish → Qo'llash → Tahlil → Baholash → Yaratish. Yuqori darajalarda muvaffaqiyat chuqur o'zlashtirish belgisi.</dd>
+      </div>
+    )}
+    {hasReason && (
+      <div>
+        <dt>Fikrlash turi</dt>
+        <dd>Bola qanday yo'l bilan xulosaga kelishi: Deduktiv (qoidadan natijaga), Induktiv (misollardan qoidaga), Analitik (qismlarga ajratib), Fazoviy (shakl-fazo), Inferensial (yashirin ma'no).</dd>
+      </div>
+    )}
+  </dl>
+</div>
+
+<style>
+  .glossary-toggle {
+    margin-top: 14px;
+    width: auto;
+    height: auto;
+    padding: 8px 14px 8px 10px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #06113C;
+    background: #F3F5FA;
+    border: 1px solid #DBE1EE;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .glossary-toggle:hover {
+    background: #06113C;
+    color: #fff;
+    border-color: #06113C;
+  }
+  .glossary-toggle[aria-expanded="true"] {
+    background: #06113C;
+    color: #fff;
+    border-color: #06113C;
+  }
+  .glossary-toggle .gt-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #06113C;
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .glossary-toggle:hover .gt-icon,
+  .glossary-toggle[aria-expanded="true"] .gt-icon {
+    background: #FF8A32;
+    color: #06113C;
+  }
+  .snap-help { margin-top: 12px; }
+</style>
