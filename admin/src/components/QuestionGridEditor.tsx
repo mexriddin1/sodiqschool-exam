@@ -482,9 +482,9 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                     if (t.closest("[data-hover-overlay]")) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    const y = rect.height / 2;
                     setHover((prev) =>
-                      prev && prev.row === i && Math.abs(prev.x - x) < 8 && Math.abs(prev.y - y) < 4
+                      prev && prev.row === i && Math.abs(prev.x - x) < 8
                         ? prev
                         : { row: i, x, y },
                     );
@@ -499,7 +499,7 @@ export default function QuestionGridEditor({ value, onChange, subject, apiBase, 
                         className="absolute z-30 pointer-events-auto"
                         style={{ left: hover.x, top: hover.y }}
                       >
-                        <div className="flex gap-1 bg-white shadow-lg border rounded-md p-1 translate-x-3 translate-y-3">
+                        <div className="flex gap-1 bg-white shadow-lg border rounded-md p-1 translate-x-3 -translate-y-1/2">
                           <button type="button" onClick={markCorrect} title="To'g'ri"
                             className={`inline-flex items-center gap-1.5 h-9 px-3 rounded font-semibold text-base text-good bg-good/10 hover:bg-good/25 border ${q.result === "To'g'ri" ? "border-good" : "border-transparent"}`}>
                             <Icon name="check" size={18} /> To'g'ri
