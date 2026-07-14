@@ -55,6 +55,31 @@ export default function ResultDetailPage() {
 
   const [delOpen, setDelOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [reportViewerUrl, setReportViewerUrl] = useState<string | null>(null);
+  const [reportViewerLoading, setReportViewerLoading] = useState(false);
+
+  // Open the parent-facing report inside admin via a short-lived impersonation
+  // token. Admin never has to open natija.sodiqschool.uz in a separate tab.
+  async function openReportViewer() {
+    if (!r) return;
+    setReportViewerLoading(true);
+    setError(null);
+    try {
+      const { token } = await api<{ token: string }>(
+        `/api/admin/results/${r.id}/impersonate-token`,
+        { method: "POST" },
+      );
+      // The client site accepts ?impersonate=<jwt>&resultId=<id> on /select
+      // and stores the token as a cookie, then redirects to the report.
+      const clientBase = process.env.NEXT_PUBLIC_CLIENT_URL ?? "http://localhost:4321";
+      const url = `${clientBase}/select?impersonate=${encodeURIComponent(token)}&resultId=${encodeURIComponent(r.id)}`;
+      setReportViewerUrl(url);
+    } catch (e) {
+      setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
+    } finally {
+      setReportViewerLoading(false);
+    }
+  }
 
   async function regenerateAi() {
     if (!r) return;
@@ -191,7 +216,7 @@ export default function ResultDetailPage() {
         <button className="btn-danger inline-flex items-center gap-2" disabled={pending} onClick={() => setDelOpen(true)}>
           <Icon name="delete" size={16} /> O'chirish
         </button>
-        <a
+<a
           className="btn-secondary inline-flex items-center gap-2"
           target="_blank"
           rel="noreferrer"
@@ -199,6 +224,15 @@ export default function ResultDetailPage() {
         >
           <Icon name="fileJson" size={16} /> Preview (JSON)
         </a>
+        <button
+          type="button"
+          className="btn-secondary inline-flex items-center gap-2"
+          disabled={reportViewerLoading}
+          onClick={openReportViewer}
+          title="Ota-onaga ko'rinadigan hisobot sahifasini shu yerda ochib ko'rish"
+        >
+          <Icon name="fileJson" size={16} /> {reportViewerLoading ? "Ochilmoqda…" : "Hisobotni ko'rish"}
+        </button>
         <button
           type="button"
           className="btn-secondary inline-flex items-center gap-2"
@@ -247,6 +281,45 @@ export default function ResultDetailPage() {
         onCancel={() => setDelOpen(false)}
         onConfirm={onDelete}
       />
+
+      {reportViewerUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setReportViewerUrl(null)}
+        >
+          <div
+            className="bg-white rounded-lg w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50">
+              <div className="text-sm text-navy font-semibold">Hisobot ko'rish (impersonation)</div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={reportViewerUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-navy underline"
+                >
+                  Alohida tabda ochish ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setReportViewerUrl(null)}
+                  className="text-xl leading-none text-gray-500 hover:text-navy"
+                  aria-label="Yopish"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={reportViewerUrl}
+              title="Report preview"
+              className="flex-1 w-full border-0"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

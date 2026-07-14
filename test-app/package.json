@@ -1,26 +1,24 @@
 {
-  "name": "admin",
+  "name": "test-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 3020",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p 3020",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sodiq/compute": "*",
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8",
-    "katex": "^0.17.0",
-    "mathlive": "^0.110.0",
+    "idb": "^8.0.0",
+    "katex": "^0.16.11",
+    "mathlive": "^0.101.0",
     "next": "14.2.18",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@types/katex": "^0.16.8",
+    "@types/katex": "^0.16.7",
     "@types/node": "^22.10.2",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",

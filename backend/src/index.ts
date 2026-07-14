@@ -15,6 +15,9 @@ import { adminUsersRouter } from "./routes/admin.users.js";
 import { auditRouter } from "./routes/admin.audit.js";
 import { templatesRouter } from "./routes/admin.templates.js";
 import { testTemplatesRouter } from "./routes/admin.testtemplates.js";
+import { testsRouter } from "./routes/admin.tests.js";
+import { leadsRouter } from "./routes/admin.leads.js";
+import { publicTestTakingRouter } from "./routes/public.testtaking.js";
 import { statsRouter } from "./routes/admin.stats.js";
 import { subjectsRouter } from "./routes/admin.subjects.js";
 import { settingsRouter } from "./routes/admin.settings.js";
@@ -56,11 +59,14 @@ app.use("/api/admin/users", adminUsersRouter);
 app.use("/api/admin/audit-logs", auditRouter);
 app.use("/api/admin/templates", templatesRouter);
 app.use("/api/admin/test-templates", testTemplatesRouter);
+app.use("/api/admin/tests", testsRouter);
+app.use("/api/admin/leads", leadsRouter);
 app.use("/api/admin/stats", statsRouter);
 app.use("/api/admin/subjects", subjectsRouter);
 app.use("/api/admin/settings", settingsRouter);
 app.use("/api/result", publicResultRouter);
 app.use("/api/public", publicConfigRouter);
+app.use("/api/test-taking", publicTestTakingRouter);
 
 app.use(errorMiddleware);
 

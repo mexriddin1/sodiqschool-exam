@@ -267,3 +267,94 @@ export type ExamCreate = z.infer<typeof examCreateSchema>;
 export type ResultCreate = z.infer<typeof resultCreateSchema>;
 export type ResultUpdate = z.infer<typeof resultUpdateSchema>;
 export type SubjectInput = z.infer<typeof subjectInputSchema>;
+
+// ---------------- Live test-taking (new flow) ----------------
+
+export const testLanguageSchema = z.enum(["UZ", "RU", "EN"]);
+export const questionTypeSchema = z.enum([
+  "MULTIPLE_CHOICE",
+  "MULTIPLE_SELECT",
+  "TRUE_FALSE",
+  "FILL_GAP",
+  "MATCHING",
+  "REORDERING",
+]);
+
+const choiceSchema = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  imageUrl: z.string().optional().nullable(),
+});
+
+const trueFalseItemSchema = z.object({
+  id: z.string().min(1),
+  text: z.string(),
+  correct: z.boolean(),
+});
+
+const matchingPairSchema = z.object({
+  leftId: z.string().min(1),
+  leftText: z.string(),
+  rightId: z.string().min(1),
+  rightText: z.string(),
+});
+
+const reorderItemSchema = z.object({
+  id: z.string().min(1),
+  text: z.string(),
+  correctIndex: z.number().int().nonnegative(),
+});
+
+export const testQuestionSchema = z.object({
+  id: z.string().min(1),
+  order: z.number().int().nonnegative(),
+  type: questionTypeSchema,
+  marks: z.number().int().positive(),
+  prompt: z.string(),
+  imageUrl: z.string().optional().nullable(),
+  choices: z.array(choiceSchema).optional(),
+  correctChoiceIds: z.array(z.string()).optional(),
+  trueFalseItems: z.array(trueFalseItemSchema).optional(),
+  gapAnswers: z.array(z.string()).optional(),
+  matchingPairs: z.array(matchingPairSchema).optional(),
+  reorderItems: z.array(reorderItemSchema).optional(),
+});
+
+export type TestQuestion = z.infer<typeof testQuestionSchema>;
+
+export const testCreateSchema = z.object({
+  examId: z.string().uuid(),
+  templateId: z.string().uuid(),
+  name: z.string().min(1),
+  subject: subjectKeySchema,
+  grade: z.number().int().min(5).max(11),
+  languages: z.array(testLanguageSchema).min(1),
+  durationSec: z.number().int().positive().nullable().optional(),
+  questions: z.array(testQuestionSchema).min(1),
+});
+
+export const testUpdateSchema = testCreateSchema.partial();
+
+// Public-site form (natijalar.sodiqschool.uz) — lead intake.
+export const leadCreateSchema = z.object({
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
+  sex: z.enum(["MALE", "FEMALE"]),
+  phone: z.string().trim().min(6).max(24),
+  grade: z.number().int().min(5).max(11),
+  examLanguage: testLanguageSchema,
+});
+
+export const attemptStartSchema = z.object({
+  leadId: z.string().uuid(),
+  testId: z.string().uuid(),
+});
+
+// Answers keyed by question id. Value shape depends on question type — we
+// validate the container here and defer per-type validation to grading.
+export const attemptAnswersSchema = z.object({
+  answers: z.record(z.string(), z.any()),
+});
+
+export type TestCreateInput = z.infer<typeof testCreateSchema>;
+export type LeadCreateInput = z.infer<typeof leadCreateSchema>;

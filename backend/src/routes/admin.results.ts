@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import {
   AdmissionThresholds,
@@ -600,6 +601,41 @@ resultsRouter.post(
     invalidateStats();
     await audit(req.admin!.id, "unpublish", "Result", id, { status: "PUBLISHED" }, { status: "DRAFT" });
     ok(res, { id, status: "DRAFT" });
+  }),
+);
+
+// Short-lived student token for admin "view report inside admin" flow.
+// The admin panel renders an iframe of the client report site and passes
+// this token as a query param; client-side JS sets it as a cookie so the
+// report loads without asking the admin to log in as the student.
+resultsRouter.post(
+  "/:id/impersonate-token",
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const r = await prisma.result.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        studentId: true,
+        publicCode: true,
+        student: { select: { id: true, loginCode: true } },
+      },
+    });
+    if (!r) throw notFound();
+    // Sign a token that impersonates the student — same JWT payload shape as
+    // the public login endpoint, but with a short 5-minute expiry so it can't
+    // be reused as a long-lived session if it leaks from the browser URL.
+    const token = jwt.sign(
+      {
+        sub: r.student.id,
+        code: r.student.loginCode ?? r.publicCode,
+        kind: "student",
+      },
+      config.resultJwtSecret,
+      { expiresIn: "5m" },
+    );
+    await audit(req.admin!.id, "impersonate", "Result", id, null, { studentId: r.student.id });
+    ok(res, { token, expiresIn: 300, resultId: r.id });
   }),
 );
 

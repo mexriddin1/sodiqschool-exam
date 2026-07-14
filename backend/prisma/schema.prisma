@@ -41,6 +41,31 @@ enum StudentSex {
   FEMALE
 }
 
+// New test-taking flow (natijalar.sodiqschool.uz). These enums support the
+// live student test experience — separate from the legacy TestTemplate which
+// only carries question STRUCTURE for admin-authored results.
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  TRUE_FALSE
+  FILL_GAP
+  MATCHING
+  REORDERING
+}
+
+enum TestLanguage {
+  UZ
+  RU
+  EN
+}
+
+enum LeadStatus {
+  FORM_ONLY
+  STARTED
+  COMPLETED
+  PUBLISHED
+}
+
 model AdminUser {
   id           String    @id @default(uuid())
   fullName     String
@@ -55,36 +80,37 @@ model AdminUser {
 }
 
 model Student {
-  id            String     @id @default(uuid())
+  id                 String      @id @default(uuid())
   // Kept for backwards compat with older admin flows and the report meta
   // (`meta.candidate`). New records set it to `${firstName} ${lastName}`.
-  fullName      String
-  firstName     String?
-  lastName      String?
+  fullName           String
+  firstName          String?
+  lastName           String?
   // Externally-issued student UID (e.g. from a school registry). Uniqueness
   // is enforced only when a value is set — nullable rows never collide.
-  uid           String?    @unique
+  uid                String?     @unique
   // Language the student sits the exam in: "UZ" / "RU" / other short codes.
-  examLanguage  String?
-  studentNumber String?    @unique
-  phone         String?
-  sex           StudentSex?
-  birthDate     DateTime?
-  grade         Int
-  groupName     String?
-  metadata      Json?
+  examLanguage       String?
+  studentNumber      String?     @unique
+  phone              String?
+  sex                StudentSex?
+  birthDate          DateTime?
+  grade              Int
+  groupName          String?
+  metadata           Json?
   // Parent-facing credentials (2026-07-03). One login per student instead
   // of per Result — so a student with several exams reuses the same code
   // and password. Format: `<LastInit><FirstInit><UID>`. Legacy Result.
   // publicCode / accessPassword remain for old rows but are no longer
   // consulted by the login endpoint.
-  loginCode          String?  @unique
-  accessPassword     String?  // plain, shown to admin
-  accessPasswordHash String?  // bcrypt, used for auth
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  loginCode          String?     @unique
+  accessPassword     String? // plain, shown to admin
+  accessPasswordHash String? // bcrypt, used for auth
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   results Result[]
+  leads   Lead[]
 
   @@index([grade])
 }
@@ -109,69 +135,71 @@ model Subject {
 }
 
 model Exam {
-  id                   String     @id @default(uuid())
+  id                   String       @id @default(uuid())
   title                String
   description          String?
   examDate             DateTime
   academicYear         String?
-  status               ExamStatus @default(DRAFT)
+  status               ExamStatus   @default(DRAFT)
   // `grade` kept for legacy rows created before multi-grade landed. New rows
   // set it to the first entry of `grades` so old code paths keep working.
   grade                Int
   // Multi-grade support: an exam targets one or more grades (e.g. [5,6,7,8]).
-  grades               Int[]      @default([])
+  grades               Int[]        @default([])
   // Subjects tested by this exam. SubjectKey[] so the client can pull the
   // matching template per (examId, grade, subject).
   subjectKeys          SubjectKey[] @default([])
-  admissionThresholds  Json       // { "5": { math, ct, en }, ... }
-  gradingConfiguration Json       // band labels & cutoffs (optional overrides)
+  admissionThresholds  Json // { "5": { math, ct, en }, ... }
+  gradingConfiguration Json // band labels & cutoffs (optional overrides)
   cohortSize           Int?
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
   results   Result[]
   templates TestTemplate[]
+  tests     Test[]
 
   @@index([grade, status])
 }
 
 model Result {
-  id                  String       @id @default(uuid())
-  studentId           String
-  examId              String
-  publicCode          String       @unique
-  accessPasswordHash  String
+  id                 String       @id @default(uuid())
+  studentId          String
+  examId             String
+  publicCode         String       @unique
+  accessPasswordHash String
   // Plain password stored for admin display. Hash remains the source of truth
   // for public-site authentication.
-  accessPassword      String       @default("")
-  status              ResultStatus @default(DRAFT)
-  manualContent       Json         // narratives, overrides, cohort overrides
-  calculatedSnapshot  Json?        // frozen at publish: { math, english, ct, composite }
+  accessPassword     String       @default("")
+  status             ResultStatus @default(DRAFT)
+  manualContent      Json // narratives, overrides, cohort overrides
+  calculatedSnapshot Json? // frozen at publish: { math, english, ct, composite }
   // AI-generated per-student narrative for §I Diagnostika, §II Tahlil,
   // §III Rivojlanish yo'li + summary §4/§5. Shape: {
   //   math:   { diagnostika, tahlil, growth },
   //   english,ct: same,
   //   summary: { crossCutting, finalRecommendation }
   // }
-  aiNarrative         Json?
+  aiNarrative        Json?
   // Token accounting for the DeepSeek runs that produced aiNarrative. Shape:
   // { model, promptTokens, completionTokens, totalTokens, costUsd, generatedAt,
   //   runs: [{ section, promptTokens, completionTokens, ms, ts }] }
-  aiUsage             Json?
+  aiUsage            Json?
   // Sections of the parent-facing report that are currently unlocked.
   // Empty [] = only the "overview" hero is visible; parents unlock deeper
   // sections when they visit the school (admin toggles here). Known keys:
   //   "narrative" — Bir qarashda + per-fan diagnostikasi
   //   "roadmap"   — 3/6/12 oylik Rivojlanish yo'li
   //   "risks_notes" — Xatarlar, ota-ona/komissiya xulosalari
-  unlockedSections    String[]     @default([])
-  publishedAt         DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  unlockedSections   String[]     @default([])
+  publishedAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   student  Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
   exam     Exam            @relation(fields: [examId], references: [id], onDelete: Restrict)
   subjects SubjectResult[]
+  attempt  TestAttempt?
 
   @@index([examId, status])
   @@index([studentId])
@@ -183,9 +211,9 @@ model SubjectResult {
   subject        SubjectKey
   totalQuestions Int
   totalMarks     Int
-  questions      Json       // array of Question objects (see @sodiq/compute types)
-  realData       Json?      // { percentile, cohortAverage, avgTimeSec }
-  manualNotes    Json?      // { strength, growthLabel }
+  questions      Json // array of Question objects (see @sodiq/compute types)
+  realData       Json? // { percentile, cohortAverage, avgTimeSec }
+  manualNotes    Json? // { strength, growthLabel }
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -211,7 +239,8 @@ model TestTemplate {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  exam      Exam?      @relation(fields: [examId], references: [id], onDelete: SetNull)
+  exam  Exam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
+  tests Test[]
 
   // A given (exam, subject, grade) combo has ONE template. Templates with
   // examId=null form a shared library and can coexist with per-exam clones.
@@ -228,15 +257,91 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// Actual runnable test authored by admin. Bound to a TestTemplate (the
+// "yorliq") — question count must match template.questions.length so every
+// slot of the pedagogical structure gets real content. Questions carry the
+// real prompt, choices, and correct answers; server grades them at submit
+// time.
+model Test {
+  id          String         @id @default(uuid())
+  examId      String
+  templateId  String
+  name        String
+  subject     SubjectKey
+  grade       Int
+  languages   TestLanguage[] @default([])
+  durationSec Int?
+  questions   Json // TestQuestion[] (see packages/compute/src/types.ts)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  exam     Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  template TestTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  attempts TestAttempt[]
+
+  @@index([grade, subject])
+  @@index([examId])
+  @@index([templateId])
+}
+
+// Every student who lands on the new test-taking site and submits the
+// intro form becomes a Lead. If they start a test we mint a Student and
+// link it; on completion the linked Result is bound via TestAttempt.
+model Lead {
+  id           String       @id @default(uuid())
+  firstName    String
+  lastName     String
+  sex          StudentSex
+  phone        String
+  grade        Int
+  examLanguage TestLanguage
+  status       LeadStatus   @default(FORM_ONLY)
+  studentId    String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  student  Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  attempts TestAttempt[]
+
+  @@index([status, createdAt])
+  @@index([phone])
+}
+
+// One row per Lead-starts-Test event. Holds mid-test answer state so a
+// refresh can restore progress, and — on submit — links to the produced
+// Result (which stays in DRAFT until admin publishes).
+model TestAttempt {
+  id            String    @id @default(uuid())
+  leadId        String
+  testId        String
+  clientToken   String    @unique
+  startedAt     DateTime  @default(now())
+  submittedAt   DateTime?
+  autoSubmitted Boolean   @default(false)
+  answers       Json      @default("{}")
+  scoreRaw      Int?
+  scoreMax      Int?
+  resultId      String?   @unique
+
+  lead   Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  test   Test    @relation(fields: [testId], references: [id], onDelete: Restrict)
+  result Result? @relation(fields: [resultId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([testId, submittedAt])
+}
+
 model AuditLog {
-  id           String   @id @default(uuid())
-  adminUserId  String?
-  action       String
-  entityType   String
-  entityId     String
-  prev         Json?
-  next         Json?
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  adminUserId String?
+  action      String
+  entityType  String
+  entityId    String
+  prev        Json?
+  next        Json?
+  createdAt   DateTime @default(now())
 
   adminUser AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
 

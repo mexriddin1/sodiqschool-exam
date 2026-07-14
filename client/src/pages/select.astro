@@ -4,7 +4,24 @@ export const prerender = false;
 // bu sahifada ko'rinmaydi — foydalanuvchi hali natija tanlamagan bo'ladi,
 // tab navigatsiyasi mantiqsiz. Shu sababli Layout emas, bare shell.
 import '../styles/global.css';
-import { fetchMyResultList } from '../lib/session';
+import { fetchMyResultList, SESSION_COOKIE } from '../lib/session';
+
+// Admin panel'dan iframe orqali kelganda `?impersonate=<jwt>&resultId=<id>`
+// query paramlari bilan ochiladi. Cookie'ga token yozib qo'yamiz, keyin
+// admin ko'rmoqchi bo'lgan natija sahifasiga to'g'ridan-to'g'ri jo'natamiz.
+const impersonate = Astro.url.searchParams.get('impersonate');
+if (impersonate) {
+  Astro.cookies.set(SESSION_COOKIE, impersonate, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    // Admin session — short expiry matches backend's 5-minute JWT.
+    maxAge: 300,
+  });
+  const target = Astro.url.searchParams.get('resultId');
+  if (target) return Astro.redirect(`/summary?resultId=${target}`);
+  return Astro.redirect('/select');
+}
 
 const data = await fetchMyResultList(Astro);
 if (!data) return Astro.redirect('/login');

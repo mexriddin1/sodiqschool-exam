@@ -3,22 +3,20 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Sodiq School — Admin",
-  description: "Exam result administration",
+  title: "Sodiq School — Onlayn test",
+  description: "Sodiq School qabul testlari",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="uz">
       <head>
-        {/* KaTeX css — bundled locally would require CSS-import support in
-            Next 14 App Router; the CDN link keeps things simple and cached. */}
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
         />
       </head>
-      <body>{children}</body>
+      <body className="min-h-screen">{children}</body>
     </html>
   );
 }
