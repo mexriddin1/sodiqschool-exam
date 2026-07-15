@@ -84,10 +84,15 @@ async function main() {
     { subject: "CRITICAL_THINKING" as const, grade: 5, name: "5-sinf Tanqidiy fikrlash testi", data: ct },
   ];
   for (const tpl of TEMPLATES) {
-    // Shared-library template lookup (examId=null). Named unique index is
-    // `subject_grade_legacy` on the new schema.
+    // Templates are bound to the exam. `examId=null` ("shared library") is the
+    // legacy shape: admin.testtemplates.ts has required examId since
+    // 2026-07-03, the admin UI buckets unbound rows as "Bog'lanmagan (eski)"
+    // and offers to clone them into an exam, and Postgres does not enforce
+    // @@unique over a NULL examId — so seeding unbound rows produced templates
+    // the app could not actually use (the "Yangi test" page showed an empty
+    // template list and no test could be created).
     const existing = await prisma.testTemplate.findFirst({
-      where: { examId: null, subject: tpl.subject, grade: tpl.grade },
+      where: { examId: exam.id, subject: tpl.subject, grade: tpl.grade },
     });
     if (existing) {
       console.log(`= template: ${tpl.name} (already exists)`);
@@ -95,6 +100,7 @@ async function main() {
     }
     await prisma.testTemplate.create({
       data: {
+        examId: exam.id,
         subject: tpl.subject,
         grade: tpl.grade,
         name: tpl.name,

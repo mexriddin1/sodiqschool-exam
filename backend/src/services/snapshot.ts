@@ -10,6 +10,7 @@ import {
 } from "@sodiq/compute";
 
 import { prisma } from "../db.js";
+import { badRequest } from "../lib/errors.js";
 import { calculateResult } from "./calculation.js";
 
 const SUBJECT_NAMES: Record<SubjectKey, string> = {
@@ -36,11 +37,14 @@ function buildMeta(subject: SubjectKey, grade: number, candidate: string, totals
 export interface ResultWithRelations {
   id: string;
   exam: {
+    // Legacy single grade — only the first entry of `grades`. Kept solely as
+    // the fallback for rows created before multi-grade landed (`grades: []`).
     grade: number;
+    grades: number[];
     admissionThresholds: Prisma.JsonValue;
     gradingConfiguration: Prisma.JsonValue;
   };
-  student: { fullName: string; sex: "MALE" | "FEMALE" | null };
+  student: { fullName: string; sex: "MALE" | "FEMALE" | null; grade: number };
   subjects: {
     subject: SubjectKey;
     totalQuestions: number;
@@ -52,14 +56,50 @@ export interface ResultWithRelations {
   manualContent: Prisma.JsonValue;
 }
 
+// Which grade drives thresholds, weights and `gradeLabel`.
+//
+// The student's own — NOT `exam.grade`. An exam can span several grades, and
+// `exam.grade` holds only the first, so on a multi-grade exam it scored every
+// student against the first grade's thresholds and printed the wrong
+// `gradeLabel` on their report. `recomputeCohortRanks` below has keyed on
+// `student.grade` since 2026-07-06; this keeps the snapshot consistent with it.
+//
+// Throws rather than falling back: `thresholdFor` returns 0 for a grade the
+// exam doesn't define, and a 0 threshold passes every admission gate — so a
+// misconfigured exam would silently mark candidates admitted.
+function resolveGrade(result: ResultWithRelations): number {
+  const grade = result.student.grade;
+  const examGrades = result.exam.grades.length > 0 ? result.exam.grades : [result.exam.grade];
+  if (!examGrades.includes(grade)) {
+    throw badRequest(
+      "GRADE_NOT_IN_EXAM",
+      `O'quvchi ${grade}-sinf, lekin imtihon ${examGrades.join(", ")}-sinf uchun mo'ljallangan.`,
+    );
+  }
+  return grade;
+}
+
 export function computeSnapshot(result: ResultWithRelations) {
+  const grade = resolveGrade(result);
+  // Nullish thresholds fall back to DEFAULT_ADMISSION_THRESHOLDS (grades 5-11)
+  // inside calculateResult. An object that merely *lacks* this grade does not,
+  // so reject it here instead of letting every gate pass on a 0 threshold.
+  const thresholds = (result.exam.admissionThresholds ?? undefined) as unknown as
+    | AdmissionThresholds
+    | undefined;
+  if (thresholds && !thresholds[String(grade)]) {
+    throw badRequest(
+      "MISSING_THRESHOLDS",
+      `Imtihonda ${grade}-sinf uchun qabul chegaralari belgilanmagan.`,
+    );
+  }
   return calculateResult({
-    grade: result.exam.grade,
-    thresholds: result.exam.admissionThresholds as unknown as AdmissionThresholds,
+    grade,
+    thresholds,
     gradingConfiguration: result.exam.gradingConfiguration,
     subjects: result.subjects.map((s) => ({
       subject: s.subject,
-      meta: buildMeta(s.subject, result.exam.grade, result.student.fullName, {
+      meta: buildMeta(s.subject, grade, result.student.fullName, {
         totalQuestions: s.totalQuestions,
         totalMarks: s.totalMarks,
       }),

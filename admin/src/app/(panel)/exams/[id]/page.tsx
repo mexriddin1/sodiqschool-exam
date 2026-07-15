@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
+import { resolveBack } from "@/lib/back-link";
 import { Icon } from "@/components/Icon";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 
@@ -29,6 +30,9 @@ const SUBJ_LABEL: Record<string, string> = {
 export default function ExamDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  // Bu sahifaga bir necha joydan kelinadi — "orqaga" manzili
+  // qattiq yozilmaydi, `?from=` bo'lsa o'shanga qaytadi.
+  const back = resolveBack(useSearchParams(), { href: "/exams", label: "Imtihonlar" });
   const [e, setE] = useState<ExamDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -88,7 +92,7 @@ export default function ExamDetailPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <Link href="/exams" className="text-sm text-navy hover:underline">← Imtihonlar</Link>
+      <Link href={back.href} className="text-sm text-navy hover:underline">← {back.label}</Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-navy">{e.title}</h1>
         <div className="flex gap-2 items-center">

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
+import { resolveBack } from "@/lib/back-link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Icon } from "@/components/Icon";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
@@ -48,6 +49,9 @@ interface Detail {
 export default function ResultDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  // Bu sahifaga natijalar ro'yxatidan ham, lead sahifasidan ham kelinadi —
+  // shuning uchun "orqaga" manzili qattiq yozilmaydi.
+  const back = resolveBack(useSearchParams(), { href: "/results", label: "Natijalar" });
   const [r, setR] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [credsReveal, setCredsReveal] = useState<{ publicCode: string; password: string } | null>(null);
@@ -138,7 +142,7 @@ export default function ResultDetailPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <Link href="/results" className="text-sm text-navy hover:underline">← Natijalar</Link>
+      <Link href={back.href} className="text-sm text-navy hover:underline">← {back.label}</Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-navy">
           {r.student.fullName} <span className="text-gray-400 text-base">({r.exam.title})</span>

@@ -2,8 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
+import { resolveBack } from "@/lib/back-link";
 import QuestionGridEditor, { Question } from "@/components/QuestionGridEditor";
 import { Icon } from "@/components/Icon";
 
@@ -29,6 +30,9 @@ const SUBJECT_LABEL = {
 export default function EditTestTemplatePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  // Bu sahifaga bir necha joydan kelinadi — "orqaga" manzili
+  // qattiq yozilmaydi, `?from=` bo'lsa o'shanga qaytadi.
+  const back = resolveBack(useSearchParams(), { href: "/test-templates", label: "Test shablonlari" });
   const [tpl, setTpl] = useState<TestTemplate | null>(null);
   const [name, setName] = useState("");
   const [examId, setExamId] = useState<string>("");
@@ -79,7 +83,7 @@ export default function EditTestTemplatePage() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-6xl">
-      <Link href="/test-templates" className="text-sm text-navy hover:underline">← Test shablonlari</Link>
+      <Link href={back.href} className="text-sm text-navy hover:underline">← {back.label}</Link>
       <h1 className="text-2xl font-semibold text-navy">
         {SUBJECT_LABEL[tpl.subject]} · {tpl.grade}-sinf
       </h1>

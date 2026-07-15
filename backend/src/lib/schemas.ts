@@ -280,42 +280,97 @@ export const questionTypeSchema = z.enum([
   "REORDERING",
 ]);
 
+// ---- Ko'p tilli matn --------------------------------------------------
+//
+// Savol matni va variantlar test tanlagan tillarda (UZ/RU/EN) bo'ladi.
+// Faqat TANLANGAN tillar to'ldiriladi — `Test.languages` endi "kimga
+// ko'rsatiladi" emas, "qaysi tillarda mazmuni bor" degani.
+//
+// `same: true` — matn barcha tillarda bir xil, bir marta (UZ maydonida)
+// kiritiladi. Sof matematik savollar uchun: "$x^2+5$" har uchala tilda
+// aynan bir xil, uni uch marta qayta terish faqat xato manbai bo'lardi —
+// va baholash savol matnini umuman o'qimagani uchun bunday xatoni
+// SEZMAYDI (RU tarjimada $x^3$ deb yozilsa, RU o'quvchilar boshqa savolga
+// javob beradi va hech kim bilmaydi).
+export const i18nTextSchema = z.object({
+  same: z.boolean().optional(),
+  UZ: z.string().optional(),
+  RU: z.string().optional(),
+  EN: z.string().optional(),
+});
+export type I18nText = z.infer<typeof i18nTextSchema>;
+
+// Eski (bir tilli) qatorlar tekis `string` saqlaydi. Ularni `{same:true,UZ}`
+// sifatida o'qiymiz — shu tufayli DB backfill'i UMUMAN kerak emas va eski
+// testlar buzilmasdan ishlayveradi.
+const localizedText = z
+  .union([z.string(), i18nTextSchema])
+  .transform((v): I18nText => (typeof v === "string" ? { same: true, UZ: v } : v));
+
+/**
+ * Berilgan til uchun matnni tanlaydi. `same` bo'lsa — UZ hamma til uchun.
+ *
+ * Xom `string` ni ham qabul qiladi va uni "hamma tilda shu" deb hisoblaydi.
+ * Bu SHART: `Test.questions` — Json ustuni, va o'qish yo'llari uni zod bilan
+ * parse qilmasdan `as unknown as TestQuestion[]` deb cast qiladi
+ * (public.testtaking.ts). Ya'ni yuqoridagi `localizedText` transform'i faqat
+ * YOZISHDA ishlaydi; o'qishda esa eski qatorlar tekis string bo'lib keladi.
+ * Buni hisobga olmasak, eski savollar jimgina bo'sh matn bo'lib ko'rinardi.
+ */
+export function resolveText(
+  v: I18nText | string | undefined | null,
+  lang: "UZ" | "RU" | "EN",
+): string {
+  if (!v) return "";
+  if (typeof v === "string") return v;
+  if (v.same) return v.UZ ?? "";
+  return v[lang] ?? "";
+}
+
 const choiceSchema = z.object({
   id: z.string().min(1),
-  label: z.string(),
+  label: localizedText,
   imageUrl: z.string().optional().nullable(),
 });
 
 const trueFalseItemSchema = z.object({
   id: z.string().min(1),
-  text: z.string(),
+  text: localizedText,
   correct: z.boolean(),
 });
 
 const matchingPairSchema = z.object({
   leftId: z.string().min(1),
-  leftText: z.string(),
+  leftText: localizedText,
   rightId: z.string().min(1),
-  rightText: z.string(),
+  rightText: localizedText,
 });
 
 const reorderItemSchema = z.object({
   id: z.string().min(1),
-  text: z.string(),
+  text: localizedText,
   correctIndex: z.number().int().nonnegative(),
 });
 
+// Til-neytral maydonlar (id, order, type, marks, imageUrl, correctChoiceIds,
+// trueFalseItems[].correct, matchingPairs[].leftId/rightId,
+// reorderItems[].correctIndex) ATAYLAB tillanmaydi — baholash aynan shularga
+// tayanadi (6 turdan 5 tasi id bo'yicha solishtiradi), ya'ni id'lar barcha
+// tillarda umumiy bo'lishi shart.
 export const testQuestionSchema = z.object({
   id: z.string().min(1),
   order: z.number().int().nonnegative(),
   type: questionTypeSchema,
   marks: z.number().int().positive(),
-  prompt: z.string(),
+  prompt: localizedText,
   imageUrl: z.string().optional().nullable(),
   choices: z.array(choiceSchema).optional(),
   correctChoiceIds: z.array(z.string()).optional(),
   trueFalseItems: z.array(trueFalseItemSchema).optional(),
-  gapAnswers: z.array(z.string()).optional(),
+  // Massiv uzunligi = bo'shliqlar soni, ya'ni til bo'yicha O'ZGARMAYDI:
+  // struktura umumiy, faqat matn tillanadi. Aks holda forma tilga qarab
+  // boshqacha ko'rinardi (stripAnswers dagi gapCount).
+  gapAnswers: z.array(localizedText).optional(),
   matchingPairs: z.array(matchingPairSchema).optional(),
   reorderItems: z.array(reorderItemSchema).optional(),
 });

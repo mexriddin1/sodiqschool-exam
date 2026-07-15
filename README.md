@@ -126,3 +126,5 @@ npm test --workspace e2e               # 1 happy-path scenario
 - `docs/security-notes.md` — threat model + controls + residual risks.
 - `docs/implementation-plan.md` — phased plan (already executed Phase 1–5).
 - `docs/implementation-notes.md` — decisions, assumptions, known gaps for the next iteration.
+- `docs/test-taking-plan.md` — test-taking funnel: design decisions + phased remediation plan.
+- `docs/json-namunalar.md` — test savollarini JSON bilan kiritish: har 6 tur uchun namuna (3 tilli).

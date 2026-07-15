@@ -107,9 +107,11 @@ function thresholdFor(key: SubjectKey, grade: number, thresholds: AdmissionThres
   return row.ct;
 }
 
-// Verdict is based on compPotential (what the student can achieve after
-// eliminating technical errors). Thresholds match the official 5-band scale:
-// 83+ Juda yuqori, 66+ Yaxshi, 49+ O'rtacha, 34+ Zaif, else Sayoz.
+// Verdict from a candidate's potential (what they can achieve after
+// eliminating technical errors) — NOT their raw score. Thresholds match the
+// official 5-band scale: 83+ Juda yuqori, 66+ Yaxshi, 49+ O'rtacha, 34+ Zaif,
+// else Sayoz. Callers holding subject gates must apply GATE_FAILED_VERDICT
+// themselves; this function only maps a number onto the band.
 export function verdictFor(potential: number): { label: string; sub: string; color: string } {
   if (potential > 83)
     return {
@@ -141,6 +143,16 @@ export function verdictFor(potential: number): { label: string; sub: string; col
     color: BAND_COLORS.bad,
   };
 }
+
+// Falling below ANY subject's minimum demotes the verdict outright, however
+// strong the average — per docs/calculation-rules.md ("Bir yoki bir nechta fan
+// minimal chegaradan past"). Kept separate from verdictFor()'s band scale
+// because it is a gate, not a band.
+export const GATE_FAILED_VERDICT: { label: string; sub: string; color: string } = {
+  label: "TAYYOR EMAS",
+  sub: "Bir yoki bir nechta fan minimal chegaradan past",
+  color: BAND_COLORS.bad,
+};
 
 export function computeComposite(input: CompositeInput): CompositeReport {
   const keys: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
@@ -180,7 +192,11 @@ export function computeComposite(input: CompositeInput): CompositeReport {
     avgTechPct,
     topSubject,
     lowSubject,
-    verdict: verdictFor(composite),
+    // compPotential, not composite: a candidate is judged on their ceiling
+    // once technical errors are stripped out. Passing `composite` here (from
+    // b599564 until 2026-07-15) silently contradicted both this file's own
+    // comment and docs/calculation-rules.md.
+    verdict: gateAllPassed ? verdictFor(compPotential) : GATE_FAILED_VERDICT,
     perSubjectGate,
     gateAllPassed,
     weights,

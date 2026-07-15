@@ -214,19 +214,36 @@ gateAllPassed = ∀ subject: report.percent ≥ threshold[grade][subject]
 Per `result.text`: **the verdict is only shown on the composite, not per
 subject.**
 
+The input is **`compPotential`, not `composite`** — a candidate is judged on
+the ceiling they reach once technical errors are stripped out, not on their
+raw score.
+
 ```
 if NOT gateAllPassed:
-  → TAYYORGARLIK ("Bir yoki bir nechta fan minimal chegaradan past")
+  → TAYYOR EMAS ("Bir yoki bir nechta fan minimal chegaradan past")
 
 else:
-  compPotential ≥ 80 → QABUL QILINSIN ("Uch fan bo'yicha maktabga qabul tavsiya etiladi")
-  compPotential ≥ 70 → QABUL QILINSIN ("Qo'llab-quvvatlash bilan tavsiya etiladi")
-  compPotential ≥ 60 → SHARTLI QABUL  ("Shartli ravishda tavsiya etiladi")
-  else               → TAYYORGARLIK   ("Avval tayyorgarlik tavsiya etiladi")
+  compPotential > 83 → QABUL TAVSIYA ETILADI ("Yuqori daraja — maktabga qabul tavsiya etiladi")
+  compPotential > 66 → QABUL QILINSIN       ("Ishonchli daraja — qabul tavsiya etiladi")
+  compPotential > 49 → SHARTLI QABUL        ("Rivojlanayotgan daraja — shartli qabul")
+  compPotential > 34 → ZAXIRA QABUL         ("Shakllanayotgan daraja — zaxira qabul")
+  else               → TAYYOR EMAS          ("Tamal bosqich — avval tayyorgarlik kerak")
 ```
 
 `perSubjectGate` is exposed for diagnostics but not displayed as a verdict
-badge per subject.
+badge per subject. Failing a gate still demotes the **composite** verdict.
+
+Implemented in `computeComposite` (`packages/compute/src/composite.ts`).
+`verdictFor()` only maps a number onto the band — the gate demotion is applied
+by the caller, via `GATE_FAILED_VERDICT`.
+
+> **History.** Labels were localised on 2026-07-03 (`TAYYORGARLIK` →
+> `TAYYOR EMAS`) and the band cutoffs became 83/66/49/34; this doc lagged
+> behind. Commit `b599564` then changed the verdict input from `compPotential`
+> to `composite` and dropped the gate demotion entirely — while adding a
+> comment claiming `compPotential`. Restored 2026-07-15. Snapshots published
+> before that date are frozen with the old composite-based verdict and are
+> deliberately not backfilled.
 
 ---
 

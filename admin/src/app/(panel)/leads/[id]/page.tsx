@@ -5,8 +5,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { resolveBack, withBack } from "@/lib/back-link";
 
 interface Attempt {
   id: string;
@@ -15,7 +16,8 @@ interface Attempt {
   autoSubmitted: boolean;
   scoreRaw: number | null;
   scoreMax: number | null;
-  resultId: string | null;
+  // NB: `resultId` bu yerda yo'q — backend uni `include` da tanlamaydi, ya'ni
+  // doim undefined edi. Natija havolasi `result` orqali quriladi.
   test: { id: string; name: string; subject: string; grade: number };
   result: { id: string; status: string; publicCode: string } | null;
 }
@@ -37,6 +39,9 @@ interface LeadDetail {
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
+  // Bu sahifaga bir necha joydan kelinadi — "orqaga" manzili
+  // qattiq yozilmaydi, `?from=` bo'lsa o'shanga qaytadi.
+  const back = resolveBack(useSearchParams(), { href: "/leads", label: "Leadlar ro'yxati" });
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +58,7 @@ export default function LeadDetailPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/leads" className="text-sm text-navy underline">← Leadlar ro'yxati</Link>
+        <Link href={back.href} className="text-sm text-navy hover:underline">← {back.label}</Link>
       </div>
       <h1 className="text-2xl font-semibold text-navy">
         {lead.firstName} {lead.lastName}
@@ -130,7 +135,12 @@ export default function LeadDetailPage() {
                     </td>
                     <td className="p-3">
                       {a.result ? (
-                        <Link href={`/results/${a.result.id}`} className="text-navy underline">
+                        // Natija sahifasi "orqaga" ni shu yerga qaytarsin —
+                        // aks holda natijalar ro'yxatiga tashlab yuboradi.
+                        <Link
+                          href={withBack(`/results/${a.result.id}`, `/leads/${params.id}`, "Lead")}
+                          className="text-navy underline"
+                        >
                           {a.result.publicCode} ({a.result.status})
                         </Link>
                       ) : (

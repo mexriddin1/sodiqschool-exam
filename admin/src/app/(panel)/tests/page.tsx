@@ -1,23 +1,25 @@
 "use client";
 
-// Testlar — imtihonlar bo'yicha guruhlangan haqiqiy testlar. Har bir test
-// TestTemplate (yorliq) ga bog'langan bo'lib, savol sonlari mos kelishi shart.
+// Testlar — kompakt paket ro'yxati. Har imtihon uchun bitta card, unda
+// statistika (nechta test, jami savol). Card bosilganda o'sha imtihonning
+// testlari sahifasiga o'tadi — u yerda fan/sinf bo'yicha filtr va shu
+// paketga yangi test qo'shish ham bor.
+//
+// Tuzilishi ataylab "Test shablonlari" bilan bir xil (test-templates/page.tsx)
+// — admin ikkalasida bir xil oqimni ko'radi. Farqi: bu yerda "bog'lanmagan"
+// chelagi yo'q, chunki Test.examId majburiy (schema.prisma), ya'ni imtihonsiz
+// test bo'lishi mumkin emas.
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 interface Row {
   id: string;
   examId: string;
-  templateId: string;
-  name: string;
   subject: "MATH" | "ENGLISH" | "CRITICAL_THINKING";
   grade: number;
-  languages: string[];
-  durationSec: number | null;
   questionCount: number;
-  updatedAt: string;
 }
 
 interface ExamOption {
@@ -26,13 +28,8 @@ interface ExamOption {
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
 }
 
-const SUBJECT_LABEL: Record<Row["subject"], string> = {
-  MATH: "Matematika",
-  ENGLISH: "Ingliz tili",
-  CRITICAL_THINKING: "Tanqidiy fikrlash",
-};
-
 export default function TestsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [exams, setExams] = useState<ExamOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +43,8 @@ export default function TestsPage() {
   }, []);
 
   const groups = useMemo(() => {
+    // Testi yo'q imtihon ham ko'rinsin — admin paketga kirib birinchi testni
+    // shu yerdan yaratadi, imtihonlar ro'yxatiga borib o'tirmasdan.
     const byExam = new Map<string, Row[]>();
     for (const r of rows) {
       const arr = byExam.get(r.examId) ?? [];
@@ -53,82 +52,62 @@ export default function TestsPage() {
       byExam.set(r.examId, arr);
     }
     return exams
-      .map((ex) => ({
-        exam: ex,
-        tests: byExam.get(ex.id) ?? [],
-      }))
-      .sort((a, b) => a.exam.title.localeCompare(b.exam.title));
+      .map((ex) => {
+        const list = byExam.get(ex.id) ?? [];
+        return {
+          examId: ex.id,
+          title: ex.title,
+          status: ex.status,
+          testCount: list.length,
+          totalQuestions: list.reduce((s, r) => s + r.questionCount, 0),
+        };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
   }, [rows, exams]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-navy">Testlar</h1>
-        <Link
-          href="/tests/new"
-          className="rounded bg-navy text-white text-sm px-4 py-2 hover:opacity-90"
-        >
-          + Yangi test
-        </Link>
-      </div>
+      <h1 className="text-2xl font-semibold text-navy">Testlar</h1>
+
       <p className="text-sm text-gray-600 max-w-3xl">
-        Testlar imtihonlar ostida guruhlanadi. Har bir test yorliqqa (test shabloni) bog'lanadi va
-        savol soni yorliqdagi savol soniga teng bo'lishi shart.
+        Har test majburiy bir imtihonga bog'lanadi. Quyida imtihon paketlarining kompakt
+        ro'yxati — paket ustiga bosib ichini ko'ring, u yerda fan va sinf bo'yicha filtrlash
+        hamda shu imtihon uchun yangi test yaratish mumkin.
       </p>
 
-      {loading && <div className="card p-4 text-sm text-gray-500">Yuklanmoqda…</div>}
-
-      {!loading && groups.length === 0 && (
-        <div className="card p-4 text-sm text-gray-500">Hali imtihonlar yo'q.</div>
+      {loading && rows.length === 0 && (
+        <div className="card p-4 text-sm text-gray-500">Yuklanmoqda…</div>
       )}
 
-      <div className="space-y-4">
-        {groups.map(({ exam, tests }) => (
-          <div key={exam.id} className="card p-4">
-            <div className="flex items-baseline justify-between mb-3">
-              <div>
-                <div className="font-semibold text-navy">{exam.title}</div>
-                <div className="text-xs text-gray-500 uppercase">{exam.status}</div>
-              </div>
-              <div className="text-xs text-gray-500">{tests.length} ta test</div>
+      {!loading && groups.length === 0 && (
+        <div className="card p-4 text-sm text-gray-500">
+          Hech qanday imtihon yo'q. Avval Imtihonlar sahifasida imtihon yarating.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {groups.map((g) => (
+          <button
+            type="button"
+            key={g.examId}
+            onClick={() => router.push(`/tests/exam/${g.examId}`)}
+            className="card p-4 text-left space-y-2 transition hover:border-navy hover:shadow cursor-pointer"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-medium text-navy line-clamp-2">{g.title}</div>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600 flex-shrink-0">
+                {g.status}
+              </span>
             </div>
-            {tests.length === 0 ? (
-              <div className="text-sm text-gray-500">Bu imtihonda hali testlar yo'q.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase text-gray-500 border-b">
-                      <th className="p-2">Nomi</th>
-                      <th className="p-2">Fan</th>
-                      <th className="p-2">Sinf</th>
-                      <th className="p-2">Tillar</th>
-                      <th className="p-2">Vaqt</th>
-                      <th className="p-2">Savollar</th>
-                      <th className="p-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tests.map((t) => (
-                      <tr key={t.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium text-navy">{t.name}</td>
-                        <td className="p-2">{SUBJECT_LABEL[t.subject]}</td>
-                        <td className="p-2">{t.grade}-sinf</td>
-                        <td className="p-2 text-xs">{t.languages.join(", ") || "—"}</td>
-                        <td className="p-2 text-xs">
-                          {t.durationSec ? `${Math.round(t.durationSec / 60)} daq.` : "cheklovsiz"}
-                        </td>
-                        <td className="p-2">{t.questionCount}</td>
-                        <td className="p-2">
-                          <Link href={`/tests/${t.id}`} className="text-navy underline">Ochish</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+            <div className="flex items-baseline gap-4 text-xs text-gray-500">
+              <span>
+                <b className="text-navy text-sm">{g.testCount}</b> ta test
+              </span>
+              <span>
+                <b className="text-navy text-sm">{g.totalQuestions}</b> ta savol
+              </span>
+            </div>
+          </button>
         ))}
       </div>
     </div>

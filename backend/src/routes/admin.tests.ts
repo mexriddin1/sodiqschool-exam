@@ -69,12 +69,15 @@ async function assertQuestionCountMatchesTemplate(templateId: string, count: num
     where: { id: templateId },
     select: { id: true, questions: true, name: true },
   });
-  if (!tpl) throw notFound("Yorliq (shablon) topilmadi");
+  if (!tpl) throw notFound("Savol shabloni topilmadi");
   const tplCount = Array.isArray(tpl.questions) ? (tpl.questions as unknown[]).length : 0;
   if (tplCount !== count) {
+    // Admin endi shablonni o'zi tanlamaydi (fan+sinf bo'yicha avtomatik
+    // topiladi), shuning uchun xabar "yorliq" atamasisiz — shablon nomi
+    // bilan aytiladi.
     throw badRequest(
       "QUESTION_COUNT_MISMATCH",
-      `Yorliqda ${tplCount} ta savol bor, siz ${count} ta savol kiritdingiz. Ular teng bo'lishi shart.`,
+      `"${tpl.name}" shabloni ${tplCount} ta savoldan iborat, siz ${count} ta kiritdingiz. Ular teng bo'lishi shart.`,
     );
   }
 }

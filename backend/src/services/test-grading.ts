@@ -1,4 +1,6 @@
-import type { TestQuestion } from "../lib/schemas.js";
+import type { TestLanguage } from "@prisma/client";
+
+import { resolveText, type TestQuestion } from "../lib/schemas.js";
 
 // Per-question grading for the live test flow.
 // Rule: full marks only when the whole question is correct — no partial
@@ -24,7 +26,10 @@ function arraysEqualSet(a: string[], b: string[]): boolean {
   return a.every((x) => setB.has(x));
 }
 
-export function gradeQuestion(q: TestQuestion, raw: unknown): GradedQuestion {
+// `lang` faqat FILL_GAP uchun kerak — qolgan 5 tur id/boolean solishtiradi,
+// ya'ni tilga bog'liq emas. Shuning uchun savol matni tillansa ham baholash
+// spinasi (id'lar) barcha tillarda umumiy qoladi.
+export function gradeQuestion(q: TestQuestion, raw: unknown, lang: TestLanguage): GradedQuestion {
   const zero = { questionId: q.id, earned: 0, correct: false };
   if (raw === undefined || raw === null) return zero;
 
@@ -49,9 +54,11 @@ export function gradeQuestion(q: TestQuestion, raw: unknown): GradedQuestion {
       return { questionId: q.id, earned: allCorrect ? q.marks : 0, correct: allCorrect };
     }
     case "FILL_GAP": {
-      // raw: string[] — one answer per gap
+      // raw: string[] — one answer per gap.
+      // Yagona matn solishtiradigan tur — kutilgan javob o'quvchi test
+      // topshirgan tildan olinadi.
       const given = Array.isArray(raw) ? raw.map(normalizeGap) : [];
-      const expected = (q.gapAnswers ?? []).map(normalizeGap);
+      const expected = (q.gapAnswers ?? []).map((g) => normalizeGap(resolveText(g, lang)));
       if (given.length !== expected.length) return zero;
       const correct = given.every((g, i) => g === expected[i]);
       return { questionId: q.id, earned: correct ? q.marks : 0, correct };
@@ -78,8 +85,8 @@ export function gradeQuestion(q: TestQuestion, raw: unknown): GradedQuestion {
   }
 }
 
-export function gradeTest(questions: TestQuestion[], answers: Answers) {
-  const graded = questions.map((q) => gradeQuestion(q, answers[q.id]));
+export function gradeTest(questions: TestQuestion[], answers: Answers, lang: TestLanguage) {
+  const graded = questions.map((q) => gradeQuestion(q, answers[q.id], lang));
   const scoreRaw = graded.reduce((s, g) => s + g.earned, 0);
   const scoreMax = questions.reduce((s, q) => s + q.marks, 0);
   return { graded, scoreRaw, scoreMax };

@@ -4,9 +4,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { QuestionEditor, TestQuestion, makeEmptyQuestion } from "@/components/QuestionBuilder";
+import { resolveBack } from "@/lib/back-link";
+import { findMissingTranslations } from "@/components/I18nField";
+import { TestQuestion } from "@/components/QuestionBuilder";
+import { QuestionList } from "@/components/QuestionList";
 
 interface Test {
   id: string;
@@ -24,6 +27,9 @@ const LANG_LABEL: Record<string, string> = { UZ: "O'zbek", RU: "Rus", EN: "Ingli
 
 export default function TestDetailPage() {
   const params = useParams<{ id: string }>();
+  // Bu sahifaga bir necha joydan kelinadi — "orqaga" manzili
+  // qattiq yozilmaydi, `?from=` bo'lsa o'shanga qaytadi.
+  const back = resolveBack(useSearchParams(), { href: "/tests", label: "Testlar ro'yxati" });
   const router = useRouter();
   const [test, setTest] = useState<Test | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +48,17 @@ export default function TestDetailPage() {
   async function save() {
     if (!test) return;
     setError(null);
+    // Til qo'shilgan bo'lsa, savollar ham o'sha tilda to'ldirilgan bo'lishi
+    // kerak — aks holda o'sha tildagi o'quvchi bo'sh savol ko'radi.
+    const missing = findMissingTranslations(test.questions ?? [], test.languages);
+    if (missing.length > 0) {
+      setError(
+        `Tanlangan tillar to'liq to'ldirilmagan (${missing.length} ta savolda). ` +
+          missing.slice(0, 3).join("; ") +
+          (missing.length > 3 ? ` … va yana ${missing.length - 3} ta` : ""),
+      );
+      return;
+    }
     setSaving(true);
     try {
       await api(`/api/admin/tests/${test.id}`, {
@@ -83,7 +100,7 @@ export default function TestDetailPage() {
 
   return (
     <div className="space-y-4 max-w-4xl">
-      <Link href="/tests" className="text-sm text-navy underline">← Testlar ro'yxati</Link>
+      <Link href={back.href} className="text-sm text-navy hover:underline">← {back.label}</Link>
 
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
@@ -129,26 +146,12 @@ export default function TestDetailPage() {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {(test.questions ?? []).map((q, i) => (
-          <QuestionEditor
-            key={q.id}
-            q={q}
-            onChange={(next) => {
-              const arr = [...test.questions];
-              arr[i] = { ...next, order: i };
-              setTest({ ...test, questions: arr });
-              setDirty(true);
-            }}
-            onRemove={() => {
-              const arr = [...test.questions];
-              arr[i] = makeEmptyQuestion(i, q.type);
-              setTest({ ...test, questions: arr });
-              setDirty(true);
-            }}
-          />
-        ))}
-      </div>
+      <QuestionList
+        questions={test.questions ?? []}
+        onChange={(qs) => { setTest({ ...test, questions: qs }); setDirty(true); }}
+        languages={test.languages}
+        expectedCount={test.questions?.length}
+      />
 
       {error && <div className="card p-3 bg-red-50 text-red-700 text-sm">{error}</div>}
 

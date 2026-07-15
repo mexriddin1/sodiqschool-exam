@@ -3,9 +3,10 @@
 // Leadlar — natijalar.sodiqschool.uz saytida formani to'ldirgan barcha
 // o'quvchilar. Status filter bilan qidiruv qilish mumkin.
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { Pagination, Paginated } from "@/components/Pagination";
 
 type LeadStatus = "FORM_ONLY" | "STARTED" | "COMPLETED" | "PUBLISHED";
 type Language = "UZ" | "RU" | "EN";
@@ -25,13 +26,7 @@ interface LeadRow {
   createdAt: string;
 }
 
-interface Page {
-  items: LeadRow[];
-  total: number;
-  page: number;
-  take: number;
-  pages: number;
-}
+const PAGE_TAKE = 20;
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   FORM_ONLY: "Faqat forma",
@@ -48,8 +43,11 @@ const STATUS_COLOR: Record<LeadStatus, string> = {
 };
 
 export default function LeadsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<LeadStatus | "ALL">("ALL");
   const [grade, setGrade] = useState<number | "">("");
@@ -60,16 +58,25 @@ export default function LeadsPage() {
     if (status !== "ALL") qs.set("status", status);
     if (grade) qs.set("grade", String(grade));
     if (search.trim()) qs.set("search", search.trim());
-    qs.set("take", "200");
+    // Ilgari bu yerda `take=200` qattiq yozilgan va sahifalash yo'q edi —
+    // ya'ni 200-dan ortiq lead jimgina ko'rinmasdi. Backend allaqachon
+    // sahifalangan javob qaytaradi (wrapPaginated).
+    qs.set("take", String(PAGE_TAKE));
+    qs.set("page", String(page));
     return qs.toString();
-  }, [status, grade, search]);
+  }, [status, grade, search, page]);
+
+  // Filtr o'zgarsa 1-sahifaga qaytamiz, aks holda bo'sh sahifada qolib ketish
+  // mumkin (boshqa ro'yxatlardagi bilan bir xil qoida).
+  useEffect(() => { setPage(1); }, [status, grade, search]);
 
   useEffect(() => {
     setLoading(true);
-    api<Page>(`/api/admin/leads?${query}`)
+    api<Paginated<LeadRow>>(`/api/admin/leads?${query}`)
       .then((d) => {
         setRows(d.items ?? []);
         setTotal(d.total ?? 0);
+        setPages(d.pages ?? 1);
       })
       .catch(() => undefined)
       .finally(() => setLoading(false));
@@ -127,18 +134,23 @@ export default function LeadsPage() {
               <th className="p-3">Status</th>
               <th className="p-3">Urinishlar</th>
               <th className="p-3">Sana</th>
-              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && rows.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-gray-500">Yuklanmoqda…</td></tr>
+              <tr><td colSpan={7} className="p-6 text-center text-gray-500">Yuklanmoqda…</td></tr>
             )}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-gray-500">Hech qanday lead yo'q</td></tr>
+              <tr><td colSpan={7} className="p-6 text-center text-gray-500">Hech qanday lead yo'q</td></tr>
             )}
+            {/* Qatorning o'zi bosiladi — alohida "Ochish" tugmasi yo'q,
+                panel'dagi qolgan ro'yxatlar bilan bir xil. */}
             {rows.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-gray-50">
+              <tr
+                key={r.id}
+                onClick={() => router.push(`/leads/${r.id}`)}
+                className="border-b hover:bg-gray-50 cursor-pointer"
+              >
                 <td className="p-3 font-medium text-navy">
                   {r.firstName} {r.lastName}
                 </td>
@@ -154,13 +166,18 @@ export default function LeadsPage() {
                 <td className="p-3 text-xs text-gray-500">
                   {new Date(r.createdAt).toLocaleString("uz-UZ")}
                 </td>
-                <td className="p-3">
-                  <Link href={`/leads/${r.id}`} className="text-navy underline text-sm">Ochish</Link>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={page}
+          take={PAGE_TAKE}
+          total={total}
+          pages={pages}
+          loading={loading}
+          onChange={setPage}
+        />
       </div>
     </div>
   );

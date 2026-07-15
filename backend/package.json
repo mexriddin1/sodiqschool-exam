@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "seed:mock": "tsx prisma/mock-data.ts",
     "test": "node --test --import tsx test/*.test.ts",
     "pg": "node scripts/start-pg.mjs"
   },
