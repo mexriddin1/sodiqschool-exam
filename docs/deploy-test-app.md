@@ -7,9 +7,14 @@ allaqachon shu serverda ishlayotgan bo'lsa, ularning hech biri to'xtatilmaydi
 | | |
 | --- | --- |
 | Domen | `test.sodiqschool.uz` |
-| DNS | `A` · TTL `3600` · `176.101.56.242` |
-| Ichki port | `3020` |
-| API | backend (`4000`) |
+| Server | `176.101.56.242` (Ubuntu 22.04) |
+| Loyiha | `/opt/sodiq` — **`/opt/sodiq-school` BOSHQA loyiha, tegmang** |
+| Ichki port | `3020` · pm2: `sodiq-test-app` |
+| API | `https://api.natija.sodiqschool.uz` (backend, ichki port `4010`) |
+
+Boshqa yuzalar shu serverda: `sodiq-backend` (4010), `sodiq-admin` (3010),
+`sodiq-client` (4321) — mos ravishda `api.natija`, `admin.natija` va
+`natija.sodiqschool.uz`.
 
 ## 0. DNS
 
@@ -27,10 +32,10 @@ dig +short test.sodiqschool.uz          # 176.101.56.242 chiqishi kerak
 ## 1. Kodni olish va o'rnatish
 
 ```bash
-cd /var/www/sodiqschool-exam        # loyiha qayerda bo'lsa
+cd /opt/sodiq
 git pull origin main
-npm install                          # test-app yangi workspace emas — o'z papkasida
-cd test-app && npm install && cd ..
+npm install                          # root workspaces
+cd test-app && npm install && cd ..  # test-app workspace EMAS
 ```
 
 > `test-app` root `package.json` dagi `workspaces` ro'yxatiga **kirmaydi**,
@@ -43,10 +48,19 @@ o'quvchi ikkinchi fanni topshirganda submit **500 xato** beradi
 (`Unique constraint failed on the fields: (resultId)`).
 
 ```bash
-cd backend
+cd /opt/sodiq/backend
 npx prisma migrate deploy
 npx prisma generate
-cd ..
+```
+
+Backend TypeScript'dan build qilinadi (pm2 `dist/src/index.js` ni ishga
+tushiradi), ya'ni kod o'zgarsa qayta build shart:
+
+```bash
+cd /opt/sodiq
+npm run build --workspace @sodiq/compute   # backend shunga bog'liq
+npm run build --workspace backend
+pm2 restart sodiq-backend
 ```
 
 ## 3. Backend — CORS
@@ -55,8 +69,7 @@ cd ..
 brauzer test-app'ning har bir so'rovini bloklaydi va sahifa bo'sh qoladi.
 
 ```dotenv
-CORS_ORIGINS=https://admin.sodiqschool.uz,https://natijalar.sodiqschool.uz,https://test.sodiqschool.uz
-COOKIE_SECURE=true
+CORS_ORIGINS=https://admin.natija.sodiqschool.uz,https://natija.sodiqschool.uz,https://admin.sodiqschool.uz,https://sodiqschool.uz,https://test.sodiqschool.uz
 ```
 
 So'ng backend'ni qayta ishga tushiring (`pm2 restart backend` yoki
@@ -67,7 +80,7 @@ So'ng backend'ni qayta ishga tushiring (`pm2 restart backend` yoki
 `test-app/.env`:
 
 ```dotenv
-NEXT_PUBLIC_API_URL=https://api.sodiqschool.uz
+NEXT_PUBLIC_API_URL=https://api.natija.sodiqschool.uz
 ```
 
 > **Diqqat:** `NEXT_PUBLIC_*` o'zgaruvchilari **build vaqtida** kodga
@@ -82,7 +95,7 @@ npm run build
 ## 5. Ishga tushirish (pm2)
 
 ```bash
-cd /var/www/sodiqschool-exam/test-app
+cd /opt/sodiq/test-app
 pm2 start npm --name sodiq-test-app -- start     # `next start -p 3020`
 pm2 save
 ```
@@ -96,7 +109,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/var/www/sodiqschool-exam/test-app
+WorkingDirectory=/opt/sodiq/test-app
 ExecStart=/usr/bin/npm start
 Restart=always
 Environment=NODE_ENV=production
