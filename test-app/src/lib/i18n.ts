@@ -1,0 +1,316 @@
+// test-app interfeysi matnlari — UZ / RU / EN.
+//
+// Til lead'ning `examLanguage` idan keladi (backend uni /leads/:id/tests va
+// /attempts/:token javoblarida qaytaradi). Savollar allaqachon shu tilda
+// keladi (stripAnswers), ya'ni interfeys boshqa tilda bo'lsa — bola ruscha
+// savolni o'zbekcha tugmalar bilan ishlagan bo'lardi.
+//
+// Slogan ATAYLAB tarjima qilinmaydi (brend qoidasi).
+
+export type Lang = "UZ" | "RU" | "EN";
+export const DEFAULT_LANG: Lang = "UZ";
+export const LANGS: Lang[] = ["UZ", "RU", "EN"];
+
+export function isLang(v: unknown): v is Lang {
+  return v === "UZ" || v === "RU" || v === "EN";
+}
+
+const UZ = {
+  // — bosh sahifa
+  homeTitle: "Onlayn qabul testi",
+  homeLead: "Ma'lumotlaringizni qoldiring — sinfingiz va tilingizga mos testlar ochiladi.",
+  slogan: "Biz ilmga sodiqmiz",
+  studentInfo: "O'quvchi ma'lumotlari",
+  firstName: "Ismi",
+  lastName: "Familyasi",
+  sex: "Jinsi",
+  male: "O'g'il",
+  female: "Qiz",
+  phone: "Telefon raqami",
+  gradeLabel: "Qabul qilinayotgan sinf",
+  examLang: "Imtihon tili",
+  langUZ: "O'zbek",
+  langRU: "Rus",
+  langEN: "Ingliz",
+  fillAll: "Barcha maydonlarni to'ldiring.",
+  phoneIncomplete: "Telefon raqamini to'liq kiriting.",
+  sending: "Yuborilmoqda…",
+  continue: "Davom etish →",
+  genericError: "Xato yuz berdi",
+
+  // — testlar ro'yxati
+  seqHint: "Testlar ketma-ket topshiriladi — navbatdagisi ochiq",
+  allDoneShort: "Barcha testlar topshirildi",
+  noTests: "Sizga mos test topilmadi",
+  contactReception: "Iltimos, qabulxonaga murojaat qiling.",
+  allDoneTitle: "Hammasi tugadi!",
+  allDoneText: "Natijangiz uchun qabulxonaga murojaat qiling.",
+  questionsWord: "savol",
+  minutesWord: "daqiqa",
+  noTimeLimit: "Vaqtsiz",
+  start: "Boshlash",
+  opening: "Ochilmoqda…",
+  queued: "Navbatda",
+  finishedChip: "Tugatildi",
+  subject_MATH: "Matematika",
+  subject_ENGLISH: "Ingliz tili",
+  subject_CRITICAL_THINKING: "Tanqidiy fikrlash",
+
+  // — test boshlash
+  ruleFullscreen: "Test to'liq ekran (fullscreen) rejimida topshiriladi. Chiqishga urunish tizim tomonidan qayd qilinadi.",
+  ruleTime: "Vaqt: {min} daqiqa. Vaqt tugagach test avtomatik yuboriladi.",
+  ruleNoTime: "Vaqt chegarasi yo'q.",
+  ruleSaved: "Sahifa yopilib qolsa yoki refresh bo'lsa, javoblaringiz saqlanib qoladi.",
+  rulePublish: "Testni topshirib bo'lgach, natijangizni administrator chop etadi.",
+  startTest: "Testni boshlash →",
+
+  // — test ichi
+  loading: "Yuklanmoqda…",
+  errorTitle: "Xato",
+  finish: "Yakunlash",
+  confirmFinish: "Testni yakunlashni xohlaysizmi? Undan keyin javoblaringizni o'zgartira olmaysiz.",
+  questionWord: "Savol",
+  answeredCount: "Javob berilgan:",
+  fsWarning: "Test ekran to'liq rejimida topshirilishi kerak.",
+  fsReturn: "To'liq ekranga qaytish",
+  prev: "← Oldingi",
+  next: "Keyingi →",
+  submitting: "Yuborilmoqda…",
+  dontClose: "Iltimos, kutib turing. Sahifani yopmang.",
+  offline: "Internet uzilgan — javoblaringiz kompyuteringizda saqlanadi va internet tiklanganda serverga yuboriladi.",
+  loadFailed: "Testni yuklab bo'lmadi",
+  checkConnection: "Internet ulanishini tekshirib qaytadan yuborishga urining.",
+  submitFailed: "Yuborishda xato yuz berdi.",
+  questionNav: "Savol {n}",
+  answeredSuffix: " — javob berilgan",
+
+  // — savol turlari
+  hint_MULTIPLE_CHOICE: "Bitta to'g'ri javobni tanlang",
+  hint_MULTIPLE_SELECT: "Bir nechta javob to'g'ri bo'lishi mumkin",
+  hint_TRUE_FALSE: "Har bir ibora uchun to'g'ri yoki noto'g'ri deb belgilang",
+  hint_FILL_GAP: "Bo'sh joylarni tartib bo'yicha to'ldiring",
+  hint_MATCHING: "Chap va o'ng ustunni juftlab ulang",
+  hint_REORDERING: "Elementlarni to'g'ri tartibga qo'ying (yuqoridan pastga)",
+  marks: "ball",
+  yes: "To'g'ri",
+  no: "Noto'g'ri",
+  gapHint: "Matematik ifodalar uchun maydon ustida chiqadigan kalkulyator klaviaturasidan foydalaning.",
+  matchHint: "Chapdagi elementni o'ngdagi javobga torting — yoki avval chapga, keyin o'ngga bosing.",
+  matchClear: "Bog'lanishni olib tashlash",
+  reorderHint: "Qatorni bosib ushlab, yuqoriga yoki pastga suring.",
+  moveUp: "Yuqoriga",
+  moveDown: "Pastga",
+  noQuestion: "Savol topilmadi.",
+
+  // — yakuniy sahifa
+  doneTitleSubject: "{subject} testi tugadi!",
+  doneTitleGeneric: "Testni muvaffaqiyatli tugatdingiz!",
+  doneText: "Javoblaringiz saqlandi va tekshirish uchun ma'muriyatga yuborildi. Natijangizni ma'muriyat tekshirib bo'lganidan so'ng, sizga login va parol beriladi. Iltimos, qabulxonaga murojaat qiling.",
+  doneClose: "Bu oyna endi yopilishi mumkin.",
+  nextTest: "Navbatdagi test",
+  startSubject: "{subject}ni boshlash →",
+};
+
+type Dict = typeof UZ;
+
+const RU: Dict = {
+  homeTitle: "Онлайн вступительный тест",
+  homeLead: "Оставьте свои данные — откроются тесты для вашего класса и языка.",
+  slogan: "Biz ilmga sodiqmiz",
+  studentInfo: "Данные ученика",
+  firstName: "Имя",
+  lastName: "Фамилия",
+  sex: "Пол",
+  male: "Мальчик",
+  female: "Девочка",
+  phone: "Номер телефона",
+  gradeLabel: "Класс поступления",
+  examLang: "Язык экзамена",
+  langUZ: "Узбекский",
+  langRU: "Русский",
+  langEN: "Английский",
+  fillAll: "Заполните все поля.",
+  phoneIncomplete: "Введите номер телефона полностью.",
+  sending: "Отправка…",
+  continue: "Продолжить →",
+  genericError: "Произошла ошибка",
+
+  seqHint: "Тесты сдаются по порядку — открыт следующий",
+  allDoneShort: "Все тесты сданы",
+  noTests: "Подходящий тест не найден",
+  contactReception: "Пожалуйста, обратитесь в приёмную.",
+  allDoneTitle: "Всё завершено!",
+  allDoneText: "За результатом обратитесь в приёмную.",
+  questionsWord: "вопросов",
+  minutesWord: "минут",
+  noTimeLimit: "Без времени",
+  start: "Начать",
+  opening: "Открывается…",
+  queued: "В очереди",
+  finishedChip: "Завершено",
+  subject_MATH: "Математика",
+  subject_ENGLISH: "Английский язык",
+  subject_CRITICAL_THINKING: "Критическое мышление",
+
+  ruleFullscreen: "Тест сдаётся в полноэкранном режиме. Попытка выхода фиксируется системой.",
+  ruleTime: "Время: {min} минут. По истечении времени тест отправляется автоматически.",
+  ruleNoTime: "Ограничения по времени нет.",
+  ruleSaved: "Если страница закроется или обновится, ваши ответы сохранятся.",
+  rulePublish: "После сдачи теста ваш результат опубликует администратор.",
+  startTest: "Начать тест →",
+
+  loading: "Загрузка…",
+  errorTitle: "Ошибка",
+  finish: "Завершить",
+  confirmFinish: "Завершить тест? После этого изменить ответы будет нельзя.",
+  questionWord: "Вопрос",
+  answeredCount: "Отвечено:",
+  fsWarning: "Тест должен сдаваться в полноэкранном режиме.",
+  fsReturn: "Вернуться в полноэкранный режим",
+  prev: "← Назад",
+  next: "Далее →",
+  submitting: "Отправка…",
+  dontClose: "Пожалуйста, подождите. Не закрывайте страницу.",
+  offline: "Интернет отключён — ваши ответы сохраняются на компьютере и будут отправлены при восстановлении связи.",
+  loadFailed: "Не удалось загрузить тест",
+  checkConnection: "Проверьте подключение к интернету и попробуйте отправить снова.",
+  submitFailed: "Ошибка при отправке.",
+  questionNav: "Вопрос {n}",
+  answeredSuffix: " — есть ответ",
+
+  hint_MULTIPLE_CHOICE: "Выберите один верный ответ",
+  hint_MULTIPLE_SELECT: "Верными могут быть несколько ответов",
+  hint_TRUE_FALSE: "Отметьте каждое утверждение как верное или неверное",
+  hint_FILL_GAP: "Заполните пропуски по порядку",
+  hint_MATCHING: "Соедините левый и правый столбцы в пары",
+  hint_REORDERING: "Расположите элементы в правильном порядке (сверху вниз)",
+  marks: "балл",
+  yes: "Верно",
+  no: "Неверно",
+  gapHint: "Для математических выражений используйте калькуляторную клавиатуру над полем.",
+  matchHint: "Перетащите элемент слева к ответу справа — или нажмите сначала слева, затем справа.",
+  matchClear: "Убрать соединение",
+  reorderHint: "Нажмите и удерживайте строку, затем перетащите вверх или вниз.",
+  moveUp: "Вверх",
+  moveDown: "Вниз",
+  noQuestion: "Вопрос не найден.",
+
+  doneTitleSubject: "Тест «{subject}» завершён!",
+  doneTitleGeneric: "Вы успешно завершили тест!",
+  doneText: "Ваши ответы сохранены и отправлены администрации на проверку. После проверки вам выдадут логин и пароль. Пожалуйста, обратитесь в приёмную.",
+  doneClose: "Это окно можно закрыть.",
+  nextTest: "Следующий тест",
+  startSubject: "Начать «{subject}» →",
+};
+
+const EN: Dict = {
+  homeTitle: "Online admission test",
+  homeLead: "Leave your details — tests for your grade and language will open.",
+  slogan: "Biz ilmga sodiqmiz",
+  studentInfo: "Student details",
+  firstName: "First name",
+  lastName: "Last name",
+  sex: "Sex",
+  male: "Boy",
+  female: "Girl",
+  phone: "Phone number",
+  gradeLabel: "Grade applying for",
+  examLang: "Exam language",
+  langUZ: "Uzbek",
+  langRU: "Russian",
+  langEN: "English",
+  fillAll: "Please fill in all fields.",
+  phoneIncomplete: "Enter the full phone number.",
+  sending: "Sending…",
+  continue: "Continue →",
+  genericError: "Something went wrong",
+
+  seqHint: "Tests are taken in order — the next one is open",
+  allDoneShort: "All tests submitted",
+  noTests: "No matching test found",
+  contactReception: "Please contact the reception desk.",
+  allDoneTitle: "All done!",
+  allDoneText: "Contact the reception desk for your result.",
+  questionsWord: "questions",
+  minutesWord: "minutes",
+  noTimeLimit: "No time limit",
+  start: "Start",
+  opening: "Opening…",
+  queued: "Up next",
+  finishedChip: "Completed",
+  subject_MATH: "Mathematics",
+  subject_ENGLISH: "English",
+  subject_CRITICAL_THINKING: "Critical thinking",
+
+  ruleFullscreen: "The test is taken in fullscreen mode. Attempts to exit are recorded by the system.",
+  ruleTime: "Time: {min} minutes. The test is submitted automatically when time runs out.",
+  ruleNoTime: "No time limit.",
+  ruleSaved: "If the page closes or reloads, your answers are kept.",
+  rulePublish: "Once you submit, an administrator will publish your result.",
+  startTest: "Start the test →",
+
+  loading: "Loading…",
+  errorTitle: "Error",
+  finish: "Finish",
+  confirmFinish: "Finish the test? You will not be able to change your answers afterwards.",
+  questionWord: "Question",
+  answeredCount: "Answered:",
+  fsWarning: "The test must be taken in fullscreen mode.",
+  fsReturn: "Return to fullscreen",
+  prev: "← Previous",
+  next: "Next →",
+  submitting: "Sending…",
+  dontClose: "Please wait. Do not close the page.",
+  offline: "You are offline — your answers are saved on this device and will be sent when the connection is back.",
+  loadFailed: "Could not load the test",
+  checkConnection: "Check your internet connection and try sending again.",
+  submitFailed: "Sending failed.",
+  questionNav: "Question {n}",
+  answeredSuffix: " — answered",
+
+  hint_MULTIPLE_CHOICE: "Choose one correct answer",
+  hint_MULTIPLE_SELECT: "More than one answer may be correct",
+  hint_TRUE_FALSE: "Mark each statement true or false",
+  hint_FILL_GAP: "Fill in the gaps in order",
+  hint_MATCHING: "Connect the left and right columns in pairs",
+  hint_REORDERING: "Put the items in the correct order (top to bottom)",
+  marks: "pts",
+  yes: "True",
+  no: "False",
+  gapHint: "For maths expressions use the calculator keyboard that appears above the field.",
+  matchHint: "Drag an item on the left to its answer on the right — or tap left, then right.",
+  matchClear: "Remove connection",
+  reorderHint: "Press and hold a row, then drag it up or down.",
+  moveUp: "Move up",
+  moveDown: "Move down",
+  noQuestion: "Question not found.",
+
+  doneTitleSubject: "{subject} test finished!",
+  doneTitleGeneric: "You have completed the test!",
+  doneText: "Your answers have been saved and sent to the administration for review. Once reviewed, you will be given a login and password. Please contact the reception desk.",
+  doneClose: "You can close this window now.",
+  nextTest: "Next test",
+  startSubject: "Start {subject} →",
+};
+
+const DICT: Record<Lang, Dict> = { UZ, RU, EN };
+
+/**
+ * Matnni tanlangan tilda beradi. `{x}` o'rniga `vars.x` qo'yiladi.
+ * Til noma'lum bo'lsa — o'zbekcha (funnel asosan o'zbek tilida).
+ */
+export function tr<K extends keyof Dict>(
+  lang: Lang | null | undefined,
+  key: K,
+  vars?: Record<string, string | number>,
+): string {
+  let s: string = DICT[lang && isLang(lang) ? lang : DEFAULT_LANG][key];
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+  return s;
+}
+
+/** Fan nomi tanlangan tilda. */
+export function subjectLabel(lang: Lang | null | undefined, subject: string): string {
+  const key = `subject_${subject}` as keyof Dict;
+  return key in UZ ? tr(lang, key) : subject;
+}

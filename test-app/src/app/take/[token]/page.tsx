@@ -16,16 +16,59 @@ import {
   saveAttempt,
 } from "@/lib/offline-store";
 import QuestionRenderer, { ClientQuestion } from "@/components/QuestionRenderer";
+import { DEFAULT_LANG, tr, type Lang } from "@/lib/i18n";
 
 interface Attempt {
   token: string;
   attemptId: string;
+  /** Lead tili — savollar ham, interfeys ham shu tilda. */
+  examLanguage?: Lang;
   test: { id: string; name: string; subject: string; grade: number; durationSec: number | null };
   startedAt: string;
   questions: ClientQuestion[];
   answers?: Record<string, unknown>;
   finished?: boolean;
 }
+
+const ICON = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2.2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+// Boshlash ekranidagi qoidalar ikonkalari — unicode glif emas, chunki ular
+// shriftga qarab turlicha va ingichka chiqadi.
+const RULE_ICON = {
+  fullscreen: (
+    <svg {...ICON} aria-hidden="true">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3" />
+    </svg>
+  ),
+  clock: (
+    <svg {...ICON} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
+    </svg>
+  ),
+  save: (
+    <svg {...ICON} aria-hidden="true">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  ),
+  check: (
+    <svg {...ICON} aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  ),
+};
 
 export default function TakeTestPage() {
   const { token } = useParams<{ token: string }>();
@@ -39,8 +82,12 @@ export default function TakeTestPage() {
   const [phase, setPhase] = useState<"loading" | "ready" | "started" | "submitting" | "done" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
+  const lang: Lang = attempt?.examLanguage ?? DEFAULT_LANG;
+  const t = (k: Parameters<typeof tr>[1], v?: Record<string, string | number>) => tr(lang, k, v);
+
   const submittedRef = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const navRef = useRef<HTMLDivElement | null>(null);
 
   // 1) Load attempt (from server; fall back to IndexedDB if offline).
   useEffect(() => {
@@ -57,6 +104,7 @@ export default function TakeTestPage() {
           test: data.test,
           questions: data.questions,
           startedAt: data.startedAt,
+          examLanguage: data.examLanguage,
         });
         const local = await loadAnswers(token);
         const merged = { ...(data.answers ?? {}), ...local };
@@ -72,13 +120,14 @@ export default function TakeTestPage() {
             test: cached.test,
             startedAt: cached.startedAt,
             questions: cached.questions as ClientQuestion[],
+            examLanguage: cached.examLanguage,
           });
           const local = await loadAnswers(token);
           setAnswersState(local);
           setPhase("ready");
-          setError("Internet uzilgan — javoblaringiz kompyuteringizda saqlanadi va internet tiklanganda serverga yuboriladi.");
+          setError(tr(cached.examLanguage ?? DEFAULT_LANG, "offline"));
         } else {
-          setError(e instanceof Error ? e.message : "Testni yuklab bo'lmadi");
+          setError(e instanceof Error ? e.message : tr(DEFAULT_LANG, "loadFailed"));
           setPhase("error");
         }
       }
@@ -147,9 +196,9 @@ export default function TakeTestPage() {
       if (e instanceof ApiException) {
         setError(e.message);
       } else if (e instanceof Error && (e.message.includes("Failed to fetch") || e.message.includes("NetworkError"))) {
-        setError("Internet ulanishini tekshirib qaytadan yuborishga urining.");
+        setError(t("checkConnection"));
       } else {
-        setError(e instanceof Error ? e.message : "Yuborishda xato yuz berdi.");
+        setError(e instanceof Error ? e.message : t("submitFailed"));
       }
     }
   }, [answers, router, token]);
@@ -173,6 +222,13 @@ export default function TakeTestPage() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [phase]);
 
+  // 7) Navigator gorizontal skroll — joriy savol ko'rinishdan chiqib
+  // ketmasin (50 savolli testda "Keyingi" bosgan bola pill'ini yo'qotadi).
+  useEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [idx, phase]);
+
   const totalQuestions = attempt?.questions.length ?? 0;
   const answeredCount = useMemo(
     () => Object.keys(answers).filter((k) => {
@@ -186,89 +242,167 @@ export default function TakeTestPage() {
   );
 
   if (phase === "loading" || !attempt) {
-    return <div className="p-10 text-center text-gray-500">Yuklanmoqda…</div>;
+    return (
+      <div className="min-h-screen grid place-items-center p-6">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 mx-auto rounded-full border-4 border-line border-t-accent animate-spin" />
+          <div className="text-sm text-muted">…</div>
+        </div>
+      </div>
+    );
   }
+
   if (phase === "error") {
     return (
-      <div className="p-10 text-center max-w-md mx-auto">
-        <div className="text-red-600 font-semibold mb-3">Xato</div>
-        <div className="text-sm text-gray-700">{error}</div>
+      <div className="min-h-screen grid place-items-center p-6">
+        <div className="card p-6 max-w-md text-center space-y-3 animate-rise">
+          <div className="w-14 h-14 mx-auto rounded-full grid place-items-center bg-neg-weak text-neg text-2xl font-bold">!</div>
+          <h1 className="text-lg">{t("errorTitle")}</h1>
+          <p className="text-sm text-muted">{error}</p>
+        </div>
       </div>
     );
   }
 
   if (phase === "ready") {
+    const rules: { icon: keyof typeof RULE_ICON; tint: string; fg: string; text: string }[] = [
+      {
+        icon: "fullscreen", tint: "var(--info-weak)", fg: "var(--info)",
+        text: t("ruleFullscreen"),
+      },
+      {
+        icon: "clock", tint: "var(--warn-weak)", fg: "var(--warn)",
+        text: attempt.test.durationSec
+          ? t("ruleTime", { min: Math.round(attempt.test.durationSec / 60) })
+          : t("ruleNoTime"),
+      },
+      {
+        icon: "save", tint: "var(--accent-weak)", fg: "var(--accent-ink)",
+        text: t("ruleSaved"),
+      },
+      {
+        icon: "check", tint: "var(--pos-weak)", fg: "var(--pos)",
+        text: t("rulePublish"),
+      },
+    ];
     return (
-      <div className="max-w-lg mx-auto p-6 space-y-5">
-        <div className="card p-6 space-y-4">
-          <h1 className="text-xl font-semibold text-navy">{attempt.test.name}</h1>
-          <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
-            <li>Test to'liq ekran (fullscreen) rejimida topshiriladi. Chiqishga urunish tizim tomonidan qayd qilinadi.</li>
-            <li>Savollar soni: {attempt.questions.length}</li>
+      <div className="min-h-screen grid place-items-center p-4 sm:p-6">
+        <div className="w-full max-w-5xl grid gap-5 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:items-stretch">
+        <header className="hero p-6 lg:p-8 flex flex-col justify-center animate-rise">
+          <h1 className="text-white text-2xl lg:text-3xl">{attempt.test.name}</h1>
+          <div className="flex flex-wrap gap-2 mt-5">
+            <span className="chip chip-glass">
+              <b className="num">{attempt.questions.length}</b> {t("questionsWord")}
+            </span>
             {attempt.test.durationSec && (
-              <li>Vaqt: {Math.round(attempt.test.durationSec / 60)} daqiqa. Vaqt tugagach test avtomatik yuboriladi.</li>
+              <span className="chip chip-glass">
+                <b className="num">{Math.round(attempt.test.durationSec / 60)}</b> {t("minutesWord")}
+              </span>
             )}
-            <li>Sahifa yopilib qolsa yoki refresh bo'lsa, javoblaringiz saqlanib qoladi.</li>
-            <li>Testni topshirib bo'lgach, natijangizni administrator chop etadi.</li>
+          </div>
+        </header>
+
+        <div className="card p-5 lg:p-6 space-y-4 animate-rise" style={{ animationDelay: "0.08s" }}>
+          <ul className="space-y-3">
+            {rules.map((r, i) => (
+              <li key={i} className="flex gap-3 items-start">
+                <span
+                  className="flex-none w-9 h-9 rounded-[10px] grid place-items-center"
+                  style={{ background: r.tint, color: r.fg }}
+                >
+                  {RULE_ICON[r.icon]}
+                </span>
+                <span className="text-sm text-body flex-1 pt-1.5">{r.text}</span>
+              </li>
+            ))}
           </ul>
-          {error && <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">{error}</div>}
+
+          {error && (
+            <div className="rounded-[10px] border-2 border-[#F5E3BC] bg-warn-weak px-4 py-3 text-sm text-[#8A5F0C]">
+              {error}
+            </div>
+          )}
+
           <button
             onClick={async () => {
               await requestFullscreen();
               setPhase("started");
               setFs(isFullscreen());
             }}
-            className="w-full rounded bg-navy text-white py-3 text-sm font-semibold"
+            className="btn btn-accent btn-block"
           >
-            Testni boshlash
+            {t("startTest")}
           </button>
+        </div>
         </div>
       </div>
     );
   }
 
   const q = attempt.questions[idx];
+  const progressPct = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+  const lowTime = remainingSec != null && remainingSec < 60;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-white">
-      <header className="flex items-center justify-between px-4 py-3 border-b bg-navy text-white">
-        <div className="text-sm">
-          <span className="font-semibold">{attempt.test.name}</span>
-          <span className="ml-3 opacity-75">Savol {idx + 1} / {totalQuestions}</span>
-          <span className="ml-3 opacity-75">Javob berilgan: {answeredCount}</span>
-        </div>
+    <div className="fixed inset-0 flex flex-col bg-[var(--bg)]">
+      <header className="bg-navy text-white px-3 sm:px-4 py-3 space-y-2.5">
         <div className="flex items-center gap-3">
+          <div className="progress progress-glass flex-1">
+            <div className="progress-bar" style={{ width: `${progressPct}%` }} />
+          </div>
+
           {remainingSec != null && (
-            <div className={`font-mono text-lg ${remainingSec < 60 ? "text-red-300" : ""}`}>
+            <div
+              className={`chip num tabular-nums ${lowTime ? "chip-neg" : "chip-glass"}`}
+              style={lowTime ? { animation: "pulse-soft 1s ease-in-out infinite" } : undefined}
+            >
               {formatTime(remainingSec)}
             </div>
           )}
+
           <button
             onClick={() => {
-              if (confirm("Testni yakunlashni xohlaysizmi? Undan keyin javoblaringizni o'zgartira olmaysiz.")) {
+              if (confirm(t("confirmFinish"))) {
                 submit(false);
               }
             }}
-            className="rounded bg-orange-500 hover:bg-orange-600 text-white text-sm px-3 py-1"
+            className="btn btn-neg btn-sm flex-none"
           >
-            Yakunlash
+            {t("finish")}
           </button>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-white/70">
+          <span className="truncate max-w-[50%]">{attempt.test.name}</span>
+          <span>
+            {t("questionWord")} <b className="num text-white">{idx + 1}</b>/<span className="num">{totalQuestions}</span>
+            <span className="mx-2 opacity-40">·</span>
+            {t("answeredCount")} <b className="num text-white">{answeredCount}</b>
+          </span>
         </div>
       </header>
 
       {!fs && (
-        <div className="bg-red-500 text-white text-sm text-center py-2">
-          Test ekran to'liq rejimida topshirilishi kerak.{" "}
-          <button className="underline" onClick={() => requestFullscreen()}>
-            To'liq ekranga qaytish
+        <div className="bg-neg text-white text-sm text-center py-2 px-3">
+          {t("fsWarning")}{" "}
+          <button className="underline font-semibold" onClick={() => requestFullscreen()}>
+            {t("fsReturn")}
           </button>
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl mx-auto card p-6">
+      {/* Savol kartasi ekran markazida — tepaga yopishib turmaydi.
+          Markazlash ICHKI o'ramda (min-h-full + place-items-center), skroll
+          esa tashqarida: aks holda kartadan balandroq savolda markazlash uning
+          TEPASINI kesib qo'yadi va u yerga skroll qilib bo'lmaydi. */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="min-h-full grid place-items-center p-4 sm:p-6">
+          {/* key = savol id: savol almashganda karta qaytadan chiziladi va
+              slide animatsiyasi ishlaydi. */}
+          <div key={q?.id ?? idx} className="w-full max-w-3xl card p-5 sm:p-6 lg:p-8 animate-slide-in">
           {q ? (
             <QuestionRenderer
+              lang={lang}
               q={q}
               answer={answers[q.id]}
               onChange={(val) => {
@@ -279,56 +413,74 @@ export default function TakeTestPage() {
               }}
             />
           ) : (
-            <div className="text-gray-500">Savol topilmadi.</div>
+            <div className="text-muted">{t("noQuestion")}</div>
           )}
+          </div>
         </div>
       </main>
 
-      <footer className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-        <button
-          type="button"
-          onClick={() => setIdx((i) => Math.max(0, i - 1))}
-          disabled={idx === 0}
-          className="rounded border px-4 py-2 text-sm disabled:opacity-50"
-        >
-          ← Oldingi
-        </button>
-        <div className="flex flex-wrap gap-1 max-w-xl">
-          {attempt.questions.map((qq, i) => {
-            const answered = answeredValueSet(answers[qq.id]);
-            return (
-              <button
-                key={qq.id}
-                type="button"
-                onClick={() => setIdx(i)}
-                className={`w-8 h-8 text-xs rounded border ${i === idx ? "bg-navy text-white border-navy" : answered ? "bg-emerald-100 border-emerald-300" : "bg-white border-gray-300"}`}
-              >
-                {i + 1}
-              </button>
-            );
-          })}
+      {/* pb: 3D tugmalarning pastki soyasi kesilmasin. */}
+      <footer className="border-t border-line bg-surface px-3 sm:px-4 pt-3 pb-4">
+        <div className="max-w-3xl mx-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIdx((i) => Math.max(0, i - 1))}
+            disabled={idx === 0}
+            className="btn btn-ghost btn-sm flex-none"
+          >
+            {t("prev")}
+          </button>
+
+          {/* Bir qator, gorizontal skroll: 50 savolli Ingliz testida o'ralgan
+              to'r ikki-uch qatorga cho'zilib, ekranning yarmini yeb qo'yadi. */}
+          <div ref={navRef} className="flex-1 flex gap-1.5 overflow-x-auto scroll-nav py-1">
+            {attempt.questions.map((qq, i) => {
+              const answered = answeredValueSet(answers[qq.id]);
+              const current = i === idx;
+              return (
+                <button
+                  key={qq.id}
+                  type="button"
+                  onClick={() => setIdx(i)}
+                  aria-label={`${t("questionNav", { n: i + 1 })}${answered ? t("answeredSuffix") : ""}`}
+                  aria-current={current ? "true" : undefined}
+                  className={`num flex-none w-8 h-8 text-xs font-bold rounded-[8px] border-2 transition-colors ${
+                    current
+                      ? "bg-navy border-navy text-white"
+                      : answered
+                        ? "bg-pos-weak border-[#C9E7D8] text-[#1F7350]"
+                        : "bg-surface border-line text-faint hover:border-line-strong"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIdx((i) => Math.min(totalQuestions - 1, i + 1))}
+            disabled={idx >= totalQuestions - 1}
+            className="btn btn-accent btn-sm flex-none"
+          >
+            {t("next")}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setIdx((i) => Math.min(totalQuestions - 1, i + 1))}
-          disabled={idx >= totalQuestions - 1}
-          className="rounded bg-navy text-white px-4 py-2 text-sm disabled:opacity-50"
-        >
-          Keyingi →
-        </button>
       </footer>
 
       {phase === "submitting" && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 text-center max-w-sm">
-            <div className="animate-pulse text-navy font-semibold">Yuborilmoqda…</div>
-            <div className="text-xs text-gray-500 mt-2">Iltimos, kutib turing. Sahifani yopmang.</div>
+        <div className="fixed inset-0 bg-[rgba(6,17,60,0.55)] backdrop-blur-sm grid place-items-center z-50">
+          <div className="card p-6 text-center max-w-sm space-y-3 animate-rise">
+            <div className="w-10 h-10 mx-auto rounded-full border-4 border-line border-t-accent animate-spin" />
+            <div className="font-bold text-ink">{t("submitting")}</div>
+            <div className="text-xs text-muted">{t("dontClose")}</div>
           </div>
         </div>
       )}
 
       {error && phase === "started" && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white text-sm px-4 py-2 rounded shadow-lg">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-shake rounded-[12px] bg-neg text-white text-sm font-semibold px-4 py-2.5 shadow-lg max-w-[92vw]">
           {error}
         </div>
       )}

@@ -2,16 +2,22 @@
 
 // natijalar.sodiqschool.uz — bosh sahifa. O'quvchi ma'lumotlari (form) va
 // keyingi qadam (mos testlar ro'yxati) shu yerdan boshlanadi.
+//
+// MAQSADLI QURILMA — PLANSHET, telefon emas. Shuning uchun tik ustun emas,
+// ikki ustun: chapda brend bloki, o'ngda forma. Planshet eni (~1024px) bemalol
+// yetadi va butun forma bitta ekranga sig'adi — bola skroll qilmaydi.
+//
+// Sinf va til <select> emas, segment: variantlar soni kichik (7 va 3) va
+// barmoq bilan ishlanadi — ochiladigan ro'yxat bu yerda faqat ortiqcha tegish.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { DEFAULT_LANG, LANGS, tr, type Lang } from "@/lib/i18n";
+import { formatUzNational, isUzPhoneComplete, toE164 } from "@/lib/phone";
 
-const LANGUAGES = [
-  { key: "UZ", label: "O'zbek" },
-  { key: "RU", label: "Rus" },
-  { key: "EN", label: "Ingliz" },
-] as const;
+const GRADES = [5, 6, 7, 8, 9, 10, 11];
+const LANG_KEY = { UZ: "langUZ", RU: "langRU", EN: "langEN" } as const;
 
 export default function HomePage() {
   const router = useRouter();
@@ -20,15 +26,27 @@ export default function HomePage() {
   const [sex, setSex] = useState<"MALE" | "FEMALE" | "">("");
   const [phone, setPhone] = useState("");
   const [grade, setGrade] = useState<number | "">("");
-  const [examLanguage, setExamLanguage] = useState<"UZ" | "RU" | "EN" | "">("");
+  const [examLanguage, setExamLanguage] = useState<Lang | "">("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Til tanlanishi bilan interfeys darhol o'zgaradi — tanlanmaguncha o'zbekcha.
+  const lang: Lang = examLanguage || DEFAULT_LANG;
+  const t = (k: Parameters<typeof tr>[1]) => tr(lang, k);
+
+  const phoneOk = isUzPhoneComplete(phone);
+  const filled = [firstName, lastName, sex, phoneOk, grade, examLanguage].filter(Boolean).length;
+  const progress = Math.round((filled / 6) * 100);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!firstName || !lastName || !sex || !phone || !grade || !examLanguage) {
-      setError("Barcha maydonlarni to'ldiring.");
+      setError(t("fillAll"));
+      return;
+    }
+    if (!phoneOk) {
+      setError(t("phoneIncomplete"));
       return;
     }
     setSubmitting(true);
@@ -39,7 +57,7 @@ export default function HomePage() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           sex,
-          phone: phone.trim(),
+          phone: toE164(phone),
           grade: Number(grade),
           examLanguage,
         }),
@@ -47,110 +65,152 @@ export default function HomePage() {
       sessionStorage.setItem("sodiq_lead_id", leadId);
       router.push(`/tests?lead=${leadId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Xato yuz berdi");
+      setError(err instanceof Error ? err.message : t("genericError"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-6">
-      <header className="text-center pt-8">
-        <div className="text-2xl font-semibold text-navy">Sodiq School</div>
-        <div className="text-sm text-gray-500">Onlayn qabul testi</div>
-      </header>
+    <div className="min-h-screen grid place-items-center p-4 sm:p-6">
+      <div className="w-full max-w-5xl grid gap-5 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:items-stretch">
+        <header className="hero p-6 lg:p-8 flex flex-col justify-center animate-rise">
+          {/* self-start SHART: header — flex ustun, va uning standart
+              `align-items: stretch` qiymati rasmni butun kenglikka cho'zib,
+              logoni buzadi (44px balandlikda 342px kenglik — nisbati 2.74:1
+              bo'lsa ~121px bo'lishi kerak). w-auto buni to'xtatmaydi. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-white.png" alt="Sodiq School" className="h-11 w-auto self-start mb-7" />
+          <h1 className="text-white text-3xl lg:text-4xl">{t("homeTitle")}</h1>
+          <p className="text-[#C3CBE6] text-sm mt-3 max-w-[34ch]">
+            {t("homeLead")}
+          </p>
+          <div className="mt-auto pt-8 text-xs text-[#8893B8] hidden md:block">{t("slogan")}</div>
+        </header>
 
-      <form onSubmit={submit} className="card p-6 space-y-4">
-        <h1 className="text-lg font-semibold text-navy">O'quvchi ma'lumotlari</h1>
+        <form onSubmit={submit} className="card p-5 lg:p-6 space-y-4 animate-rise" style={{ animationDelay: "0.08s" }}>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg">{t("studentInfo")}</h2>
+          <span className="chip num">{filled}/6</span>
+        </div>
+        <div className="progress progress-sm">
+          <div className="progress-bar" style={{ width: `${progress}%` }} />
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-gray-500">Ismi</label>
+            <label className="label" htmlFor="firstName">{t("firstName")}</label>
             <input
+              id="firstName"
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="field"
+              placeholder="Alisher"
               required
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500">Familyasi</label>
+            <label className="label" htmlFor="lastName">{t("lastName")}</label>
             <input
+              id="lastName"
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="field"
+              placeholder="Karimov"
               required
             />
           </div>
         </div>
 
+        {/* Jins va telefon yonma-yon — ikkalasi ham tor, alohida qator
+            olishning hojati yo'q. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className="label">{t("sex")}</span>
+            <div className="flex gap-2">
+              {(["MALE", "FEMALE"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSex(s)}
+                  aria-pressed={sex === s}
+                  className={`seg ${sex === s ? "is-picked" : ""}`}
+                >
+                  {s === "MALE" ? t("male") : t("female")}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="label" htmlFor="phone">{t("phone")}</label>
+            {/* +998 input ICHIDA emas: aks holda foydalanuvchi o'zi "998..."
+                yozganda uni niqob prefiksidan ajratib bo'lmaydi — va "99"
+                ning o'zi ham haqiqiy operator kodi. */}
+            <div className="field field-group">
+              <span className="num text-muted select-none">+998</span>
+              <input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                value={phone}
+                onChange={(e) => setPhone(formatUzNational(e.target.value))}
+                className="num flex-1 bg-transparent border-0 outline-none p-0 text-ink"
+                placeholder="(90) 123-45-67"
+                required
+              />
+            </div>
+          </div>
+        </div>
+
         <div>
-          <label className="text-xs text-gray-500">Jinsi</label>
-          <div className="flex gap-3 mt-1">
-            {(["MALE", "FEMALE"] as const).map((s) => (
-              <label key={s} className={`flex-1 text-center py-2 rounded border cursor-pointer text-sm ${sex === s ? "bg-navy text-white border-navy" : "bg-white text-gray-700"}`}>
-                <input type="radio" className="hidden" checked={sex === s} onChange={() => setSex(s)} />
-                {s === "MALE" ? "O'g'il bola" : "Qiz bola"}
-              </label>
+          <span className="label">{t("gradeLabel")}</span>
+          {/* 7 ta sinf bitta qatorda — planshetda joy yetadi. */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {GRADES.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGrade(g)}
+                aria-pressed={grade === g}
+                className={`seg num ${grade === g ? "is-picked" : ""}`}
+              >
+                {g}
+              </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Telefon raqami</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full border rounded px-3 py-2 text-sm"
-            placeholder="+998 __ ___ __ __"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-gray-500">Kelayotgan o'quv yilida qabul qilinyotgan sinf</label>
-            <select
-              value={grade}
-              onChange={(e) => setGrade(e.target.value ? Number(e.target.value) : "")}
-              className="w-full border rounded px-3 py-2 text-sm"
-              required
-            >
-              <option value="">— tanlang —</option>
-              {[5, 6, 7, 8, 9, 10, 11].map((g) => (
-                <option key={g} value={g}>{g}-sinf</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">Imtihon tili</label>
-            <select
-              value={examLanguage}
-              onChange={(e) => setExamLanguage(e.target.value as "UZ" | "RU" | "EN" | "")}
-              className="w-full border rounded px-3 py-2 text-sm"
-              required
-            >
-              <option value="">— tanlang —</option>
-              {LANGUAGES.map((l) => (
-                <option key={l.key} value={l.key}>{l.label}</option>
-              ))}
-            </select>
+          <span className="label">{t("examLang")}</span>
+          <div className="flex gap-2">
+            {LANGS.map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setExamLanguage(l)}
+                aria-pressed={examLanguage === l}
+                className={`seg ${examLanguage === l ? "is-picked" : ""}`}
+              >
+                {tr(l, LANG_KEY[l])}
+              </button>
+            ))}
           </div>
         </div>
 
-        {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="animate-shake rounded-[10px] border-2 border-[#F3D3CE] bg-neg-weak px-4 py-3 text-sm font-semibold text-[#9C3A2D]">
+            {error}
+          </div>
+        )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-navy text-white py-3 text-sm font-semibold hover:opacity-95 disabled:opacity-60"
-        >
-          {submitting ? "Yuborilmoqda…" : "Davom etish →"}
+        <button type="submit" disabled={submitting} className="btn btn-accent btn-block">
+          {submitting ? t("sending") : t("continue")}
         </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

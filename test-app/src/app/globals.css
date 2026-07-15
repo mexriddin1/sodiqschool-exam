@@ -2,33 +2,411 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   Sodiq School — test-app (o'quvchi test topshiradigan yuza).
+   Tokenlar client/src/styles/tokens.css dan ko'chirilgan — ikkala yuza bir xil
+   brendda ko'rinsin (navy #06113C, accent #FF8A32, Pragmatica).
+   Ustiga "chunky" qatlam: yo'g'on radius, 3D tugmalar, katta tegish nishonlari
+   — bola telefonda, bir marta, vaqt bosimi ostida ishlaydi.
+   ========================================================================== */
+
+/* ---- self-hosted faces (client/public/fonts dan ko'chirilgan) ---- */
+@font-face { font-family:'Space Grotesk'; font-style:normal; font-weight:500; font-display:swap; src:url('/fonts/SpaceGrotesk-500.woff2') format('woff2'); }
+@font-face { font-family:'Space Grotesk'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/SpaceGrotesk-700.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/HankenGrotesk-400.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:500; font-display:swap; src:url('/fonts/HankenGrotesk-500.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:600; font-display:swap; src:url('/fonts/HankenGrotesk-600.woff2') format('woff2'); }
+@font-face { font-family:'Hanken Grotesk'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/HankenGrotesk-700.woff2') format('woff2'); }
+@font-face { font-family:'Space Mono'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/SpaceMono-400.woff2') format('woff2'); }
+@font-face { font-family:'Space Mono'; font-style:normal; font-weight:700; font-display:swap; src:url('/fonts/SpaceMono-700.woff2') format('woff2'); }
+@font-face { font-family:'Pragmatica'; font-style:normal; font-weight:400; font-display:swap; src:url('/fonts/Pragmatica-400.woff2') format('woff2'); }
+
 :root {
+  --font-display: 'Pragmatica', 'Space Grotesk', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-text: 'Pragmatica', 'Hanken Grotesk', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --ink: #0F1629;
+  --text: #3A4256;
+  --muted: #6B7385;
+  --faint: #9AA1B2;
+
+  --bg: #F6F7F9;
+  --surface: #FFFFFF;
+  --inset: #FAFBFC;
+  --border: #E8EAEF;
+  --border-strong: #D7DAE3;
+
   --navy: #06113C;
-  --brand-orange: #FF8A32;
+  --navy-soft: #1A2550;
+  --accent: #FF8A32;
+  --accent-ink: #B1521F;
+  --accent-weak: #FFF1E6;
+
+  --pos: #2F9E6B;  --pos-weak: #EAF6F0;
+  --warn: #C98A12; --warn-weak: #FBF3E0;
+  --neg: #D2503F;  --neg-weak: #FBEDEB;
+  --info: #3266C9; --info-weak: #EAF0FB;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px; --r-xl: 20px; --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 2px 8px -2px rgba(16, 24, 40, 0.06), 0 4px 16px -4px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 12px 32px -10px rgba(6, 17, 60, 0.12);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.18, 1);
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 
 body {
-  color: #0f172a;
-  background: #f8fafc;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  color: var(--ink);
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  margin: 0;
+  font-weight: 700;
+}
+
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.muted { color: var(--muted); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ==========================================================================
+   Yuzalar
+   ========================================================================== */
 
 .card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-md);
 }
 
-/* MathLive baseline styling — the custom element uses its own shadow DOM
-   for the actual math, but we still control the outer host box. */
+/* Bitta jasur lahza — sarlavha bloki. client'dagi .cover bilan bir xil ruh. */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #060E2E 0%, var(--navy) 46%, #0B1A55 100%);
+  color: #fff;
+  border-radius: var(--r-xl);
+}
+.hero::after {
+  content: "";
+  position: absolute; right: -70px; top: -70px;
+  width: 260px; height: 260px; border-radius: var(--r-pill);
+  background: radial-gradient(circle, rgba(255, 138, 50, 0.22), transparent 62%);
+  pointer-events: none;
+}
+.hero > * { position: relative; z-index: 1; }
+
+/* ==========================================================================
+   3D tugmalar — bosilganda "cho'kadi". Pastki soya = tugmaning qalinligi.
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: 14px 20px;
+  border: 0;
+  border-radius: var(--r-lg);
+  font-family: var(--font-text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  user-select: none;
+  color: #fff;
+  background: var(--btn-bg, var(--navy));
+  box-shadow: 0 4px 0 var(--btn-edge, #030A24);
+  transition: transform 0.08s var(--ease), box-shadow 0.08s var(--ease), filter 0.15s var(--ease);
+}
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-edge, #030A24); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-accent { --btn-bg: var(--accent); --btn-edge: #C4661D; color: #3A1B04; }
+.btn-pos    { --btn-bg: var(--pos);    --btn-edge: #1F7350; }
+.btn-neg    { --btn-bg: var(--neg);    --btn-edge: #9C3A2D; }
+.btn-ghost {
+  --btn-bg: var(--surface);
+  --btn-edge: var(--border-strong);
+  color: var(--ink);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--inset); filter: none; }
+
+.btn-block { width: 100%; }
+.btn-sm {
+  padding: 9px 14px;
+  font-size: 13px;
+  border-radius: var(--r-md);
+  box-shadow: 0 3px 0 var(--btn-edge, #030A24);
+}
+.btn-sm:active:not(:disabled) { transform: translateY(3px); }
+
+/* ==========================================================================
+   Tanlov kartalari — radio/checkbox o'rniga katta tegish nishoni.
+   ========================================================================== */
+
+.option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s4);
+  text-align: left;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.08s var(--ease);
+}
+.option:hover { background: var(--inset); border-color: var(--border-strong); }
+.option:active { transform: translateY(2px); }
+/* Radio/checkbox sr-only — fokus halqasi kartaning o'ziga chiqadi, aks holda
+   klaviatura bilan yurgan odam qayerdaligini ko'rmaydi. */
+.option:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-weak);
+}
+.option.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+  animation: pop 0.28s var(--bounce);
+}
+.option.is-picked .option-badge {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #3A1B04;
+}
+
+.option-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+/* Segment (jins / til / sinf) */
+.seg {
+  flex: 1;
+  padding: 11px 10px;
+  text-align: center;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--r-md);
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease), transform 0.08s var(--ease);
+}
+.seg:hover { background: var(--inset); }
+.seg:active { transform: translateY(2px); }
+.seg.is-picked {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  animation: pop 0.24s var(--bounce);
+}
+
+/* Kichik kvadrat tugma (tartiblash strelkalari) */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 24px;
+  border: 2px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.icon-btn:hover:not(:disabled) { background: var(--accent-weak); border-color: var(--accent); color: var(--accent-ink); }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ==========================================================================
+   Inputlar
+   ========================================================================== */
+
+.field {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  font-family: var(--font-text);
+  font-size: 15px;
+  color: var(--ink);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-weak);
+}
+.field::placeholder { color: var(--faint); }
+
+/* Ichida qotirilgan prefiks bo'lgan maydon (masalan +998). */
+.field-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field-group:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-weak);
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   Progress — Duolingo'ning imzosi: yo'g'on pill, silliq to'ladi.
+   ========================================================================== */
+
+.progress {
+  height: 14px;
+  background: var(--border);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--accent), #FFB067);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.10), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+  transition: width 0.45s var(--ease);
+}
+.progress-glass { background: rgba(255, 255, 255, 0.18); }
+.progress-sm { height: 8px; }
+
+/* Savol navigatori — ingichka skrollbar, aks holda 50 ta pill ustida
+   qo'pol tizimli skrollbar chiqadi. */
+.scroll-nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.scroll-nav::-webkit-scrollbar { height: 5px; }
+.scroll-nav::-webkit-scrollbar-track { background: transparent; }
+.scroll-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-pill); }
+
+/* Chip — kichik metadata belgisi */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip-accent { background: var(--accent-weak); border-color: #FFD9B8; color: var(--accent-ink); }
+.chip-pos { background: var(--pos-weak); border-color: #C9E7D8; color: #1F7350; }
+.chip-neg { background: var(--neg-weak); border-color: #F3D3CE; color: #9C3A2D; }
+.chip-glass {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* ==========================================================================
+   Harakat
+   ========================================================================== */
+
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(1); } 45% { transform: scale(1.035); } 100% { transform: scale(1); } }
+@keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes seal { 0% { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes confetti-fall {
+  0% { transform: translateY(-12vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(104vh) rotate(720deg); opacity: 0.9; }
+}
+/* Vaqt tugayotganda taymer chipi — diqqatni tortadi, lekin sakramaydi. */
+@keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+.animate-rise { animation: rise 0.5s var(--ease) both; }
+.animate-shake { animation: shake 0.5s var(--ease); }
+.animate-slide-in { animation: slide-in 0.32s var(--ease) both; }
+.animate-seal { animation: seal 0.6s var(--bounce) both; }
+
+/* Ro'yxat elementlari ketma-ket chiqadi. */
+.stagger > * { animation: rise 0.5s var(--ease) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger > *:nth-child(6) { animation-delay: 0.34s; }
+
+/* Harakatni kamaytirish so'ralsa — hammasi to'xtaydi (client bilan bir xil). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ==========================================================================
+   MathLive — tashqi qutini biz boshqaramiz, ichkarisi o'z shadow DOM'ida.
+   ========================================================================== */
+
 math-field {
   --hue: 210;
-  min-width: 140px;
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: white;
+  flex: 1;
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
   font-size: 1rem;
   display: inline-block;
+}
+math-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-weak);
+  outline: none;
 }

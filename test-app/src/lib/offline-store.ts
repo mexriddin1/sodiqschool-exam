@@ -5,11 +5,17 @@
 
 import { openDB, type DBSchema } from "idb";
 
+import type { Lang } from "./i18n";
+
 interface StoredAttempt {
   token: string;
   test: { id: string; name: string; subject: string; grade: number; durationSec: number | null };
   questions: unknown[]; // TestQuestion[] with correct-answer fields stripped
   startedAt: string;
+  // Til ham saqlanadi: internetsiz tiklanganda savollar keshdan keladi, va
+  // usiz interfeys o'zbekchaga tushib qolardi (savollar esa ruscha).
+  // Eski yozuvlarda yo'q — shuning uchun ixtiyoriy.
+  examLanguage?: Lang;
 }
 
 interface StoredAnswers {
