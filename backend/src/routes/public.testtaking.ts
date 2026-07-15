@@ -19,8 +19,10 @@ import {
   attemptAnswersSchema,
   attemptStartSchema,
   leadCreateSchema,
+  resolveText,
   TestQuestion,
 } from "../lib/schemas.js";
+import type { TestLanguage } from "@prisma/client";
 import { gradeTest } from "../services/test-grading.js";
 import { generateUniquePublicCode } from "../services/code.js";
 import { calculateResult } from "../services/calculation.js";
@@ -32,6 +34,20 @@ import { readDefaultUnlockedSections } from "./admin.settings.js";
 // answers can only be updated/submitted by the browser that started them.
 
 export const publicTestTakingRouter = Router();
+
+/**
+ * Fanlar QAT'IY tartibi: matematika -> ingliz tili -> tanqidiy fikrlash.
+ *
+ * Tartibni o'quvchi tanlamaydi. Ro'yxat shu bo'yicha saralanadi va test-app
+ * faqat navbatdagisini ochiq qiladi (avvalgisi topshirilmaguncha qolganlari
+ * qulflangan).
+ *
+ * Bu — KO'RSATISH tartibi, qo'riqchi emas: /attempts ga to'g'ridan-to'g'ri
+ * so'rov yuborib istalgan testni boshlash mumkin. Funnel lead yig'ish uchun,
+ * nazorat ostidagi imtihon emas — tartibni serverda majburlash bu yerda
+ * himoya qilinadigan narsani himoya qilmaydi.
+ */
+const SUBJECT_SEQUENCE: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
 
 // Same-origin CSRF isn't needed here — every mutation carries the token
 // generated at start(), which is unguessable and single-use per attempt.
@@ -72,7 +88,7 @@ publicTestTakingRouter.get(
           { languages: { isEmpty: true } },
         ],
       },
-      orderBy: [{ subject: "asc" }, { name: "asc" }],
+      orderBy: [{ name: "asc" }],
       select: {
         id: true,
         name: true,
@@ -83,55 +99,88 @@ publicTestTakingRouter.get(
         questions: true,
       },
     });
-    const items = tests.map((t) => ({
-      id: t.id,
-      name: t.name,
-      subject: t.subject,
-      grade: t.grade,
-      languages: t.languages,
-      durationSec: t.durationSec,
-      questionCount: Array.isArray(t.questions) ? (t.questions as unknown[]).length : 0,
-    }));
-    ok(res, { items, lead: { firstName: lead.firstName, lastName: lead.lastName, grade: lead.grade } });
+
+    // Qaysi testlar allaqachon topshirilgan. Bu SUBJECT_SEQUENCE bilan birga
+    // "keyingi test" ni aniqlaydi — o'quvchi tartibni tanlamaydi.
+    const submitted = await prisma.testAttempt.findMany({
+      where: { leadId: lead.id, submittedAt: { not: null } },
+      select: { testId: true },
+    });
+    const done = new Set(submitted.map((a) => a.testId));
+
+    const items = tests
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        subject: t.subject,
+        grade: t.grade,
+        languages: t.languages,
+        durationSec: t.durationSec,
+        questionCount: Array.isArray(t.questions) ? (t.questions as unknown[]).length : 0,
+        completed: done.has(t.id),
+      }))
+      // Alifbo tartibi EMAS: u CRITICAL_THINKING'ni birinchi qo'yardi.
+      // Tartib qat'iy — matematika, ingliz tili, tanqidiy fikrlash.
+      .sort((a, b) => SUBJECT_SEQUENCE.indexOf(a.subject) - SUBJECT_SEQUENCE.indexOf(b.subject));
+
+    // `examLanguage` KERAK: test-app butun interfeysini shu tilda ko'rsatadi.
+    // Usiz RU lead savollarni ruscha, tugmalarni o'zbekcha ko'rardi.
+    ok(res, {
+      items,
+      lead: {
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        grade: lead.grade,
+        examLanguage: lead.examLanguage,
+      },
+    });
   }),
 );
 
 // Strip the correct-answer fields from a test question before sending it
 // to the browser. Otherwise a savvy student could inspect the response
 // body and read off the answers.
-function stripAnswers(q: TestQuestion): unknown {
+//
+// This is also the ONE place where language is resolved: the student's own
+// language (lead.examLanguage) picks one string out of each localized field,
+// so test-app never learns that other translations exist and never has to
+// know the language at all. Keeping the resolution server-side also means
+// the other languages never reach the browser.
+function stripAnswers(q: TestQuestion, lang: TestLanguage): unknown {
+  const t = (v: Parameters<typeof resolveText>[0]) => resolveText(v, lang);
   const base = {
     id: q.id,
     order: q.order,
     type: q.type,
     marks: q.marks,
-    prompt: q.prompt,
+    prompt: t(q.prompt),
     imageUrl: q.imageUrl ?? null,
   } as Record<string, unknown>;
   if (q.choices) {
-    base.choices = q.choices.map((c) => ({ id: c.id, label: c.label, imageUrl: c.imageUrl ?? null }));
+    base.choices = q.choices.map((c) => ({ id: c.id, label: t(c.label), imageUrl: c.imageUrl ?? null }));
   }
   if (q.trueFalseItems) {
-    base.trueFalseItems = q.trueFalseItems.map((it) => ({ id: it.id, text: it.text }));
+    base.trueFalseItems = q.trueFalseItems.map((it) => ({ id: it.id, text: t(it.text) }));
   }
   if (q.gapAnswers) {
+    // Bo'shliqlar soni tilga bog'liq emas (schemas.ts izohiga qarang).
     base.gapCount = q.gapAnswers.length;
   }
   if (q.matchingPairs) {
     // Send left column in order; shuffle right column so student maps left→right.
-    const rights = q.matchingPairs.map((p) => ({ id: p.rightId, text: p.rightText }));
+    const rights = q.matchingPairs.map((p) => ({ id: p.rightId, text: t(p.rightText) }));
     // Deterministic shuffle by hashing question id — same each render, but no
     // trivial correlation with left order.
     const seed = q.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
     const shuffled = [...rights].sort(
       (a, b) => (a.id.charCodeAt(0) + seed) % 13 - (b.id.charCodeAt(0) + seed) % 13,
     );
-    base.matchingLefts = q.matchingPairs.map((p) => ({ id: p.leftId, text: p.leftText }));
+    base.matchingLefts = q.matchingPairs.map((p) => ({ id: p.leftId, text: t(p.leftText) }));
     base.matchingRights = shuffled;
   }
   if (q.reorderItems) {
     // Send items in their stored order (arbitrary); student reorders them.
-    base.reorderItems = q.reorderItems.map((i) => ({ id: i.id, text: i.text }));
+    base.reorderItems = q.reorderItems.map((i) => ({ id: i.id, text: t(i.text) }));
   }
   return base;
 }
@@ -186,7 +235,7 @@ publicTestTakingRouter.post(
     });
 
     const questions = Array.isArray(test.questions)
-      ? (test.questions as unknown as TestQuestion[]).map(stripAnswers)
+      ? (test.questions as unknown as TestQuestion[]).map((q) => stripAnswers(q, lead.examLanguage))
       : [];
 
     ok(res, {
@@ -210,23 +259,36 @@ publicTestTakingRouter.get(
   asyncHandler(async (req, res) => {
     const attempt = await prisma.testAttempt.findUnique({
       where: { clientToken: String(req.params.token) },
-      include: { test: true },
+      // `lead` KERAK: refresh/resume'da savollarni qaysi tilda berishni
+      // faqat shundan bilamiz. Usiz o'quvchi testni boshlaganda RU ko'rib,
+      // sahifani yangilagach UZ ko'rib qolardi.
+      include: { test: true, lead: true },
     });
     if (!attempt) throw notFound("Urinish topilmadi");
     if (attempt.submittedAt) {
+      // `leadId` + `test` KERAK: yakuniy sahifa shular orqali navbatdagi
+      // testni topadi. Token'ga ega brauzer allaqachon shu leadning testini
+      // topshirgan, ya'ni yangi ma'lumot ochilmayapti.
       ok(res, {
         token: attempt.clientToken,
         submittedAt: attempt.submittedAt,
         finished: true,
+        leadId: attempt.leadId,
+        examLanguage: attempt.lead.examLanguage,
+        test: { id: attempt.test.id, name: attempt.test.name, subject: attempt.test.subject },
       });
       return;
     }
     const questions = Array.isArray(attempt.test.questions)
-      ? (attempt.test.questions as unknown as TestQuestion[]).map(stripAnswers)
+      ? (attempt.test.questions as unknown as TestQuestion[]).map((q) =>
+          stripAnswers(q, attempt.lead.examLanguage),
+        )
       : [];
     ok(res, {
       token: attempt.clientToken,
       attemptId: attempt.id,
+      // Savollar shu tilda kelgan (stripAnswers) — interfeys ham shunda.
+      examLanguage: attempt.lead.examLanguage,
       test: {
         id: attempt.test.id,
         name: attempt.test.name,
@@ -317,7 +379,9 @@ publicTestTakingRouter.post(
     const testQuestions = attempt.test.questions as unknown as TestQuestion[];
     const templateQuestions = (attempt.test.template.questions as unknown as Record<string, unknown>[]) ?? [];
 
-    const { graded, scoreRaw, scoreMax } = gradeTest(testQuestions, answers);
+    // Til: o'quvchi testni qaysi tilda ko'rgan bo'lsa, FILL_GAP javoblari
+    // ham o'sha tilda kutiladi.
+    const { graded, scoreRaw, scoreMax } = gradeTest(testQuestions, answers, attempt.lead.examLanguage);
 
     // Build the strict SubjectResult question array by merging (index-aligned)
     // template pedagogy with runtime grading.
@@ -336,49 +400,63 @@ publicTestTakingRouter.post(
     const totalMarks = testQuestions.reduce((s, q) => s + q.marks, 0);
     const totalQuestions = testQuestions.length;
 
-    // Only the subject that this test covers gets a real SubjectResult. Other
-    // subjects are represented as empty stubs (0 marks / 0 questions) so the
-    // 3-subject invariant used by the compute engine still holds.
-    const allSubjects: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
-    const subjectRows = allSubjects.map((key) => {
-      const isThis = key === attempt.test.subject;
-      const questions: Question[] = isThis ? strictQuestions : [];
-      return {
-        subject: key,
-        totalQuestions: isThis ? totalQuestions : 0,
-        totalMarks: isThis ? totalMarks : 0,
-        questions,
-      };
+    // BITTA natija — bitta (o'quvchi, imtihon) uchun. Har fan alohida test
+    // sifatida topshiriladi va o'z SubjectResult'ini SHU natijaga qo'shadi.
+    //
+    // Ilgari har submit YANGI natija yaratardi va unda faqat bitta fan
+    // bo'lardi. Oqibati: (1) publish darvozasi `subjects.length !== 3` ni rad
+    // etadi — natija hech qachon nashr etilmasdi; (2) o'quvchi hisobotni
+    // ochsa, client `pickSubject` da "Subject ENGLISH missing" deb qulardi,
+    // chunki hisobot uchala fanni talab qiladi.
+    //
+    // Faqat DRAFT natija qayta ishlatiladi: nashr etilganini o'zgartirish
+    // ota-onaga ko'rsatilgan hisobotni ostidan almashtirish bo'lardi.
+    let result = await prisma.result.findFirst({
+      where: { studentId: student.id, examId: exam.id, status: "DRAFT" },
+      orderBy: { createdAt: "desc" },
     });
 
-    const publicCode = await generateUniquePublicCode();
-    const throwawayPlain = generatePassword();
-    const passwordHash = await bcrypt.hash(throwawayPlain, config.bcryptCost);
-    const defaultUnlocked = await readDefaultUnlockedSections();
-
-    const result = await prisma.result.create({
-      data: {
-        studentId: student.id,
-        examId: exam.id,
-        publicCode,
-        accessPasswordHash: passwordHash,
-        accessPassword: throwawayPlain,
-        unlockedSections: defaultUnlocked,
-        // Draft — admin publishes manually from the Results tab.
-        status: "DRAFT",
-        manualContent: {},
-        subjects: {
-          create: subjectRows
-            .filter((s) => s.totalQuestions > 0) // only insert subjects with actual content
-            .map((s) => ({
-              subject: s.subject,
-              totalQuestions: s.totalQuestions,
-              totalMarks: s.totalMarks,
-              questions: s.questions as unknown as Prisma.InputJsonValue,
-            })),
+    if (!result) {
+      const publicCode = await generateUniquePublicCode();
+      const throwawayPlain = generatePassword();
+      const passwordHash = await bcrypt.hash(throwawayPlain, config.bcryptCost);
+      const defaultUnlocked = await readDefaultUnlockedSections();
+      result = await prisma.result.create({
+        data: {
+          studentId: student.id,
+          examId: exam.id,
+          publicCode,
+          accessPasswordHash: passwordHash,
+          accessPassword: throwawayPlain,
+          unlockedSections: defaultUnlocked,
+          // Draft — admin publishes manually from the Results tab.
+          status: "DRAFT",
+          manualContent: {},
         },
+      });
+    }
+
+    // Shu fanni qo'shamiz yoki yangilaymiz (@@unique([resultId, subject])).
+    await prisma.subjectResult.upsert({
+      where: { resultId_subject: { resultId: result.id, subject: attempt.test.subject } },
+      create: {
+        resultId: result.id,
+        subject: attempt.test.subject,
+        totalQuestions,
+        totalMarks,
+        questions: strictQuestions as unknown as Prisma.InputJsonValue,
       },
-      include: { subjects: true, student: true, exam: true },
+      update: {
+        totalQuestions,
+        totalMarks,
+        questions: strictQuestions as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    // Snapshot uchun natijaning HOZIRGI holati kerak.
+    const subjectRows = await prisma.subjectResult.findMany({
+      where: { resultId: result.id },
+      orderBy: { subject: "asc" },
     });
 
     // Attempt is now settled — record the score and link the result.
@@ -398,10 +476,13 @@ publicTestTakingRouter.post(
       data: { status: "COMPLETED" },
     });
 
-    // Try to compute a snapshot right away so admin can preview even the
-    // draft. Failures here don't block submission — admin's publish flow
-    // recomputes anyway.
-    try {
+    // Snapshot faqat UCHALA fan yig'ilgandan keyin. computeComposite uchala
+    // SubjectKey bo'yicha aylanadi va yo'g'ini `undefined` deb o'qib
+    // TypeError beradi — u esa quyidagi catch'da jimgina yutilib, natija
+    // `calculatedSnapshot: null` bo'lib qolardi. Ya'ni har bitta-fanli
+    // submitda bu blok bekorga qulardi.
+    const complete = subjectRows.length === 3;
+    if (complete) try {
       const snapshot = calculateResult({
         grade: exam.grade,
         thresholds: exam.admissionThresholds as unknown as AdmissionThresholds,
@@ -425,7 +506,7 @@ publicTestTakingRouter.post(
               totalMarks: s.totalMarks,
               brand: { navy: "#06113C", orange: "#FF8A32" },
             },
-            questions: s.questions,
+            questions: s.questions as unknown as Question[],
           })),
       });
       await prisma.result.update({
@@ -440,7 +521,10 @@ publicTestTakingRouter.post(
       resultId: result.id,
       scoreRaw,
       scoreMax,
-      completed: true,
+      // `completed` = butun natija yig'ildimi (uchala fan), bitta test
+      // topshirildimi degani EMAS.
+      completed: complete,
+      subjectsDone: subjectRows.length,
     });
   }),
 );

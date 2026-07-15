@@ -199,7 +199,8 @@ model Result {
   student  Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
   exam     Exam            @relation(fields: [examId], references: [id], onDelete: Restrict)
   subjects SubjectResult[]
-  attempt  TestAttempt?
+  // Uchala fan urinishi ham shu natijaga bog'lanadi (1:1 emas).
+  attempts TestAttempt[]
 
   @@index([examId, status])
   @@index([studentId])
@@ -323,7 +324,10 @@ model TestAttempt {
   answers       Json      @default("{}")
   scoreRaw      Int?
   scoreMax      Int?
-  resultId      String?   @unique
+  // @unique EMAS: bir lead uchala fanni alohida topshiradi va uchala urinish
+  // ham BITTA natijaga bog'lanadi (public.testtaking.ts submit uni yig'adi).
+  // Ilgari 1:1 edi va ikkinchi fan topshirilganda unique cheklov qulardi.
+  resultId      String?
 
   lead   Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
   test   Test    @relation(fields: [testId], references: [id], onDelete: Restrict)
@@ -331,6 +335,7 @@ model TestAttempt {
 
   @@index([leadId])
   @@index([testId, submittedAt])
+  @@index([resultId])
 }
 
 model AuditLog {
