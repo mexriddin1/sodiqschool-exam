@@ -69,23 +69,66 @@ export function makeEmptyQuestion(order: number, type: QType = "MULTIPLE_CHOICE"
   return applyTypeDefaults(base, type);
 }
 
-/** Shablon savolidan blanka — id, ball va bog'lanish shablondan olinadi. */
+/**
+ * Shablon savolidan test savoli.
+ *
+ * Ball va bog'lanish HAR DOIM shablondan: ball tahrirlanmaydi, aks holda
+ * testdagi ball bilan hisobotdagi ball bir-biriga mos kelmasdi.
+ *
+ * Shablonda savol MAZMUNI ham bo'lishi mumkin (matn, variantlar) — u ham
+ * ko'chiriladi. Eski shablonlarda bu qism yo'q, o'shanda bo'sh blanka
+ * qaytadi va admin matnni o'zi yozadi.
+ */
 export function makeQuestionFromTemplate(
-  tq: { id: string; marks?: number },
+  tq: TemplateSource,
   order: number,
-  type: QType = "MULTIPLE_CHOICE",
+  fallbackType: QType = "MULTIPLE_CHOICE",
 ): TestQuestion {
-  const base: TestQuestion = {
+  const marks = Math.max(1, Number(tq.marks) || 1);
+  const hasContent = !!tq.prompt || !!tq.choices || !!tq.trueFalseItems || !!tq.gapAnswers
+    || !!tq.matchingPairs || !!tq.reorderItems;
+
+  if (!hasContent) {
+    const base: TestQuestion = {
+      id: uid(), templateQuestionId: tq.id, order, type: fallbackType, marks, prompt: {},
+    };
+    return applyTypeDefaults(base, fallbackType);
+  }
+
+  // Mazmun bor — o'shani olamiz. `applyTypeDefaults` ATAYLAB chaqirilmaydi:
+  // u tur bo'yicha bo'sh sukut qiymatlarini qo'yib, kelgan mazmunni bosib
+  // ketishi mumkin.
+  return {
     id: uid(),
     templateQuestionId: tq.id,
     order,
-    type,
-    // Ball shablonning o'zidan — admin uni o'zgartira olmaydi, aks holda
-    // testdagi ball bilan hisobotdagi ball bir-biriga mos kelmasdi.
-    marks: Math.max(1, Number(tq.marks) || 1),
-    prompt: {},
+    type: (tq.type as QType) ?? fallbackType,
+    marks,
+    prompt: (tq.prompt as I18nText) ?? {},
+    imageUrl: tq.imageUrl ?? null,
+    ...(tq.choices ? { choices: tq.choices as Choice[] } : {}),
+    ...(tq.correctChoiceIds ? { correctChoiceIds: tq.correctChoiceIds } : {}),
+    ...(tq.trueFalseItems ? { trueFalseItems: tq.trueFalseItems as TFItem[] } : {}),
+    ...(tq.gapAnswers ? { gapAnswers: tq.gapAnswers as I18nText[] } : {}),
+    ...(tq.matchingPairs ? { matchingPairs: tq.matchingPairs as MatchPair[] } : {}),
+    ...(tq.reorderItems ? { reorderItems: tq.reorderItems as ReorderItem[] } : {}),
   };
-  return applyTypeDefaults(base, type);
+}
+
+/** Shablon savoli — pedagogika + ixtiyoriy mazmun. */
+export interface TemplateSource {
+  id: string;
+  marks?: number;
+  topic?: string;
+  type?: string;
+  prompt?: unknown;
+  imageUrl?: string | null;
+  choices?: unknown[];
+  correctChoiceIds?: string[];
+  trueFalseItems?: unknown[];
+  gapAnswers?: unknown[];
+  matchingPairs?: unknown[];
+  reorderItems?: unknown[];
 }
 
 export function applyTypeDefaults(q: TestQuestion, type: QType): TestQuestion {

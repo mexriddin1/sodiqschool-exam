@@ -67,6 +67,16 @@ const TEST_TEMPLATE_JSON = {
       reasoning: "Fazoviy",
       gradeLevel: "7-sinf",
       framework: "IB MYP",
+      // Savol matni — IXTIYORIY. Yozilsa, "Yangi test → Shablondan import"
+      // uni testga ko'chiradi va qayta yozish shart bo'lmaydi.
+      type: "MULTIPLE_CHOICE",
+      prompt: { UZ: "Katetlari 3 va 4 bo'lgan uchburchak gipotenuzasi?", RU: "Гипотенуза треугольника с катетами 3 и 4?" },
+      choices: [
+        { id: "M2-a", label: { same: true, UZ: "5" } },
+        { id: "M2-b", label: { same: true, UZ: "6" } },
+        { id: "M2-c", label: { same: true, UZ: "7" } },
+      ],
+      correctChoiceIds: ["M2-a"],
     },
   ],
 };
@@ -226,6 +236,9 @@ const SECTIONS: Section[] = [
       "techErrorIds — texnik xato havolalari. Har bir element: { id: \"M8\", note: \"ixtiyoriy izoh\" }. Eski format [\"M8\", \"M12\"] ham ishlaydi.",
       "techErrorIds logikasi (bir tomonlama): o'quvchi M1 ni xato yechsa, M8 yoki M12 ni to'g'ri yechganmi tekshiriladi. Agar ha — M1 texnik xato. M1 to'g'ri, M8 xato bo'lsa — M8 alohida tekshiriladi, bu logika teskari ishlamaydi.",
       "note mavjud bo'lsa va havolalangan savol to'g'ri yechilgan bo'lsa — o'quvchi natijasida 'Izoh' ustunida ko'rinadi.",
+      "SAVOL MATNI (ixtiyoriy): type / prompt / choices / correctChoiceIds va boshqa mazmun maydonlarini shu yerga ham yozish mumkin — M2 namunasiga qarang. Shundan keyin \"Yangi test → Shablondan import\" savollarni matni bilan ko'chiradi va qayta yozish shart bo'lmaydi.",
+      "Matn yozilmasa hech narsa buzilmaydi — eski shablonlar avvalgidek ishlaydi, import esa bo'sh slot beradi (ball va mavzu baribir to'g'ri keladi).",
+      "Mazmun maydonlari testdagi bilan AYNAN bir xil shaklda: har olti tur uchun namuna docs/json-namunalar.md da yoki quyidagi \"Test yaratish\" bo'limida.",
     ],
   },
   {

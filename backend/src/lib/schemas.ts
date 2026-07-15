@@ -7,23 +7,8 @@ const techErrorIdsSchema = z.array(
   ]),
 ).optional();
 
-// Template question: structure-only (no result/earned/evidence).
-// All fields except id/marks are optional so any external JSON (different
-// bloom taxonomy labels, extra reasoning types, missing fields) is accepted.
-export const templateQuestionSchema = z.object({
-  id: z.coerce.string().min(1),
-  marks: z.coerce.number().int().nonnegative(),
-  difficulty: z.string().optional(),
-  strand: z.string().optional(),
-  topic: z.string().optional(),
-  subTopic: z.string().optional(),
-  skill: z.string().optional(),
-  bloom: z.string().optional(),
-  reasoning: z.string().nullable().optional(),
-  gradeLevel: z.string().optional(),
-  framework: z.string().optional(),
-  techErrorIds: techErrorIdsSchema,
-});
+// templateQuestionSchema pastda — u savol MAZMUNI tiplariga (localizedText,
+// choiceSchema, ...) tayanadi va ular quyiroqda ta'riflangan.
 
 // Result question: strict version for result creation/validation.
 export const questionSchema = z.object({
@@ -389,6 +374,51 @@ export const testQuestionSchema = z.object({
 });
 
 export type TestQuestion = z.infer<typeof testQuestionSchema>;
+
+/**
+ * Savol MAZMUNI — bola o'qiydigan qism. Hammasi ixtiyoriy.
+ *
+ * Shablon uzoq vaqt faqat pedagogika (mavzu/ball/qiyinlik) saqlagan: oflayn
+ * imtihonda matn qog'ozda edi. Onlayn test uchun matn kerak, va uni har safar
+ * qo'lda yozmaslik uchun shablonning o'ziga yozib qo'yish mumkin — keyin
+ * "Shablondan import" uni testga ko'chiradi.
+ *
+ * Ixtiyoriyligi SHART: eski shablonlarda bu qism yo'q va ular avvalgidek
+ * ishlashda davom etadi (import bo'sh slot beradi).
+ */
+const questionContentShape = {
+  type: questionTypeSchema.optional(),
+  prompt: localizedText.optional(),
+  imageUrl: z.string().optional().nullable(),
+  choices: z.array(choiceSchema).optional(),
+  correctChoiceIds: z.array(z.string()).optional(),
+  trueFalseItems: z.array(trueFalseItemSchema).optional(),
+  gapAnswers: z.array(localizedText).optional(),
+  matchingPairs: z.array(matchingPairSchema).optional(),
+  reorderItems: z.array(reorderItemSchema).optional(),
+};
+
+// Template question: pedagogy + (ixtiyoriy) savol mazmuni.
+// All pedagogy fields except id/marks are optional so any external JSON
+// (different bloom taxonomy labels, extra reasoning types, missing fields)
+// is accepted.
+export const templateQuestionSchema = z.object({
+  id: z.coerce.string().min(1),
+  marks: z.coerce.number().int().nonnegative(),
+  difficulty: z.string().optional(),
+  strand: z.string().optional(),
+  topic: z.string().optional(),
+  subTopic: z.string().optional(),
+  skill: z.string().optional(),
+  bloom: z.string().optional(),
+  reasoning: z.string().nullable().optional(),
+  gradeLevel: z.string().optional(),
+  framework: z.string().optional(),
+  techErrorIds: techErrorIdsSchema,
+  ...questionContentShape,
+});
+
+export type TemplateQuestion = z.infer<typeof templateQuestionSchema>;
 
 export const testCreateSchema = z.object({
   examId: z.string().uuid(),

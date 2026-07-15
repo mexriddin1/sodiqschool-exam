@@ -20,7 +20,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { withBack } from "@/lib/back-link";
 import { findMissingTranslations } from "@/components/I18nField";
-import { TestQuestion, makeEmptyQuestion, makeQuestionFromTemplate } from "@/components/QuestionBuilder";
+import { TestQuestion, TemplateSource, makeEmptyQuestion, makeQuestionFromTemplate } from "@/components/QuestionBuilder";
 import { QuestionList } from "@/components/QuestionList";
 import { TestJsonPanel } from "@/components/TestJsonPanel";
 
@@ -32,13 +32,9 @@ interface ExamOption {
   grades: number[];
 }
 
-interface TemplateQuestion {
-  id: string;
-  marks?: number;
-  topic?: string;
-  strand?: string;
-  subTopic?: string;
-}
+// Shablon savoli: pedagogika + (ixtiyoriy) savol mazmuni. Mazmun bo'lsa
+// import uni testga ko'chiradi; eski shablonlarda u yo'q.
+type TemplateQuestion = TemplateSource & { strand?: string; subTopic?: string };
 
 interface TestOption {
   id: string;
@@ -175,6 +171,12 @@ function NewTestForm() {
       .then((d) => setTplQuestions(Array.isArray(d.questions) ? d.questions : []))
       .catch(() => setTplQuestions([]));
   }, [selectedTpl?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Shablonda savol matni bormi — import nima berishini oldindan aytish uchun.
+  const tplHasContent = useMemo(
+    () => tplQuestions.some((q) => !!q.prompt || !!q.choices || !!q.trueFalseItems),
+    [tplQuestions],
+  );
 
   // Nusxalash uchun mos testlar. Faqat savol soni bir xil bo'lganlari —
   // aks holda slotlar mos tushmaydi va backend sonni baribir rad etadi.
@@ -415,9 +417,11 @@ function NewTestForm() {
             <div className="text-xs text-gray-600">
               Bu testda aynan <b>{selectedTpl.questionCount} ta savol</b> bo'lishi shart —
               savollar tuzilishi <b>{selectedTpl.name}</b> shablonidan olinadi.
-              {sourceTests.length > 0 && (
-                <> Savol matnini mavjud testdan nusxalash mumkin.</>
-              )}
+              {tplHasContent
+                ? <> Shablonda savol matni ham bor — import uni ko'chiradi.</>
+                : sourceTests.length > 0
+                  ? <> Shablonda savol matni yo'q; uni mavjud testdan nusxalash mumkin.</>
+                  : <> Shablonda savol matni yo'q — import bo'sh slot beradi, matnni o'zingiz yozasiz.</>}
             </div>
             {/* Ikki manba, bitta tugma. Shablonda savol MATNI yo'q (u faqat
                 mavzu/ball/qiyinlik), shuning uchun "shablondan" bo'sh slotlar
@@ -429,7 +433,9 @@ function NewTestForm() {
                 className="border rounded px-2 py-1.5 text-xs max-w-[16rem]"
                 aria-label="Import manbasi"
               >
-                <option value="">Shablondan — bo'sh slotlar</option>
+                <option value="">
+                  {tplHasContent ? "Shablondan — savollari bilan" : "Shablondan — bo'sh slotlar"}
+                </option>
                 {sourceTests.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.questionCount} savol)
