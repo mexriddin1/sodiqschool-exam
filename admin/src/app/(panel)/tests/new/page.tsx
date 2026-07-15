@@ -40,6 +40,17 @@ interface TemplateQuestion {
   subTopic?: string;
 }
 
+interface TestOption {
+  id: string;
+  name: string;
+  examId: string;
+  templateId: string;
+  questionCount: number;
+  languages: ("UZ" | "RU" | "EN")[];
+  durationSec: number | null;
+  updatedAt: string;
+}
+
 interface TemplateOption {
   id: string;
   name: string;
@@ -87,6 +98,9 @@ function NewTestForm() {
   // sonini beradi, shuning uchun alohida olinadi.
   const [tplQuestions, setTplQuestions] = useState<TemplateQuestion[]>([]);
   const [importing, setImporting] = useState(false);
+  // Nusxalash uchun mos testlar (bir xil fan+sinf va bir xil savol soni).
+  const [sourceTests, setSourceTests] = useState<TestOption[]>([]);
+  const [importSource, setImportSource] = useState("");
 
   useEffect(() => {
     api<{ items: ExamOption[] }>(`/api/admin/exams?take=200`).then((d) => setExams(d.items ?? []));
@@ -162,12 +176,62 @@ function NewTestForm() {
       .catch(() => setTplQuestions([]));
   }, [selectedTpl?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Nusxalash uchun mos testlar. Faqat savol soni bir xil bo'lganlari —
+  // aks holda slotlar mos tushmaydi va backend sonni baribir rad etadi.
+  useEffect(() => {
+    if (!selectedTpl) { setSourceTests([]); return; }
+    api<{ items: TestOption[] }>(
+      `/api/admin/tests?subject=${selectedTpl.subject}&grade=${selectedTpl.grade}&take=500`,
+    )
+      .then((d) => setSourceTests((d.items ?? []).filter((t) => t.questionCount === selectedTpl.questionCount)))
+      .catch(() => setSourceTests([]));
+  }, [selectedTpl?.id, selectedTpl?.subject, selectedTpl?.grade, selectedTpl?.questionCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function confirmOverwrite(): boolean {
+    const written = questions.some(
+      (q) => (q.prompt?.UZ ?? q.prompt?.RU ?? q.prompt?.EN ?? "").trim() !== "",
+    );
+    return !written || confirm("Yozilgan savollar o'chib, qaytadan yaratiladi. Davom etilsinmi?");
+  }
+
+  /** Mavjud testdan savollarni nusxalaydi — matn, variantlar, rasm bilan. */
+  async function importFromTest(testId: string) {
+    if (!selectedTpl || !confirmOverwrite()) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const src = await api<{ questions?: TestQuestion[]; languages?: Lang[]; durationSec?: number | null }>(
+        `/api/admin/tests/${testId}`,
+      );
+      const srcQs = Array.isArray(src.questions) ? src.questions : [];
+      // Manba savollari shablonga bog'langan bo'lsa — id bo'yicha, aks holda
+      // tartib bo'yicha. Ball va bog'lanish HAR DOIM hozirgi shablondan:
+      // manba boshqa imtihonники bo'lishi mumkin.
+      const byTplId = new Map(srcQs.filter((q) => q.templateQuestionId).map((q) => [q.templateQuestionId!, q]));
+      setQuestions(
+        tplQuestions.map((tq, i) => {
+          const from = byTplId.get(tq.id) ?? srcQs[i];
+          if (!from) return makeQuestionFromTemplate(tq, i);
+          return {
+            ...from,
+            templateQuestionId: tq.id,
+            order: i,
+            marks: Math.max(1, Number(tq.marks) || 1),
+          };
+        }),
+      );
+      if (src.languages?.length) setLanguages(src.languages);
+      if (src.durationSec) setDurationMinRaw(String(Math.round(src.durationSec / 60)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import qilib bo'lmadi");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   /** Shablondagi har savol uchun bitta blanka — ball va bog'lanish shablondan. */
   function importFromTemplate() {
-    if (tplQuestions.length === 0) return;
-    if (questions.some((q) => (q.prompt?.UZ ?? q.prompt?.RU ?? q.prompt?.EN ?? "").trim() !== "")) {
-      if (!confirm("Yozilgan savollar o'chib, shablondan qaytadan yaratiladi. Davom etilsinmi?")) return;
-    }
+    if (tplQuestions.length === 0 || !confirmOverwrite()) return;
     setImporting(true);
     setQuestions(tplQuestions.map((tq, i) => makeQuestionFromTemplate(tq, i)));
     setError(null);
@@ -351,16 +415,37 @@ function NewTestForm() {
             <div className="text-xs text-gray-600">
               Bu testda aynan <b>{selectedTpl.questionCount} ta savol</b> bo'lishi shart —
               savollar tuzilishi <b>{selectedTpl.name}</b> shablonidan olinadi.
+              {sourceTests.length > 0 && (
+                <> Savol matnini mavjud testdan nusxalash mumkin.</>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={importFromTemplate}
-              disabled={importing || tplQuestions.length === 0}
-              className="rounded border border-navy text-navy px-3 py-1.5 text-xs font-medium hover:bg-navy hover:text-white disabled:opacity-50 flex-none"
-              title="Har savol shablonning aniq qatoriga bog'lanadi; ball shablondan olinadi"
-            >
-              ↧ Shablondan import
-            </button>
+            {/* Ikki manba, bitta tugma. Shablonda savol MATNI yo'q (u faqat
+                mavzu/ball/qiyinlik), shuning uchun "shablondan" bo'sh slotlar
+                beradi — matnni mavjud testdan nusxalash mumkin. */}
+            <div className="flex items-center gap-2 flex-none">
+              <select
+                value={importSource}
+                onChange={(e) => setImportSource(e.target.value)}
+                className="border rounded px-2 py-1.5 text-xs max-w-[16rem]"
+                aria-label="Import manbasi"
+              >
+                <option value="">Shablondan — bo'sh slotlar</option>
+                {sourceTests.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.questionCount} savol)
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => (importSource ? importFromTest(importSource) : importFromTemplate())}
+                disabled={importing || tplQuestions.length === 0}
+                className="rounded border border-navy text-navy px-3 py-1.5 text-xs font-medium hover:bg-navy hover:text-white disabled:opacity-50"
+                title="Ball va shablon bog'lanishi har doim shablondan olinadi"
+              >
+                {importing ? "…" : "↧ Import"}
+              </button>
+            </div>
           </div>
         )}
 
