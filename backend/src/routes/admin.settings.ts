@@ -15,6 +15,7 @@ settingsRouter.use(requireAdmin);
 
 export const DEFAULT_UNLOCKED_SECTIONS_KEY = "result.defaultUnlockedSections";
 export const CONTACT_PHONE_KEY = "contact.phone";
+export const FUNNEL_OPEN_KEY = "funnel.open";
 const ALLOWED_SECTION_KEYS = ["narrative", "roadmap", "risks_notes"] as const;
 
 /** Read the school contact phone, falling back to empty string. */
@@ -22,6 +23,20 @@ export async function readContactPhone(): Promise<string> {
   const row = await prisma.setting.findUnique({ where: { key: CONTACT_PHONE_KEY } });
   const raw = row?.value;
   return typeof raw === "string" ? raw : "";
+}
+
+/**
+ * Qabul testi ochiqmi (test.sodiqschool.uz).
+ *
+ * Standart — YOPIQ. Sayt ochiq internetda turadi va hech qanday kirish
+ * cheklovi yo'q: ochiq bo'lsa, havolani bilgan istalgan odam istalgan
+ * qurilmadan qabul testini topshira oladi. Shuning uchun sozlama yo'q
+ * bo'lsa (masalan yangi o'rnatishda) yopiq deb hisoblaymiz — admin uni
+ * imtihon kuni ataylab ochadi.
+ */
+export async function readFunnelOpen(): Promise<boolean> {
+  const row = await prisma.setting.findUnique({ where: { key: FUNNEL_OPEN_KEY } });
+  return row?.value === true;
 }
 
 /** Read the default-unlocked-sections list, falling back to [] (all closed). */
@@ -93,6 +108,38 @@ settingsRouter.put(
       { value: prev?.value ?? null }, { value: updated.value },
     );
     ok(res, { phone: raw });
+  }),
+);
+
+// ---- QABUL TESTI: OCHIQ / YOPIQ ----------------------------------------------
+// test.sodiqschool.uz ochiq internetda va kirish cheklovi yo'q. Ochiq bo'lsa,
+// havolani bilgan har kim istalgan qurilmadan qabul testini topshira oladi.
+// Shu tugma — yagona to'siq: imtihon kuni ochiladi, tugagach yopiladi.
+
+settingsRouter.get(
+  "/funnel-open",
+  asyncHandler(async (_req, res) => {
+    ok(res, { open: await readFunnelOpen() });
+  }),
+);
+
+settingsRouter.put(
+  "/funnel-open",
+  asyncHandler(async (req, res) => {
+    const open = req.body?.open === true;
+    const prev = await prisma.setting.findUnique({ where: { key: FUNNEL_OPEN_KEY } });
+    const updated = await prisma.setting.upsert({
+      where: { key: FUNNEL_OPEN_KEY },
+      create: { key: FUNNEL_OPEN_KEY, value: open as unknown as Prisma.InputJsonValue },
+      update: { value: open as unknown as Prisma.InputJsonValue },
+    });
+    // Audit MUHIM: "kim ochib qo'ygan / kim yopgan" degan savol imtihon
+    // kunida albatta chiqadi.
+    await audit(
+      req.admin!.id, "update", "Setting", FUNNEL_OPEN_KEY,
+      { value: prev?.value ?? null }, { value: updated.value },
+    );
+    ok(res, { open });
   }),
 );
 

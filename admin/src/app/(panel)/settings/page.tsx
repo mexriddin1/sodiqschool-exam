@@ -27,6 +27,12 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
+  // ---- qabul testi ochiq/yopiq ----
+  const [funnelOpen, setFunnelOpen] = useState(false);
+  const [funnelLoading, setFunnelLoading] = useState(true);
+  const [funnelSaving, setFunnelSaving] = useState(false);
+  const [funnelError, setFunnelError] = useState<string | null>(null);
+
   // ---- contact phone state ----
   const [phone, setPhone] = useState<string>("");
   const [phoneLoading, setPhoneLoading] = useState(true);
@@ -51,7 +57,27 @@ export default function SettingsPage() {
       .then((d) => setPhone(d.phone ?? ""))
       .catch(() => undefined)
       .finally(() => setPhoneLoading(false));
+    api<{ open: boolean }>(`/api/admin/settings/funnel-open`)
+      .then((d) => setFunnelOpen(d.open === true))
+      .catch(() => undefined)
+      .finally(() => setFunnelLoading(false));
   }, []);
+
+  async function onToggleFunnel(next: boolean) {
+    setFunnelSaving(true);
+    setFunnelError(null);
+    try {
+      const r = await api<{ open: boolean }>(`/api/admin/settings/funnel-open`, {
+        method: "PUT",
+        body: JSON.stringify({ open: next }),
+      });
+      setFunnelOpen(r.open === true);
+    } catch (e) {
+      setFunnelError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
+    } finally {
+      setFunnelSaving(false);
+    }
+  }
 
   async function onSavePhone() {
     setPhoneSaving(true);
@@ -131,6 +157,79 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4 max-w-3xl">
       <h1 className="text-2xl font-semibold text-navy">Sozlamalar</h1>
+
+      {/* ---- qabul testi ochiq/yopiq ----
+           Eng tepada: imtihon kuni eng ko'p ishlatiladigan boshqaruv shu.
+           Holat rang bilan ham ko'rinadi — "ochiq qolib ketdi" holatini
+           sahifaga kirgan zahoti sezish uchun. */}
+      <div
+        className="card p-4 space-y-3"
+        style={
+          funnelLoading
+            ? undefined
+            : funnelOpen
+              ? { borderColor: "#C9E7D8", background: "#F5FBF8" }
+              : { borderColor: "#E8EAEF" }
+        }
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="font-medium text-navy">Onlayn qabul testi</div>
+            <div className="text-xs text-gray-500 mt-0.5 max-w-[62ch]">
+              test.sodiqschool.uz saytini yoqadi yoki o'chiradi. Yopiq bo'lsa, hech kim yangi
+              test boshlay olmaydi — sayt ochilganda "hozircha yopiq" deb yozadi. Test yozib
+              o'tirganlar ishini yo'qotmaydi: boshlangan urinishlar yakunlanaveradi.
+            </div>
+          </div>
+          {!funnelLoading && (
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-none ${
+                funnelOpen ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {funnelOpen ? "OCHIQ" : "YOPIQ"}
+            </span>
+          )}
+        </div>
+
+        {funnelLoading ? (
+          <div className="text-sm text-gray-500 py-3">Yuklanmoqda…</div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onToggleFunnel(!funnelOpen)}
+              disabled={funnelSaving}
+              className={`rounded px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
+                funnelOpen ? "bg-[#D2503F] hover:opacity-90" : "bg-[#2F9E6B] hover:opacity-90"
+              }`}
+            >
+              {funnelSaving ? "Saqlanmoqda…" : funnelOpen ? "Testni yopish" : "Testni ochish"}
+            </button>
+            <a
+              href="https://test.sodiqschool.uz"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-navy underline"
+            >
+              Saytni ko'rish →
+            </a>
+          </div>
+        )}
+
+        {funnelOpen && !funnelLoading && (
+          <div className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded px-3 py-2">
+            Ochiq turganda havolani bilgan <b>istalgan odam istalgan qurilmadan</b> test topshira
+            oladi — qurilma bo'yicha cheklov yo'q. Imtihon tugagach yoping.
+          </div>
+        )}
+
+        {funnelError && (
+          <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {funnelError}
+          </div>
+        )}
+      </div>
 
       {/* ---- default unlocked sections ---- */}
       <div className="card p-4 space-y-3">

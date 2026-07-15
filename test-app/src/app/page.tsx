@@ -10,7 +10,7 @@
 // Sinf va til <select> emas, segment: variantlar soni kichik (7 va 3) va
 // barmoq bilan ishlanadi — ochiladigan ro'yxat bu yerda faqat ortiqcha tegish.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { DEFAULT_LANG, LANGS, tr, type Lang } from "@/lib/i18n";
@@ -30,9 +30,21 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Test ochiqmi. `null` — hali bilinmadi (forma ko'rsatilmaydi, aks holda
+  // bola to'ldirib bo'lgach "yopiq" xatosini ko'rardi).
+  const [open, setOpen] = useState<boolean | null>(null);
+
   // Til tanlanishi bilan interfeys darhol o'zgaradi — tanlanmaguncha o'zbekcha.
   const lang: Lang = examLanguage || DEFAULT_LANG;
   const t = (k: Parameters<typeof tr>[1]) => tr(lang, k);
+
+  useEffect(() => {
+    // Xato bo'lsa ochiq deb hisoblaymiz: haqiqiy to'siq baribir backendda
+    // (requireFunnelOpen), bu faqat ko'rsatish uchun.
+    api<{ funnelOpen: boolean }>("/api/public/config")
+      .then((d) => setOpen(d.funnelOpen !== false))
+      .catch(() => setOpen(true));
+  }, []);
 
   const phoneOk = isUzPhoneComplete(phone);
   const filled = [firstName, lastName, sex, phoneOk, grade, examLanguage].filter(Boolean).length;
@@ -69,6 +81,30 @@ export default function HomePage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Test yopiq — forma umuman ko'rsatilmaydi.
+  if (open === false) {
+    return (
+      <div className="min-h-screen grid place-items-center p-4 sm:p-6">
+        <div className="card p-8 max-w-md w-full text-center space-y-4 animate-rise">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-light.png" alt="Sodiq School" className="h-10 w-auto mx-auto" />
+          <div
+            className="w-16 h-16 mx-auto rounded-full grid place-items-center"
+            style={{ background: "var(--inset)", color: "var(--faint)" }}
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <h1 className="text-xl">{tr(DEFAULT_LANG, "closedTitle")}</h1>
+          <p className="text-sm text-muted">{tr(DEFAULT_LANG, "closedText")}</p>
+          <div className="text-xs text-faint pt-2 border-t border-line">{tr(DEFAULT_LANG, "slogan")}</div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -27,7 +27,7 @@ import { gradeTest } from "../services/test-grading.js";
 import { generateUniquePublicCode } from "../services/code.js";
 import { calculateResult } from "../services/calculation.js";
 import { ensureStudentCredentials } from "../services/student-credentials.js";
-import { readDefaultUnlockedSections } from "./admin.settings.js";
+import { readDefaultUnlockedSections, readFunnelOpen } from "./admin.settings.js";
 
 // Public API for the natijalar.sodiqschool.uz site — no admin auth. Anyone
 // can submit a lead form; test tokens act as the per-attempt secret so
@@ -49,11 +49,32 @@ export const publicTestTakingRouter = Router();
  */
 const SUBJECT_SEQUENCE: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
 
+/**
+ * Qabul testi yopiq bo'lsa — YANGI kirishni to'xtatadi.
+ *
+ * Faqat "kirish eshiklari"ga qo'yiladi: lead qoldirish, testlar ro'yxati va
+ * urinish boshlash. Javob saqlash (PATCH) va yakunlash (submit) ATAYLAB ochiq
+ * qoladi — aks holda admin tugmani bosgan zahoti test yozib o'tirgan bolaning
+ * ishi yo'qolardi.
+ */
+const requireFunnelOpen = asyncHandler(async (_req, res, next) => {
+  if (await readFunnelOpen()) return next();
+  res.status(403).json({
+    success: false,
+    error: {
+      code: "FUNNEL_CLOSED",
+      message: "Qabul testi hozircha yopiq.",
+      fields: {},
+    },
+  });
+});
+
 // Same-origin CSRF isn't needed here — every mutation carries the token
 // generated at start(), which is unguessable and single-use per attempt.
 
 publicTestTakingRouter.post(
   "/leads",
+  requireFunnelOpen,
   asyncHandler(async (req, res) => {
     const data = leadCreateSchema.parse(req.body);
     const lead = await prisma.lead.create({
@@ -74,6 +95,7 @@ publicTestTakingRouter.post(
 
 publicTestTakingRouter.get(
   "/leads/:leadId/tests",
+  requireFunnelOpen,
   asyncHandler(async (req, res) => {
     const lead = await prisma.lead.findUnique({ where: { id: String(req.params.leadId) } });
     if (!lead) throw notFound("Lead topilmadi");
@@ -187,6 +209,7 @@ function stripAnswers(q: TestQuestion, lang: TestLanguage): unknown {
 
 publicTestTakingRouter.post(
   "/attempts",
+  requireFunnelOpen,
   asyncHandler(async (req, res) => {
     const { leadId, testId } = attemptStartSchema.parse(req.body);
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });

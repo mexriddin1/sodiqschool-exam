@@ -37,6 +37,8 @@ const UZ = {
   sending: "Yuborilmoqda…",
   continue: "Davom etish →",
   genericError: "Xato yuz berdi",
+  closedTitle: "Qabul testi hozircha yopiq",
+  closedText: "Test faqat imtihon vaqtida ochiladi. Iltimos, qabulxonaga murojaat qiling.",
 
   // — testlar ro'yxati
   seqHint: "Testlar ketma-ket topshiriladi — navbatdagisi ochiq",
@@ -134,6 +136,8 @@ const RU: Dict = {
   sending: "Отправка…",
   continue: "Продолжить →",
   genericError: "Произошла ошибка",
+  closedTitle: "Вступительный тест сейчас закрыт",
+  closedText: "Тест открывается только во время экзамена. Пожалуйста, обратитесь в приёмную.",
 
   seqHint: "Тесты сдаются по порядку — открыт следующий",
   allDoneShort: "Все тесты сданы",
@@ -224,6 +228,8 @@ const EN: Dict = {
   sending: "Sending…",
   continue: "Continue →",
   genericError: "Something went wrong",
+  closedTitle: "The admission test is currently closed",
+  closedText: "The test only opens during the exam. Please contact the reception desk.",
 
   seqHint: "Tests are taken in order — the next one is open",
   allDoneShort: "All tests submitted",
