@@ -34,6 +34,26 @@ export interface SubjectData {
   };
 }
 
+const ALL_SUBJECTS: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
+
+/**
+ * Hisobot chizilishi uchun uchala fan ham bo'lishi SHART — composite ball,
+ * reyting va xulosa uchalasidan hisoblanadi.
+ *
+ * Chala natija haqiqatda uchraydi: funnel'da har fan alohida topshiriladi,
+ * ya'ni faqat matematikani ishlagan bola natijasida bitta fan bo'ladi.
+ * Usiz `pickSubject` "Subject ENGLISH missing" deb otardi va o'quvchi
+ * 500-xato sahifasini ko'rardi.
+ */
+export function isReportReady(me: PublicResultPayload): boolean {
+  return ALL_SUBJECTS.every((k) => me.subjects.some((s) => s.subject === k));
+}
+
+/** Yetishmayotgan fanlar — "tayyor emas" sahifasi shuni ko'rsatadi. */
+export function missingSubjects(me: PublicResultPayload): string[] {
+  return ALL_SUBJECTS.filter((k) => !me.subjects.some((s) => s.subject === k)).map((k) => SUBJECT_NAMES[k]);
+}
+
 export function pickSubject(me: PublicResultPayload, key: SubjectKey): SubjectData {
   const subj = me.subjects.find((s) => s.subject === key);
   if (!subj) throw new Error(`Subject ${key} missing on this result`);

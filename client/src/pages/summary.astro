@@ -8,12 +8,15 @@ import AdmissionCelebration from '../components/AdmissionCelebration.astro';
 import LockedSection from '../components/LockedSection.astro';
 import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
-import { pickSubject, resolveOverrides, resolveVerdict } from '../lib/client-data';
+import { isReportReady, pickSubject, resolveOverrides, resolveVerdict } from '../lib/client-data';
 import { computeReport, BAND_COLORS, scoreBand } from '@sodiq/compute/compute';
 import { extractWeights, DEFAULT_SUBJECT_WEIGHTS, verdictFor } from '@sodiq/compute/composite';
 
 const me = await fetchMyResult(Astro);
 if (!me) return Astro.redirect('/login');
+// Chala natija (masalan faqat matematika topshirilgan) — hisobot
+// uchala fansiz chizilmaydi, shuning uchun 500 o'rniga tushuntirish.
+if (!isReportReady(me)) return Astro.redirect('/not-ready');
 const mathData = pickSubject(me, 'MATH');
 const englishData = pickSubject(me, 'ENGLISH');
 const ctData = pickSubject(me, 'CRITICAL_THINKING');
@@ -69,8 +72,19 @@ const adjustedBand = scoreBand(compAdjusted);
 const avgTechPct = avg(subjects.map((s) => s.techPct));
 const topSubj = [...subjects].sort((a, b) => b.percent - a.percent)[0];
 const lowSubj = [...subjects].sort((a, b) => a.percent - b.percent)[0];
-// Verdict — based on composite score (same as admin snapshot).
-const verdict = resolveVerdict(verdictFor(composite), overrides.summary.verdictOverride);
+// Verdict — read from the frozen snapshot, which is the single source of
+// truth: it is the only place the subject-gate demotion exists, because
+// /api/result/me deliberately never ships admissionThresholds to the client.
+// Recomputing it here (as this page did until 2026-07-15) silently disagreed
+// with what admin published. Fall back to the band only if a published result
+// somehow has no snapshot; that path cannot apply the gate.
+const snapshotVerdict = (me.calculatedSnapshot as any)?.composite?.verdict as
+  | { label: string; sub: string; color: string }
+  | undefined;
+const verdict = resolveVerdict(
+  snapshotVerdict ?? verdictFor(compPotential),
+  overrides.summary.verdictOverride,
+);
 
 // Summary-level overrides (overallRank/overallPct/crossStrength/gradeLabel).
 const sumOv = overrides.summary;

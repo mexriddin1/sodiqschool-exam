@@ -7,7 +7,7 @@ import SnapshotStory from '../components/SnapshotStory.astro';
 import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
 import {
-  pickSubject, resolveOverrides, applyBloomFallback, resolveVerdict,
+  isReportReady, pickSubject, resolveOverrides, applyBloomFallback, resolveVerdict,
   BLOOM_FALLBACK_MATH, SKILL_RADAR_FALLBACK_MATH, REASONING_FALLBACK_MATH,
 } from '../lib/client-data';
 import { computeReport, BAND_COLORS, pctColor, scoreBand } from '@sodiq/compute/compute';
@@ -15,6 +15,9 @@ import { verdictFor } from '@sodiq/compute/composite';
 
 const me = await fetchMyResult(Astro);
 if (!me) return Astro.redirect('/login');
+// Chala natija (masalan faqat matematika topshirilgan) — hisobot
+// uchala fansiz chizilmaydi, shuning uchun 500 o'rniga tushuntirish.
+if (!isReportReady(me)) return Astro.redirect('/not-ready');
 const student = pickSubject(me, 'MATH');
 const overrides = resolveOverrides(me);
 const ov = overrides.math;

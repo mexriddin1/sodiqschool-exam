@@ -1,0 +1,73 @@
+---
+export const prerender = false;
+// Natija hali to'liq emas — uchala fan topshirilmagan.
+//
+// Bu 500-xatoning o'rniga: hisobot composite ball, reyting va xulosani
+// uchala fandan hisoblaydi, ya'ni chala natijada uni chizib bo'lmaydi.
+// Funnel'da har fan alohida topshiriladi, shuning uchun bu holat odatiy.
+import Layout from '../layouts/Layout.astro';
+import { fetchMyResult } from '../lib/session';
+import { isReportReady, missingSubjects } from '../lib/client-data';
+
+const me = await fetchMyResult(Astro);
+if (!me) return Astro.redirect('/login');
+// Tayyor bo'lib qolgan bo'lsa — hisobotga qaytaramiz.
+if (isReportReady(me)) return Astro.redirect('/summary');
+
+const missing = missingSubjects(me);
+const done = me.subjects.length;
+---
+
+<Layout title="Natija tayyorlanmoqda — Sodiq School">
+  <div class="wrap">
+    <div class="panel">
+      <div class="seal">◷</div>
+      <h1>Hisobot hali tayyor emas</h1>
+      <p class="lead">
+        Salom, {me.student.fullName}. Hisobot uchala fan topshirilgandan keyin
+        tayyorlanadi — hozircha <b>{done}/3</b> fan yakunlangan.
+      </p>
+      <div class="missing">
+        <div class="label">Topshirilmagan fanlar</div>
+        <ul>
+          {missing.map((m) => <li>{m}</li>)}
+        </ul>
+      </div>
+      <p class="note">
+        Qolgan testlarni topshirganingizdan so'ng, natijangizni ma'muriyat
+        tekshirib chop etadi. Savollar bo'lsa qabulxonaga murojaat qiling.
+      </p>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .wrap { display: grid; place-items: center; min-height: 70vh; padding: var(--s5); }
+  .panel {
+    max-width: 520px; width: 100%; text-align: center;
+    background: var(--surface); border-radius: var(--r-lg);
+    box-shadow: var(--shadow-md); padding: var(--s7) var(--s6);
+  }
+  .seal {
+    width: 64px; height: 64px; margin: 0 auto var(--s5);
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--warn-weak); color: var(--warn); font-size: 30px;
+  }
+  h1 { font-size: var(--fs-h1); margin-bottom: var(--s3); }
+  .lead { color: var(--text); font-size: var(--fs-sm); }
+  .missing {
+    margin: var(--s5) 0; padding: var(--s4);
+    background: var(--inset); border-radius: var(--r-md);
+  }
+  .label {
+    font-size: var(--fs-2xs); font-weight: 700; letter-spacing: var(--track-label);
+    text-transform: uppercase; color: var(--muted); margin-bottom: var(--s2);
+  }
+  .missing ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--s2); justify-content: center; }
+  .missing li {
+    padding: 4px 12px; border-radius: var(--r-pill);
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  }
+  .note { color: var(--muted); font-size: var(--fs-xs); }
+</style>
