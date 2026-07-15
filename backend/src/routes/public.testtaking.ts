@@ -1,6 +1,8 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import {
   AdmissionThresholds,
@@ -27,7 +29,7 @@ import { gradeTest } from "../services/test-grading.js";
 import { generateUniquePublicCode } from "../services/code.js";
 import { calculateResult } from "../services/calculation.js";
 import { ensureStudentCredentials } from "../services/student-credentials.js";
-import { readDefaultUnlockedSections, readFunnelOpen } from "./admin.settings.js";
+import { readDefaultUnlockedSections, readFunnelOpen, readFunnelPassword } from "./admin.settings.js";
 
 // Public API for the natijalar.sodiqschool.uz site — no admin auth. Anyone
 // can submit a lead form; test tokens act as the per-attempt secret so
@@ -50,31 +52,100 @@ export const publicTestTakingRouter = Router();
 const SUBJECT_SEQUENCE: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
 
 /**
- * Qabul testi yopiq bo'lsa — YANGI kirishni to'xtatadi.
+ * Kirish tokeni uchun alohida sirli kalit.
+ *
+ * `resultJwtSecret` dan HMAC bilan ajratiladi — yangi env o'zgaruvchisi
+ * qo'shilmasin (u serverda yo'q bo'lsa deploy jimgina buzilardi), lekin
+ * qabul testining tokeni o'quvchi hisobot tokeni bilan bir kalitda
+ * imzolanmasin.
+ */
+const GATE_SECRET = crypto
+  .createHmac("sha256", config.resultJwtSecret)
+  .update("funnel-gate-v1")
+  .digest("hex");
+
+// Qurilma bir marta kiradi va o'zi chiqmaguncha kirgan holicha qoladi.
+// Bekor qilish yagona yo'li — sozlamadan parolni almashtirish (u `pv` ni
+// yangilaydi va quyidagi tekshiruv eski tokenlarni rad etadi).
+const GATE_TTL = "365d";
+
+interface GatePayload { pv: string }
+
+export function signGateToken(pv: string): string {
+  return jwt.sign({ pv } satisfies GatePayload, GATE_SECRET, { expiresIn: GATE_TTL });
+}
+
+function gateTokenVersion(req: { headers: Record<string, unknown> }): string | null {
+  const raw = String(req.headers["authorization"] ?? "");
+  const token = raw.startsWith("Bearer ") ? raw.slice(7) : "";
+  if (!token) return null;
+  try {
+    return (jwt.verify(token, GATE_SECRET) as GatePayload).pv ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Qabul testiga kirishni tekshiradi: yopiq bo'lsa yoki parol kiritilmagan
+ * bo'lsa — YANGI kirishni to'xtatadi.
  *
  * Faqat "kirish eshiklari"ga qo'yiladi: lead qoldirish, testlar ro'yxati va
  * urinish boshlash. Javob saqlash (PATCH) va yakunlash (submit) ATAYLAB ochiq
- * qoladi — aks holda admin tugmani bosgan zahoti test yozib o'tirgan bolaning
- * ishi yo'qolardi.
+ * qoladi — aks holda admin tugmani bosgan (yoki parolni almashtirgan) zahoti
+ * test yozib o'tirgan bolaning ishi yo'qolardi.
  */
-const requireFunnelOpen = asyncHandler(async (_req, res, next) => {
-  if (await readFunnelOpen()) return next();
-  res.status(403).json({
+const requireFunnelAccess = asyncHandler(async (req, res, next) => {
+  if (!(await readFunnelOpen())) {
+    return void res.status(403).json({
+      success: false,
+      error: { code: "FUNNEL_CLOSED", message: "Qabul testi hozircha yopiq.", fields: {} },
+    });
+  }
+  const pw = await readFunnelPassword();
+  // Parol o'rnatilmagan — faqat ochiq/yopiq tugmasi ishlaydi.
+  if (!pw) return next();
+
+  if (gateTokenVersion(req) === pw.version) return next();
+  res.status(401).json({
     success: false,
-    error: {
-      code: "FUNNEL_CLOSED",
-      message: "Qabul testi hozircha yopiq.",
-      fields: {},
-    },
+    error: { code: "GATE_REQUIRED", message: "Kirish paroli talab qilinadi.", fields: {} },
   });
 });
+
+// Parolni topishga urinishni sekinlashtiradi. /api/test-taking da umuman
+// limiter yo'q edi; parol endi yagona to'siq bo'lgani uchun shu yerda kerak.
+const gateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: "TOO_MANY_ATTEMPTS", message: "Keyinroq urinib ko'ring.", fields: {} } },
+});
+
+publicTestTakingRouter.post(
+  "/gate",
+  gateLimiter,
+  asyncHandler(async (req, res) => {
+    const pw = await readFunnelPassword();
+    if (!pw) return void ok(res, { token: null, required: false });
+    const given = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!given || !(await bcrypt.compare(given, pw.hash))) {
+      return void res.status(401).json({
+        success: false,
+        error: { code: "BAD_PASSWORD", message: "Parol noto'g'ri.", fields: {} },
+      });
+    }
+    ok(res, { token: signGateToken(pw.version), required: true });
+  }),
+);
 
 // Same-origin CSRF isn't needed here — every mutation carries the token
 // generated at start(), which is unguessable and single-use per attempt.
 
 publicTestTakingRouter.post(
   "/leads",
-  requireFunnelOpen,
+  requireFunnelAccess,
   asyncHandler(async (req, res) => {
     const data = leadCreateSchema.parse(req.body);
     const lead = await prisma.lead.create({
@@ -95,7 +166,7 @@ publicTestTakingRouter.post(
 
 publicTestTakingRouter.get(
   "/leads/:leadId/tests",
-  requireFunnelOpen,
+  requireFunnelAccess,
   asyncHandler(async (req, res) => {
     const lead = await prisma.lead.findUnique({ where: { id: String(req.params.leadId) } });
     if (!lead) throw notFound("Lead topilmadi");
@@ -209,7 +280,7 @@ function stripAnswers(q: TestQuestion, lang: TestLanguage): unknown {
 
 publicTestTakingRouter.post(
   "/attempts",
-  requireFunnelOpen,
+  requireFunnelAccess,
   asyncHandler(async (req, res) => {
     const { leadId, testId } = attemptStartSchema.parse(req.body);
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });

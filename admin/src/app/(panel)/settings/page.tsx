@@ -33,6 +33,14 @@ export default function SettingsPage() {
   const [funnelSaving, setFunnelSaving] = useState(false);
   const [funnelError, setFunnelError] = useState<string | null>(null);
 
+  // ---- qabul testi paroli ----
+  const [pwSet, setPwSet] = useState(false);
+  const [pwUpdatedAt, setPwUpdatedAt] = useState<string | null>(null);
+  const [pwInput, setPwInput] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwSavedAt, setPwSavedAt] = useState<Date | null>(null);
+
   // ---- contact phone state ----
   const [phone, setPhone] = useState<string>("");
   const [phoneLoading, setPhoneLoading] = useState(true);
@@ -61,7 +69,45 @@ export default function SettingsPage() {
       .then((d) => setFunnelOpen(d.open === true))
       .catch(() => undefined)
       .finally(() => setFunnelLoading(false));
+    api<{ set: boolean; updatedAt: string | null }>(`/api/admin/settings/funnel-password`)
+      .then((d) => { setPwSet(d.set === true); setPwUpdatedAt(d.updatedAt); })
+      .catch(() => undefined);
   }, []);
+
+  async function onSavePassword() {
+    setPwSaving(true);
+    setPwError(null);
+    try {
+      const r = await api<{ set: boolean; updatedAt: string | null }>(`/api/admin/settings/funnel-password`, {
+        method: "PUT",
+        body: JSON.stringify({ password: pwInput }),
+      });
+      setPwSet(r.set);
+      setPwUpdatedAt(r.updatedAt);
+      setPwInput("");
+      setPwSavedAt(new Date());
+    } catch (e) {
+      setPwError(e instanceof ApiException ? e.error.message : "Saqlashda xato");
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  async function onRemovePassword() {
+    if (!confirm("Parol olib tashlansinmi? Shundan keyin test ochiq bo'lsa hech qanday parolsiz kirish mumkin bo'ladi.")) return;
+    setPwSaving(true);
+    setPwError(null);
+    try {
+      await api(`/api/admin/settings/funnel-password`, { method: "DELETE" });
+      setPwSet(false);
+      setPwUpdatedAt(null);
+      setPwSavedAt(new Date());
+    } catch (e) {
+      setPwError(e instanceof ApiException ? e.error.message : "Xato");
+    } finally {
+      setPwSaving(false);
+    }
+  }
 
   async function onToggleFunnel(next: boolean) {
     setFunnelSaving(true);
@@ -217,10 +263,10 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {funnelOpen && !funnelLoading && (
+        {funnelOpen && !funnelLoading && !pwSet && (
           <div className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded px-3 py-2">
-            Ochiq turganda havolani bilgan <b>istalgan odam istalgan qurilmadan</b> test topshira
-            oladi — qurilma bo'yicha cheklov yo'q. Imtihon tugagach yoping.
+            Parol o'rnatilmagan — ochiq turganda havolani bilgan <b>istalgan odam istalgan
+            qurilmadan</b> test topshira oladi. Pastdan parol qo'ying.
           </div>
         )}
 
@@ -229,6 +275,70 @@ export default function SettingsPage() {
             {funnelError}
           </div>
         )}
+
+        {/* ---- kirish paroli ---- */}
+        <div className="border-t pt-3 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-navy">Kirish paroli</div>
+              <div className="text-xs text-gray-500 mt-0.5 max-w-[62ch]">
+                Sayt ochilganda shu parol so'raladi. Maktab laptopiga bir marta kiritiladi va
+                qurilma <b>o'zi "Chiqish" bosmaguncha</b> esda qoladi. Parolni almashtirsangiz —
+                barcha qurilmalar chiqib ketadi va qaytadan kiritishga to'g'ri keladi.
+              </div>
+            </div>
+            <span
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-none ${
+                pwSet ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"
+              }`}
+            >
+              {pwSet ? "O'RNATILGAN" : "YO'Q"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={pwInput}
+              onChange={(e) => setPwInput(e.target.value)}
+              className="border rounded px-3 py-2 text-sm flex-1 max-w-xs"
+              placeholder={pwSet ? "Yangi parol" : "Parol (kamida 6 belgi)"}
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={onSavePassword}
+              disabled={pwSaving || pwInput.trim().length < 6}
+              className="rounded bg-navy text-white px-4 py-2 text-sm disabled:opacity-60"
+            >
+              {pwSaving ? "Saqlanmoqda…" : pwSet ? "Almashtirish" : "O'rnatish"}
+            </button>
+            {pwSet && (
+              <button
+                type="button"
+                onClick={onRemovePassword}
+                disabled={pwSaving}
+                className="text-xs text-gray-500 hover:text-red-600 underline disabled:opacity-60"
+              >
+                Olib tashlash
+              </button>
+            )}
+          </div>
+
+          {/* Parol ochiq matnda ko'rsatiladi (type=text): xodim uni 5 ta
+              laptopga ko'chirishi kerak, yulduzcha ostida bo'lsa xato yozadi.
+              Saqlangach maydon tozalanadi va parol qayta ko'rsatilmaydi. */}
+          <div className="text-xs text-gray-400">
+            {pwUpdatedAt && `Oxirgi o'zgargan: ${new Date(pwUpdatedAt).toLocaleString("uz-UZ")}`}
+            {pwSavedAt && !pwUpdatedAt && "Saqlandi"}
+          </div>
+
+          {pwError && (
+            <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+              {pwError}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ---- default unlocked sections ---- */}

@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { DEFAULT_LANG, LANGS, tr, type Lang } from "@/lib/i18n";
 import { formatUzNational, isUzPhoneComplete, toE164 } from "@/lib/phone";
+import { clearGateToken, getGateToken } from "@/lib/gate";
+import { GateScreen } from "@/components/GateScreen";
 
 const GRADES = [5, 6, 7, 8, 9, 10, 11];
 const LANG_KEY = { UZ: "langUZ", RU: "langRU", EN: "langEN" } as const;
@@ -33,6 +35,9 @@ export default function HomePage() {
   // Test ochiqmi. `null` — hali bilinmadi (forma ko'rsatilmaydi, aks holda
   // bola to'ldirib bo'lgach "yopiq" xatosini ko'rardi).
   const [open, setOpen] = useState<boolean | null>(null);
+  // Parol talab qilinadimi va bu qurilma kirganmi.
+  const [gateNeeded, setGateNeeded] = useState(false);
+  const [passed, setPassed] = useState(false);
 
   // Til tanlanishi bilan interfeys darhol o'zgaradi — tanlanmaguncha o'zbekcha.
   const lang: Lang = examLanguage || DEFAULT_LANG;
@@ -40,11 +45,24 @@ export default function HomePage() {
 
   useEffect(() => {
     // Xato bo'lsa ochiq deb hisoblaymiz: haqiqiy to'siq baribir backendda
-    // (requireFunnelOpen), bu faqat ko'rsatish uchun.
-    api<{ funnelOpen: boolean }>("/api/public/config")
-      .then((d) => setOpen(d.funnelOpen !== false))
+    // (requireFunnelAccess), bu faqat ko'rsatish uchun.
+    api<{ funnelOpen: boolean; funnelGate: boolean }>("/api/public/config")
+      .then((d) => {
+        setOpen(d.funnelOpen !== false);
+        setGateNeeded(d.funnelGate === true);
+        // Token bor bo'lsa — qurilma allaqachon kirgan. To'g'riligini
+        // tekshirmaymiz: eskirgan bo'lsa birinchi so'rovda 401 keladi va
+        // api.ts uni tozalaydi.
+        setPassed(getGateToken() !== null);
+      })
       .catch(() => setOpen(true));
   }, []);
+
+  function logout() {
+    if (!confirm(t("logoutConfirm"))) return;
+    clearGateToken();
+    setPassed(false);
+  }
 
   const phoneOk = isUzPhoneComplete(phone);
   const filled = [firstName, lastName, sex, phoneOk, grade, examLanguage].filter(Boolean).length;
@@ -81,6 +99,13 @@ export default function HomePage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Parol talab qilinadi va bu qurilma hali kirmagan.
+  // Yopiq/ochiq tekshiruvidan KEYIN emas, oldin ham emas — yopiq bo'lsa
+  // parol so'ramaymiz, chunki kiritsa ham foydasi yo'q.
+  if (open === true && gateNeeded && !passed) {
+    return <GateScreen onPass={() => setPassed(true)} />;
   }
 
   // Test yopiq — forma umuman ko'rsatilmaydi.
@@ -121,7 +146,20 @@ export default function HomePage() {
           <p className="text-[#C3CBE6] text-sm mt-3 max-w-[34ch]">
             {t("homeLead")}
           </p>
-          <div className="mt-auto pt-8 text-xs text-[#8893B8] hidden md:block">{t("slogan")}</div>
+          <div className="mt-auto pt-8 flex items-end justify-between gap-3">
+            <span className="text-xs text-[#8893B8] hidden md:block">{t("slogan")}</span>
+            {/* Chiqish FAQAT shu yerda: qurilmani kun oxirida xodim chiqaradi.
+                Test ichida ko'rsatilsa, bola adashib bosishi mumkin edi. */}
+            {gateNeeded && passed && (
+              <button
+                type="button"
+                onClick={logout}
+                className="text-xs text-[#8893B8] hover:text-white underline underline-offset-2"
+              >
+                {t("logout")}
+              </button>
+            )}
+          </div>
         </header>
 
         <form onSubmit={submit} className="card p-5 lg:p-6 space-y-4 animate-rise" style={{ animationDelay: "0.08s" }}>

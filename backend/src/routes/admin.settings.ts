@@ -3,10 +3,14 @@
 // table so admins can change it without a code deploy.
 
 import { Router } from "express";
+import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../db.js";
+import { config } from "../config.js";
 import { asyncHandler, ok } from "../lib/response.js";
+import { badRequest } from "../lib/errors.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { audit } from "../services/audit.js";
 
@@ -16,6 +20,7 @@ settingsRouter.use(requireAdmin);
 export const DEFAULT_UNLOCKED_SECTIONS_KEY = "result.defaultUnlockedSections";
 export const CONTACT_PHONE_KEY = "contact.phone";
 export const FUNNEL_OPEN_KEY = "funnel.open";
+export const FUNNEL_PASSWORD_KEY = "funnel.password";
 const ALLOWED_SECTION_KEYS = ["narrative", "roadmap", "risks_notes"] as const;
 
 /** Read the school contact phone, falling back to empty string. */
@@ -37,6 +42,30 @@ export async function readContactPhone(): Promise<string> {
 export async function readFunnelOpen(): Promise<boolean> {
   const row = await prisma.setting.findUnique({ where: { key: FUNNEL_OPEN_KEY } });
   return row?.value === true;
+}
+
+/**
+ * Qabul testi paroli — maktab laptoplari uchun umumiy kirish paroli.
+ *
+ * `version` — parol har o'zgarganda yangilanadi va kirish tokeni ichiga
+ * yoziladi. Ya'ni parolni almashtirish = barcha qurilmalarni chiqarib
+ * yuborish. Bu yagona bekor qilish (revoke) usuli, chunki tokenlar bazada
+ * saqlanmaydi.
+ *
+ * Parol o'rnatilmagan bo'lsa — `null`, va kirish paroli so'ralmaydi
+ * (faqat ochiq/yopiq tugmasi ishlaydi).
+ */
+export interface FunnelPassword {
+  hash: string;
+  version: string;
+  updatedAt: string;
+}
+
+export async function readFunnelPassword(): Promise<FunnelPassword | null> {
+  const row = await prisma.setting.findUnique({ where: { key: FUNNEL_PASSWORD_KEY } });
+  const v = row?.value as Partial<FunnelPassword> | undefined;
+  if (!v || typeof v.hash !== "string" || typeof v.version !== "string") return null;
+  return { hash: v.hash, version: v.version, updatedAt: String(v.updatedAt ?? "") };
 }
 
 /** Read the default-unlocked-sections list, falling back to [] (all closed). */
@@ -140,6 +169,60 @@ settingsRouter.put(
       { value: prev?.value ?? null }, { value: updated.value },
     );
     ok(res, { open });
+  }),
+);
+
+// ---- QABUL TESTI PAROLI -------------------------------------------------------
+// Maktab laptoplariga bir marta kiritiladi va qurilma chiqmaguncha esda qoladi.
+// Parolning o'zi HECH QACHON qaytarilmaydi — faqat o'rnatilgan/yo'qligi.
+
+settingsRouter.get(
+  "/funnel-password",
+  asyncHandler(async (_req, res) => {
+    const p = await readFunnelPassword();
+    ok(res, { set: p !== null, updatedAt: p?.updatedAt ?? null });
+  }),
+);
+
+const MIN_FUNNEL_PASSWORD = 6;
+
+settingsRouter.put(
+  "/funnel-password",
+  asyncHandler(async (req, res) => {
+    const raw = typeof req.body?.password === "string" ? req.body.password.trim() : "";
+    if (raw.length < MIN_FUNNEL_PASSWORD) {
+      throw badRequest(
+        "PASSWORD_TOO_SHORT",
+        `Parol kamida ${MIN_FUNNEL_PASSWORD} belgidan iborat bo'lsin.`,
+      );
+    }
+    const value: FunnelPassword = {
+      hash: await bcrypt.hash(raw, config.bcryptCost),
+      // Yangi versiya — eski qurilmalardagi tokenlar shu bilan bekor bo'ladi.
+      version: crypto.randomUUID(),
+      updatedAt: new Date().toISOString(),
+    };
+    const prev = await prisma.setting.findUnique({ where: { key: FUNNEL_PASSWORD_KEY } });
+    await prisma.setting.upsert({
+      where: { key: FUNNEL_PASSWORD_KEY },
+      create: { key: FUNNEL_PASSWORD_KEY, value: value as unknown as Prisma.InputJsonValue },
+      update: { value: value as unknown as Prisma.InputJsonValue },
+    });
+    // Audit'ga parol ham, hash ham YOZILMAYDI — faqat o'zgargani.
+    await audit(
+      req.admin!.id, "update", "Setting", FUNNEL_PASSWORD_KEY,
+      { set: prev !== null }, { set: true },
+    );
+    ok(res, { set: true, updatedAt: value.updatedAt });
+  }),
+);
+
+settingsRouter.delete(
+  "/funnel-password",
+  asyncHandler(async (req, res) => {
+    await prisma.setting.deleteMany({ where: { key: FUNNEL_PASSWORD_KEY } });
+    await audit(req.admin!.id, "update", "Setting", FUNNEL_PASSWORD_KEY, { set: true }, { set: false });
+    ok(res, { set: false, updatedAt: null });
   }),
 );
 

@@ -4,18 +4,24 @@
 
 import { Router } from "express";
 import { asyncHandler, ok } from "../lib/response.js";
-import { readContactPhone, readFunnelOpen } from "./admin.settings.js";
+import { readContactPhone, readFunnelOpen, readFunnelPassword } from "./admin.settings.js";
 
 export const publicConfigRouter = Router();
 
 publicConfigRouter.get(
   "/config",
   asyncHandler(async (_req, res) => {
-    const [contactPhone, funnelOpen] = await Promise.all([readContactPhone(), readFunnelOpen()]);
-    // `funnelOpen` — test-app shu bilan xato o'rniga tushunarli "yopiq"
-    // sahifasini ko'rsatadi. Qo'riqchi EMAS: haqiqiy to'siq
-    // public.testtaking.ts dagi requireFunnelOpen (bu qiymatni o'zgartirib
-    // testni ochib bo'lmaydi).
-    ok(res, { contactPhone, funnelOpen });
+    const [contactPhone, funnelOpen, pw] = await Promise.all([
+      readContactPhone(),
+      readFunnelOpen(),
+      readFunnelPassword(),
+    ]);
+    // `funnelOpen` / `funnelGate` — test-app shular bilan xato o'rniga
+    // tushunarli sahifani ("yopiq" yoki parol so'rash) ko'rsatadi. Qo'riqchi
+    // EMAS: haqiqiy to'siq public.testtaking.ts dagi requireFunnelAccess
+    // (bu qiymatlarni o'zgartirib testni ochib bo'lmaydi).
+    //
+    // Parolning o'zi ham, hash'i ham qaytarilmaydi — faqat kerak-kerakmasligi.
+    ok(res, { contactPhone, funnelOpen, funnelGate: pw !== null });
   }),
 );
