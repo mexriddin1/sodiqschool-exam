@@ -71,6 +71,41 @@ const TEST_TEMPLATE_JSON = {
   ],
 };
 
+// Butun testni bitta JSON bilan yaratish (Testlar → paket → Yangi test →
+// "JSON bilan yaratish"). Har olti savol turidan ikkitasi ko'rsatilgan;
+// qolgan turlar uchun to'liq namunalar docs/json-namunalar.md da.
+const TEST_CREATE_JSON = {
+  name: "5-sinf matematika (QABUL 2026)",
+  subject: "MATH",
+  grade: 5,
+  languages: ["UZ", "RU"],
+  durationMin: 30,
+  questions: [
+    {
+      id: "q1",
+      order: 0,
+      type: "MULTIPLE_CHOICE",
+      marks: 2,
+      prompt: { UZ: "$12 \\times 8$ nechchi?", RU: "Сколько будет $12 \\times 8$?" },
+      choices: [
+        { id: "q1-a", label: { same: true, UZ: "96" } },
+        { id: "q1-b", label: { same: true, UZ: "86" } },
+        { id: "q1-c", label: { same: true, UZ: "108" } },
+        { id: "q1-d", label: { same: true, UZ: "92" } },
+      ],
+      correctChoiceIds: ["q1-a"],
+    },
+    {
+      id: "q2",
+      order: 1,
+      type: "FILL_GAP",
+      marks: 1,
+      prompt: { UZ: "$5 + 7 =$ ___", RU: "$5 + 7 =$ ___" },
+      gapAnswers: [{ same: true, UZ: "12" }],
+    },
+  ],
+};
+
 const RESULT_QUESTION_OUTCOME_JSON = {
   questions: [
     {
@@ -191,6 +226,27 @@ const SECTIONS: Section[] = [
       "techErrorIds — texnik xato havolalari. Har bir element: { id: \"M8\", note: \"ixtiyoriy izoh\" }. Eski format [\"M8\", \"M12\"] ham ishlaydi.",
       "techErrorIds logikasi (bir tomonlama): o'quvchi M1 ni xato yechsa, M8 yoki M12 ni to'g'ri yechganmi tekshiriladi. Agar ha — M1 texnik xato. M1 to'g'ri, M8 xato bo'lsa — M8 alohida tekshiriladi, bu logika teskari ishlamaydi.",
       "note mavjud bo'lsa va havolalangan savol to'g'ri yechilgan bo'lsa — o'quvchi natijasida 'Izoh' ustunida ko'rinadi.",
+    ],
+  },
+  {
+    key: "test-create",
+    title: "Test yaratish (o'quvchi ishlaydigan savollar)",
+    intro:
+      "Testlar → paket → \"Yangi test\" sahifasidagi \"JSON bilan yaratish\" oynasi shu formatni qabul qiladi. Qo'llagach forma to'liq to'ladi (nom, fan, sinf, tillar, vaqt, savollar) — ko'rib chiqib \"Testni saqlash\" bosasiz. Bu O'QUVCHI KO'RADIGAN savollar; yuqoridagi \"Test shabloni\" esa shu savollarning pedagogik strukturasi.",
+    endpoint: "POST /api/admin/tests",
+    data: TEST_CREATE_JSON,
+    notes: [
+      "name — testning ko'rinadigan nomi (majburiy).",
+      "subject: \"MATH\" | \"ENGLISH\" | \"CRITICAL_THINKING\".",
+      "grade — 5 dan 11 gacha butun son.",
+      "languages — testda mazmuni bor tillar: [\"UZ\"], [\"UZ\",\"RU\"], [\"UZ\",\"RU\",\"EN\"]. Til tanlansa, o'sha tildagi matn ham to'ldirilishi SHART — aks holda saqlashda to'xtatiladi (o'quvchi bo'sh savol ko'rmasligi uchun).",
+      "durationMin — vaqt chegarasi daqiqada (ixtiyoriy). Yo'q yoki null bo'lsa — vaqt cheklanmaydi.",
+      "Imtihon URL'dan olinadi (?examId=…), shablon esa imtihon + subject + grade bo'yicha AVTOMATIK topiladi — JSON'da templateId yozilmaydi.",
+      "questions soni shablonnikiga teng bo'lishi shart — aks holda qo'llash to'xtaydi (backend ham QUESTION_COUNT_MISMATCH bilan rad etadi).",
+      "type: \"MULTIPLE_CHOICE\" | \"MULTIPLE_SELECT\" | \"TRUE_FALSE\" | \"FILL_GAP\" | \"MATCHING\" | \"REORDERING\". Har bir tur uchun to'liq namuna: docs/json-namunalar.md.",
+      "Matn maydonlari: {\"UZ\":\"…\",\"RU\":\"…\"} yoki barcha tilda bir xil bo'lsa {\"same\":true,\"UZ\":\"$x^2$\"}. Oddiy satr ham bo'ladi — u barcha tillarga tegishli deb o'qiladi.",
+      "id, order, type, marks, correctChoiceIds va boshqa kalit maydonlar hech qachon tarjima qilinmaydi — baholash aynan shularga tayanadi.",
+      "order avtomatik qayta raqamlanadi (0 dan) — massivdagi tartib hal qiladi.",
     ],
   },
   {
