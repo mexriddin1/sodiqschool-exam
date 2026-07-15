@@ -50,3 +50,6 @@ coverage/
 
 # Uploads (per-instance runtime data)
 uploads/
+
+# Claude Code lokal sozlamalari — ichida lokal yo'llar va sirlar bo'lishi mumkin
+.claude/settings.local.json
