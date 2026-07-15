@@ -20,7 +20,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { withBack } from "@/lib/back-link";
 import { findMissingTranslations } from "@/components/I18nField";
-import { TestQuestion, makeEmptyQuestion } from "@/components/QuestionBuilder";
+import { TestQuestion, makeEmptyQuestion, makeQuestionFromTemplate } from "@/components/QuestionBuilder";
 import { QuestionList } from "@/components/QuestionList";
 import { TestJsonPanel } from "@/components/TestJsonPanel";
 
@@ -30,6 +30,14 @@ interface ExamOption {
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   grade: number;
   grades: number[];
+}
+
+interface TemplateQuestion {
+  id: string;
+  marks?: number;
+  topic?: string;
+  strand?: string;
+  subTopic?: string;
 }
 
 interface TemplateOption {
@@ -75,6 +83,10 @@ function NewTestForm() {
   // Yorliqlar so'rovi tugadimi. Bo'sh `templates` ikki xil ma'no beradi —
   // "hali kelmadi" va "yo'q" — va JSON paneli ularni farqlashi SHART.
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  // Tanlangan shablonning savollari (mavzu/ball). Ro'yxat endpointi faqat
+  // sonini beradi, shuning uchun alohida olinadi.
+  const [tplQuestions, setTplQuestions] = useState<TemplateQuestion[]>([]);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     api<{ items: ExamOption[] }>(`/api/admin/exams?take=200`).then((d) => setExams(d.items ?? []));
@@ -140,6 +152,27 @@ function NewTestForm() {
     }
     setQuestions(next);
   }, [selectedTpl?.id, selectedTpl?.questionCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Yorliq aniqlangach uning savollarini olamiz — import va mavzu yorliqlari
+  // uchun kerak.
+  useEffect(() => {
+    if (!selectedTpl) { setTplQuestions([]); return; }
+    api<{ questions?: TemplateQuestion[] }>(`/api/admin/test-templates/${selectedTpl.id}`)
+      .then((d) => setTplQuestions(Array.isArray(d.questions) ? d.questions : []))
+      .catch(() => setTplQuestions([]));
+  }, [selectedTpl?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Shablondagi har savol uchun bitta blanka — ball va bog'lanish shablondan. */
+  function importFromTemplate() {
+    if (tplQuestions.length === 0) return;
+    if (questions.some((q) => (q.prompt?.UZ ?? q.prompt?.RU ?? q.prompt?.EN ?? "").trim() !== "")) {
+      if (!confirm("Yozilgan savollar o'chib, shablondan qaytadan yaratiladi. Davom etilsinmi?")) return;
+    }
+    setImporting(true);
+    setQuestions(tplQuestions.map((tq, i) => makeQuestionFromTemplate(tq, i)));
+    setError(null);
+    setImporting(false);
+  }
 
   function toggleLang(l: Lang) {
     setLanguages((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
@@ -225,7 +258,17 @@ function NewTestForm() {
             // Savollar soni yorliqnikiga teng (panel tekshirgan), shuning
             // uchun yuqoridagi "blanka yaratish" effekti ularni bosib
             // ketmaydi — u faqat son farq qilganda ishlaydi.
-            setQuestions(v.questions);
+            //
+            // Shablonga bog'lashni indeks bo'yicha qo'yamiz: JSON'da bunday
+            // maydon yo'q, va bu ilgari ham amalda shunday ishlab kelgan.
+            // Farqi — endi bog'lanish ochiq yozilib, ro'yxatda mavzu yorlig'i
+            // bo'lib ko'rinadi, ya'ni noto'g'ri tartib sezilarli bo'ladi.
+            setQuestions(
+              v.questions.map((q, i) => {
+                const tpl = tplQuestions[i];
+                return tpl ? { ...q, templateQuestionId: tpl.id } : q;
+              }),
+            );
             setError(null);
           }}
         />
@@ -304,9 +347,20 @@ function NewTestForm() {
           </div>
         )}
         {selectedTpl && (
-          <div className="text-xs text-gray-500">
-            Bu testda aynan <b>{selectedTpl.questionCount} ta savol</b> bo'lishi shart —
-            savollar tuzilishi <b>{selectedTpl.name}</b> shablonidan olinadi.
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-50 border rounded px-3 py-2">
+            <div className="text-xs text-gray-600">
+              Bu testda aynan <b>{selectedTpl.questionCount} ta savol</b> bo'lishi shart —
+              savollar tuzilishi <b>{selectedTpl.name}</b> shablonidan olinadi.
+            </div>
+            <button
+              type="button"
+              onClick={importFromTemplate}
+              disabled={importing || tplQuestions.length === 0}
+              className="rounded border border-navy text-navy px-3 py-1.5 text-xs font-medium hover:bg-navy hover:text-white disabled:opacity-50 flex-none"
+              title="Har savol shablonning aniq qatoriga bog'lanadi; ball shablondan olinadi"
+            >
+              ↧ Shablondan import
+            </button>
           </div>
         )}
 
@@ -359,6 +413,7 @@ function NewTestForm() {
           onChange={setQuestions}
           languages={languages}
           expectedCount={selectedTpl.questionCount}
+          templateQuestions={tplQuestions}
         />
       )}
 

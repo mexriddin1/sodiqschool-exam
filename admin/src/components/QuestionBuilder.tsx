@@ -35,6 +35,13 @@ export interface ReorderItem { id: string; text: I18nText; correctIndex: number 
 
 export interface TestQuestion {
   id: string;
+  /**
+   * Shablonning qaysi savoliga tegishli — "Shablondan import" qo'yadi.
+   *
+   * Bor bo'lsa: ball shablondan keladi va TAHRIRLANMAYDI, hisobotdagi mavzu
+   * tahlili ham shu bog'lanish orqali topiladi (indeks bo'yicha emas).
+   */
+  templateQuestionId?: string;
   order: number;
   type: QType;
   marks: number;
@@ -57,6 +64,25 @@ export function makeEmptyQuestion(order: number, type: QType = "MULTIPLE_CHOICE"
     order,
     type,
     marks: 1,
+    prompt: {},
+  };
+  return applyTypeDefaults(base, type);
+}
+
+/** Shablon savolidan blanka — id, ball va bog'lanish shablondan olinadi. */
+export function makeQuestionFromTemplate(
+  tq: { id: string; marks?: number },
+  order: number,
+  type: QType = "MULTIPLE_CHOICE",
+): TestQuestion {
+  const base: TestQuestion = {
+    id: uid(),
+    templateQuestionId: tq.id,
+    order,
+    type,
+    // Ball shablonning o'zidan — admin uni o'zgartira olmaydi, aks holda
+    // testdagi ball bilan hisobotdagi ball bir-biriga mos kelmasdi.
+    marks: Math.max(1, Number(tq.marks) || 1),
     prompt: {},
   };
   return applyTypeDefaults(base, type);
@@ -266,8 +292,9 @@ export function QuestionEditor({
             min={1}
             value={q.marks}
             onChange={(e) => upd({ marks: Math.max(1, Number(e.target.value) || 1) })}
-            className="border rounded px-2 py-1 text-sm w-16"
-            title="Ball"
+            disabled={!!q.templateQuestionId}
+            className="border rounded px-2 py-1 text-sm w-16 disabled:bg-gray-100 disabled:text-gray-500"
+            title={q.templateQuestionId ? "Ball shablondan olingan — o'zgartirib bo'lmaydi" : "Ball"}
           />
           <button
             type="button"

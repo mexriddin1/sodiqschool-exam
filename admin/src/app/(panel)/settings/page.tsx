@@ -35,6 +35,7 @@ export default function SettingsPage() {
 
   // ---- qabul testi paroli ----
   const [pwSet, setPwSet] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState("");
   const [pwUpdatedAt, setPwUpdatedAt] = useState<string | null>(null);
   const [pwInput, setPwInput] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
@@ -69,8 +70,8 @@ export default function SettingsPage() {
       .then((d) => setFunnelOpen(d.open === true))
       .catch(() => undefined)
       .finally(() => setFunnelLoading(false));
-    api<{ set: boolean; updatedAt: string | null }>(`/api/admin/settings/funnel-password`)
-      .then((d) => { setPwSet(d.set === true); setPwUpdatedAt(d.updatedAt); })
+    api<{ set: boolean; password: string; updatedAt: string | null }>(`/api/admin/settings/funnel-password`)
+      .then((d) => { setPwSet(d.set === true); setPwCurrent(d.password ?? ""); setPwUpdatedAt(d.updatedAt); })
       .catch(() => undefined);
   }, []);
 
@@ -78,11 +79,12 @@ export default function SettingsPage() {
     setPwSaving(true);
     setPwError(null);
     try {
-      const r = await api<{ set: boolean; updatedAt: string | null }>(`/api/admin/settings/funnel-password`, {
+      const r = await api<{ set: boolean; password: string; updatedAt: string | null }>(`/api/admin/settings/funnel-password`, {
         method: "PUT",
         body: JSON.stringify({ password: pwInput }),
       });
       setPwSet(r.set);
+      setPwCurrent(r.password ?? "");
       setPwUpdatedAt(r.updatedAt);
       setPwInput("");
       setPwSavedAt(new Date());
@@ -100,6 +102,7 @@ export default function SettingsPage() {
     try {
       await api(`/api/admin/settings/funnel-password`, { method: "DELETE" });
       setPwSet(false);
+      setPwCurrent("");
       setPwUpdatedAt(null);
       setPwSavedAt(new Date());
     } catch (e) {
@@ -295,6 +298,20 @@ export default function SettingsPage() {
               {pwSet ? "O'RNATILGAN" : "YO'Q"}
             </span>
           </div>
+
+          {pwSet && pwCurrent && (
+            <div className="flex items-center gap-2 bg-gray-50 border rounded px-3 py-2">
+              <span className="text-xs text-gray-500">Hozirgi parol:</span>
+              <code className="text-sm font-mono font-semibold text-navy select-all">{pwCurrent}</code>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(pwCurrent).catch(() => undefined)}
+                className="text-xs text-navy underline ml-auto"
+              >
+                Nusxa olish
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <input

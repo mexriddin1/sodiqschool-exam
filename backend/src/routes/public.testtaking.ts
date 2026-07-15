@@ -429,7 +429,11 @@ function toStrictQuestion(
   const difficulty = pick(tpl?.difficulty, DIFFICULTIES[1]);
   const bloom = pick(tpl?.bloom, BLOOM_LEVELS[1]);
   return {
-    id: test.id,
+    // Shablon id'si — hisobotdagi "id" ustuni mavzu/ko'nikma bilan bir
+    // qatorda turadi va natija tahrirlash JSON'i ham shablon id'siga tayanadi
+    // (docs/json-namunalar.md). Shablonga bog'lanmagan eski testlarda —
+    // testning o'z id'si.
+    id: test.templateQuestionId ?? test.id,
     marks: test.marks,
     difficulty: difficulty as Question["difficulty"],
     strand: pick(tpl?.strand, "Umumiy") as string,
@@ -477,11 +481,24 @@ publicTestTakingRouter.post(
     // ham o'sha tilda kutiladi.
     const { graded, scoreRaw, scoreMax } = gradeTest(testQuestions, answers, attempt.lead.examLanguage);
 
-    // Build the strict SubjectResult question array by merging (index-aligned)
-    // template pedagogy with runtime grading.
+    // Hisobotdagi mavzu tahlili shablondan keladi — savolni shablonning
+    // QAYSI qatoriga bog'lash SHU YERDA hal bo'ladi.
+    //
+    // `templateQuestionId` bo'yicha bog'laymiz. Ilgari bu massiv indeksi edi:
+    // testning 3-savoli doim shablonning 3-qatorini olardi, ya'ni admin
+    // savollarni boshqa tartibda yozsa, hisobot jimgina noto'g'ri mavzuni
+    // ko'rsatardi.
+    //
+    // Eski testlarda bu maydon yo'q — ular indeks bo'yicha o'qiladi, chunki
+    // boshqa ma'lumot yo'q.
+    const tplById = new Map<string, Record<string, unknown>>();
+    for (const tq of templateQuestions) {
+      if (typeof tq?.id === "string") tplById.set(tq.id, tq);
+    }
     const strictQuestions: Question[] = testQuestions.map((tq, i) => {
       const g = graded[i] ?? { earned: 0, correct: false, questionId: tq.id };
-      return toStrictQuestion(templateQuestions[i], tq, g.earned, g.correct);
+      const tpl = tq.templateQuestionId ? tplById.get(tq.templateQuestionId) : templateQuestions[i];
+      return toStrictQuestion(tpl, tq, g.earned, g.correct);
     });
 
     const exam = attempt.test.exam;

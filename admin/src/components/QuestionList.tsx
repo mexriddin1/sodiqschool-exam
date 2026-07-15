@@ -40,14 +40,27 @@ export function QuestionList({
   onChange,
   languages,
   expectedCount,
+  templateQuestions,
 }: {
   questions: TestQuestion[];
   onChange: (next: TestQuestion[]) => void;
   languages: Lang[];
   /** Shablon talab qiladigan savol soni — JSON import shu bilan tekshiriladi. */
   expectedCount?: number;
+  /**
+   * Shablon savollari — har qatorda mavzu yorlig'ini ko'rsatish uchun.
+   *
+   * Bu KO'RINISH masalasi emas: hisobotdagi mavzu tahlili shu bog'lanishdan
+   * keladi, va admin qaysi slot qaysi mavzuga tegishli ekanini ko'rmasa,
+   * savollarni boshqa tartibda yozib, hisobotni jimgina buzishi mumkin.
+   */
+  templateQuestions?: { id: string; topic?: string; strand?: string; marks?: number }[];
 }) {
   const [openId, setOpenId] = useState<string | null>(questions[0]?.id ?? null);
+  const tplById = useMemo(
+    () => new Map((templateQuestions ?? []).map((t) => [t.id, t])),
+    [templateQuestions],
+  );
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
 
   const statuses = useMemo(
@@ -131,6 +144,18 @@ export function QuestionList({
                 <span className={`flex-1 text-sm truncate ${preview ? "text-navy" : "text-gray-400 italic"}`}>
                   {preview || "(bo'sh)"}
                 </span>
+                {(() => {
+                  const tpl = q.templateQuestionId ? tplById.get(q.templateQuestionId) : undefined;
+                  if (!tpl) return null;
+                  return (
+                    <span
+                      className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5 max-w-[30%] truncate flex-none"
+                      title={`Shablon: ${tpl.id} · ${tpl.topic ?? ""} · ${tpl.marks ?? "?"} ball`}
+                    >
+                      {tpl.topic ?? tpl.id}
+                    </span>
+                  );
+                })()}
                 <span className="text-[10px] uppercase text-gray-400">{q.type.replace("_", " ")}</span>
                 <span className="text-xs text-gray-400">{open ? "▲" : "▼"}</span>
               </button>

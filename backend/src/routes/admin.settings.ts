@@ -57,6 +57,19 @@ export async function readFunnelOpen(): Promise<boolean> {
  */
 export interface FunnelPassword {
   hash: string;
+  /**
+   * Parol OCHIQ matnda ham saqlanadi — xodim uni admin panelda ko'rib,
+   * laptoplarga ko'chiradi. Aks holda parolni faqat qo'ygan odam bilardi va
+   * unutilsa almashtirishdan boshqa yo'l qolmasdi (bu esa kirgan qurilmalarni
+   * chiqarib yuboradi).
+   *
+   * Ayni naqsh loyihada allaqachon bor: `Result.accessPassword` ham ochiq
+   * saqlanadi, chunki qabulxona uni ota-onaga o'qib beradi.
+   *
+   * Narxi: admin panelga yoki bazaga kirgan har kim parolni ko'radi. Bu —
+   * maktab laptoplari uchun umumiy parol, shaxsiy hisob emas.
+   */
+  plain: string;
   version: string;
   updatedAt: string;
 }
@@ -65,7 +78,12 @@ export async function readFunnelPassword(): Promise<FunnelPassword | null> {
   const row = await prisma.setting.findUnique({ where: { key: FUNNEL_PASSWORD_KEY } });
   const v = row?.value as Partial<FunnelPassword> | undefined;
   if (!v || typeof v.hash !== "string" || typeof v.version !== "string") return null;
-  return { hash: v.hash, version: v.version, updatedAt: String(v.updatedAt ?? "") };
+  return {
+    hash: v.hash,
+    plain: typeof v.plain === "string" ? v.plain : "",
+    version: v.version,
+    updatedAt: String(v.updatedAt ?? ""),
+  };
 }
 
 /** Read the default-unlocked-sections list, falling back to [] (all closed). */
@@ -180,7 +198,9 @@ settingsRouter.get(
   "/funnel-password",
   asyncHandler(async (_req, res) => {
     const p = await readFunnelPassword();
-    ok(res, { set: p !== null, updatedAt: p?.updatedAt ?? null });
+    // Parol ochiq qaytariladi — bu marshrut requireAdmin ostida (fayl
+    // boshidagi settingsRouter.use), ya'ni faqat tizimga kirgan admin ko'radi.
+    ok(res, { set: p !== null, password: p?.plain ?? "", updatedAt: p?.updatedAt ?? null });
   }),
 );
 
@@ -198,6 +218,7 @@ settingsRouter.put(
     }
     const value: FunnelPassword = {
       hash: await bcrypt.hash(raw, config.bcryptCost),
+      plain: raw,
       // Yangi versiya — eski qurilmalardagi tokenlar shu bilan bekor bo'ladi.
       version: crypto.randomUUID(),
       updatedAt: new Date().toISOString(),
@@ -213,7 +234,7 @@ settingsRouter.put(
       req.admin!.id, "update", "Setting", FUNNEL_PASSWORD_KEY,
       { set: prev !== null }, { set: true },
     );
-    ok(res, { set: true, updatedAt: value.updatedAt });
+    ok(res, { set: true, password: raw, updatedAt: value.updatedAt });
   }),
 );
 
@@ -222,7 +243,7 @@ settingsRouter.delete(
   asyncHandler(async (req, res) => {
     await prisma.setting.deleteMany({ where: { key: FUNNEL_PASSWORD_KEY } });
     await audit(req.admin!.id, "update", "Setting", FUNNEL_PASSWORD_KEY, { set: true }, { set: false });
-    ok(res, { set: false, updatedAt: null });
+    ok(res, { set: false, password: "", updatedAt: null });
   }),
 );
 

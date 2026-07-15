@@ -359,6 +359,19 @@ const reorderItemSchema = z.object({
 // tillarda umumiy bo'lishi shart.
 export const testQuestionSchema = z.object({
   id: z.string().min(1),
+  /**
+   * Shablonning QAYSI savoliga tegishli.
+   *
+   * Hisobotdagi mavzu / strand / ko'nikma / Bloom yorliqlari shablondan
+   * keladi. Ilgari bog'lanish massiv INDEKSI edi: testning 3-savoli doim
+   * shablonning 3-qatorini olardi — admin u yerga nima yozganidan qat'i
+   * nazar. Ya'ni savollar boshqa tartibda yozilsa, hisobot jimgina noto'g'ri
+   * mavzuni ko'rsatardi va buni hech narsa sezmasdi.
+   *
+   * Ixtiyoriy: bu maydondan oldin yaratilgan testlarda yo'q, ular indeks
+   * bo'yicha o'qilishda davom etadi.
+   */
+  templateQuestionId: z.string().min(1).optional(),
   order: z.number().int().nonnegative(),
   type: questionTypeSchema,
   marks: z.number().int().positive(),
