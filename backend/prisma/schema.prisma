@@ -324,6 +324,13 @@ model TestAttempt {
   answers       Json      @default("{}")
   scoreRaw      Int?
   scoreMax      Int?
+  // O'quvchi test davomida to'liq ekrandan necha marta chiqqani. Faqat
+  // KUZATUV uchun — baholashga ta'sir qilmaydi va o'zi hech narsani
+  // to'xtatmaydi. Brauzer Esc/F11 ni bloklashga ruxsat bermaydi, shuning
+  // uchun "chiqmasin" emas, "chiqqani ko'rinsin" deb yozamiz.
+  // Faqat o'sadi (server max(eski, yangi) qiladi): sahifa yangilansa
+  // hisoblagich nolga tushib, oldingi chiqishlar yo'qolmasin.
+  fullscreenExits Int     @default(0)
   // @unique EMAS: bir lead uchala fanni alohida topshiradi va uchala urinish
   // ham BITTA natijaga bog'lanadi (public.testtaking.ts submit uni yig'adi).
   // Ilgari 1:1 edi va ikkinchi fan topshirilganda unique cheklov qulardi.

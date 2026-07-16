@@ -79,6 +79,7 @@ export default function TakeTestPage() {
   const [idx, setIdx] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [fs, setFs] = useState(false);
+  const [fsExits, setFsExits] = useState(0);
   const [phase, setPhase] = useState<"loading" | "ready" | "started" | "submitting" | "done" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +89,11 @@ export default function TakeTestPage() {
   const submittedRef = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const navRef = useRef<HTMLDivElement | null>(null);
+  // Fullscreen listener bir marta o'rnatiladi va `phase` ni closure'dan
+  // ko'radi — ref bo'lmasa u abadiy "loading" bo'lib qolardi va hech narsa
+  // sanalmasdi.
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
   // 1) Load attempt (from server; fall back to IndexedDB if offline).
   useEffect(() => {
@@ -142,14 +148,30 @@ export default function TakeTestPage() {
   }, []);
 
   // 3) Fullscreen listener — only after start.
+  //
+  // Chiqishni TO'XTATIB bo'lmaydi: Esc va F11 ni brauzer o'zi ushlaydi, hech
+  // qanday keydown handler ularni bekor qilolmaydi (bu ataylab shunday — aks
+  // holda sayt foydalanuvchini ekranda qamab qo'ya olardi). Shuning uchun:
+  // chiqishni sezamiz, testni ustidan bloklovchi oyna bilan yopamiz va
+  // qaytishni so'raymiz. Qayta kirish ham faqat BOSISH orqali bo'ladi —
+  // requestFullscreen user gesture'siz ishlamaydi, avtomatik qaytarolmaymiz.
   useEffect(() => {
-    const off = onFullscreenChange(() => setFs(isFullscreen()));
+    const off = onFullscreenChange(() => {
+      const on = isFullscreen();
+      setFs(on);
+      // Faqat test ketayotganda sanaymiz: "Boshlash" dan oldingi va
+      // yakunlagandan keyingi holat chiqish emas.
+      if (!on && phaseRef.current === "started") {
+        setFsExits((n) => n + 1);
+      }
+    });
     return off;
   }, []);
 
   // 4) Autosave every 5s to server + IndexedDB (best-effort).
   useEffect(() => {
     if (phase !== "started") return;
+    // fsExits deps'da: chiqish sanalgach keyingi tik yangi sonni yuboradi.
     autosaveTimer.current = setInterval(async () => {
       try {
         await saveAnswers(token, answers);
@@ -157,7 +179,7 @@ export default function TakeTestPage() {
       try {
         await api(`/api/test-taking/attempts/${token}/answers`, {
           method: "PATCH",
-          body: JSON.stringify({ answers }),
+          body: JSON.stringify({ answers, fullscreenExits: fsExits }),
         });
       } catch {
         /* Server unreachable — javoblar lokal saqlanadi, next tick qaytadan urinamiz */
@@ -166,7 +188,7 @@ export default function TakeTestPage() {
     return () => {
       if (autosaveTimer.current) clearInterval(autosaveTimer.current);
     };
-  }, [phase, token, answers]);
+  }, [phase, token, answers, fsExits]);
 
   const startedAtMs = attempt ? new Date(attempt.startedAt).getTime() : 0;
   const durationSec = attempt?.test.durationSec ?? null;
@@ -183,7 +205,7 @@ export default function TakeTestPage() {
         `/api/test-taking/attempts/${token}/submit`,
         {
           method: "POST",
-          body: JSON.stringify({ answers, autoSubmitted }),
+          body: JSON.stringify({ answers, autoSubmitted, fullscreenExits: fsExits }),
         },
       );
       await clearAttempt(token);
@@ -201,7 +223,7 @@ export default function TakeTestPage() {
         setError(e instanceof Error ? e.message : t("submitFailed"));
       }
     }
-  }, [answers, router, token]);
+  }, [answers, router, token, fsExits]);
 
   // 5) Auto-submit when timer hits zero.
   useEffect(() => {
@@ -382,15 +404,6 @@ export default function TakeTestPage() {
         </div>
       </header>
 
-      {!fs && (
-        <div className="bg-neg text-white text-sm text-center py-2 px-3">
-          {t("fsWarning")}{" "}
-          <button className="underline font-semibold" onClick={() => requestFullscreen()}>
-            {t("fsReturn")}
-          </button>
-        </div>
-      )}
-
       {/* Savol kartasi ekran markazida — tepaga yopishib turmaydi.
           Markazlash ICHKI o'ramda (min-h-full + place-items-center), skroll
           esa tashqarida: aks holda kartadan balandroq savolda markazlash uning
@@ -468,6 +481,35 @@ export default function TakeTestPage() {
           </button>
         </div>
       </footer>
+
+      {/* To'liq ekrandan chiqilsa — savolni butunlay yopadigan oyna.
+          Ilgari bu tepada ingichka qizil chiziq edi: test ortida to'liq
+          o'qilib turardi va bolaga chiqishning hech qanday narxi yo'q edi.
+          Endi savol blur ostida qoladi. Chiqishning O'ZINI to'xtatib
+          bo'lmaydi (Esc/F11 brauzernikidir), lekin chiqqan joyda ishlash
+          mumkin emas — natijada bu "chiqib ketolmaydi" bilan deyarli bir xil
+          ishlaydi. Diqqat: taymer to'xtamaydi, vaqt ketaveradi. */}
+      {!fs && phase === "started" && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 bg-[rgba(6,17,60,0.55)] backdrop-blur-md grid place-items-center z-[60] p-4"
+        >
+          <div className="card p-6 text-center max-w-sm space-y-3 animate-rise">
+            <div className="w-14 h-14 mx-auto rounded-full grid place-items-center bg-neg-weak text-neg text-2xl font-bold">
+              !
+            </div>
+            <div className="font-bold text-ink text-lg">{t("fsBlockTitle")}</div>
+            <p className="text-sm text-muted">{t("fsWarning")}</p>
+            <button className="btn btn-accent btn-block" onClick={() => requestFullscreen()}>
+              {t("fsReturn")}
+            </button>
+            {fsExits > 0 && (
+              <div className="text-xs text-faint num">{t("fsExitCount", { n: fsExits })}</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {phase === "submitting" && (
         <div className="fixed inset-0 bg-[rgba(6,17,60,0.55)] backdrop-blur-sm grid place-items-center z-50">

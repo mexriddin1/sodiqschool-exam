@@ -401,16 +401,24 @@ publicTestTakingRouter.get(
 publicTestTakingRouter.patch(
   "/attempts/:token/answers",
   asyncHandler(async (req, res) => {
-    const { answers } = attemptAnswersSchema.parse(req.body);
+    const { answers, fullscreenExits } = attemptAnswersSchema.parse(req.body);
     const attempt = await prisma.testAttempt.findUnique({
       where: { clientToken: String(req.params.token) },
-      select: { id: true, submittedAt: true },
+      select: { id: true, submittedAt: true, fullscreenExits: true },
     });
     if (!attempt) throw notFound();
     if (attempt.submittedAt) throw badRequest("ALREADY_SUBMITTED", "Urinish yakunlangan");
     await prisma.testAttempt.update({
       where: { id: attempt.id },
-      data: { answers: answers as Prisma.InputJsonValue },
+      data: {
+        answers: answers as Prisma.InputJsonValue,
+        // Faqat o'sadi. Bola sahifani yangilasa mijozdagi hisoblagich 0 dan
+        // boshlanadi — max() bo'lmasa yangilash chiqishlarni "o'chirib"
+        // yuborardi, ya'ni yashirishning eng oson yo'li bo'lardi.
+        ...(fullscreenExits != null
+          ? { fullscreenExits: Math.max(attempt.fullscreenExits, fullscreenExits) }
+          : {}),
+      },
     });
     ok(res, { saved: true });
   }),
@@ -473,6 +481,7 @@ publicTestTakingRouter.post(
       ? bodyParsed.data.answers
       : (attempt.answers as Record<string, unknown>);
     const autoSubmitted = Boolean((req.body as { autoSubmitted?: boolean })?.autoSubmitted);
+    const fullscreenExits = bodyParsed.success ? bodyParsed.data.fullscreenExits : undefined;
 
     const testQuestions = attempt.test.questions as unknown as TestQuestion[];
     const templateQuestions = (attempt.test.template.questions as unknown as Record<string, unknown>[]) ?? [];
@@ -580,6 +589,9 @@ publicTestTakingRouter.post(
         scoreRaw,
         scoreMax,
         resultId: result.id,
+        // Oxirgi chiqish autosave tikigacha ulgurmagan bo'lishi mumkin —
+        // yakuniy sonni shu yerda ham olamiz. PATCH'dagidek: faqat o'sadi.
+        fullscreenExits: Math.max(attempt.fullscreenExits, fullscreenExits ?? 0),
       },
     });
     await prisma.lead.update({

@@ -452,6 +452,9 @@ export const attemptStartSchema = z.object({
 // validate the container here and defer per-type validation to grading.
 export const attemptAnswersSchema = z.object({
   answers: z.record(z.string(), z.any()),
+  // To'liq ekrandan chiqishlar soni — mijoz sanaydi, autosave bilan yuboradi.
+  // Ixtiyoriy: eski mijoz (ochiq turgan tab) yubormasa ham autosave buzilmasin.
+  fullscreenExits: z.number().int().nonnegative().optional(),
 });
 
 export type TestCreateInput = z.infer<typeof testCreateSchema>;

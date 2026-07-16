@@ -16,6 +16,7 @@ interface Attempt {
   autoSubmitted: boolean;
   scoreRaw: number | null;
   scoreMax: number | null;
+  fullscreenExits: number;
   // NB: `resultId` bu yerda yo'q — backend uni `include` da tanlamaydi, ya'ni
   // doim undefined edi. Natija havolasi `result` orqali quriladi.
   test: { id: string; name: string; subject: string; grade: number };
@@ -117,6 +118,9 @@ export default function LeadDetailPage() {
                   <th className="p-3">Boshlangan</th>
                   <th className="p-3">Yakunlangan</th>
                   <th className="p-3">Ball</th>
+                  <th className="p-3" title="O'quvchi test davomida to'liq ekrandan necha marta chiqqani">
+                    Ekrandan chiqish
+                  </th>
                   <th className="p-3">Natija</th>
                 </tr>
               </thead>
@@ -132,6 +136,16 @@ export default function LeadDetailPage() {
                     </td>
                     <td className="p-3">
                       {a.scoreRaw != null ? `${a.scoreRaw} / ${a.scoreMax}` : "—"}
+                    </td>
+                    {/* 0 marta chiqqan — normal holat, ko'zni tortmasin.
+                        Chiqqan bo'lsa ko'rinsin, lekin bu ayblov emas: bola
+                        Esc ni tasodifan bosishi ham mumkin. */}
+                    <td className="p-3">
+                      {a.fullscreenExits > 0 ? (
+                        <span className="text-orange-600 font-medium">{a.fullscreenExits} marta</span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
                     </td>
                     <td className="p-3">
                       {a.result ? (
