@@ -49,6 +49,8 @@ export default function KatexInline({ source, block }: { source: string; block?:
         if (p.type === "text") {
           const s = document.createElement("span");
           s.textContent = p.content;
+          // Qator ko'chirishlari saqlanadi — test-app'dagi nusxa bilan bir xil.
+          s.style.whiteSpace = "pre-wrap";
           ref.current.appendChild(s);
         } else {
           const wrap = document.createElement("span");

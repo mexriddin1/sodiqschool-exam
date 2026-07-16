@@ -44,6 +44,11 @@ export default function KatexInline({ source, block }: { source: string; block?:
         if (p.type === "text") {
           const s = document.createElement("span");
           s.textContent = p.content;
+          // Savol matnidagi qator ko'chirishlari saqlanadi. Busiz brauzer
+          // "\n" ni oddiy bo'sh joyga aylantiradi va admin qo'ygan abzatslar
+          // o'quvchida yo'qoladi. Faqat MATN qismiga — formulaga tegmaymiz,
+          // KaTeX o'z bo'shliqlarini o'zi boshqaradi.
+          s.style.whiteSpace = "pre-wrap";
           ref.current.appendChild(s);
         } else {
           const wrap = document.createElement("span");
