@@ -82,8 +82,10 @@ const TEST_TEMPLATE_JSON = {
 };
 
 // Butun testni bitta JSON bilan yaratish (Testlar → paket → Yangi test →
-// "JSON bilan yaratish"). Har olti savol turidan ikkitasi ko'rsatilgan;
-// qolgan turlar uchun to'liq namunalar docs/json-namunalar.md da.
+// "JSON bilan yaratish"). Bu namuna ATAYLAB to'liq: har olti savol turi bir
+// martadan, va har bir ixtiyoriy maydon kamida bitta savolda ko'rsatilgan
+// (imageUrl, templateQuestionId, same, oddiy satr, ko'p bo'shliqli FILL_GAP).
+// Namunani o'zgartirsangiz docs/json-namunalar.md ni ham yangilang.
 const TEST_CREATE_JSON = {
   name: "5-sinf matematika (QABUL 2026)",
   subject: "MATH",
@@ -91,27 +93,107 @@ const TEST_CREATE_JSON = {
   languages: ["UZ", "RU"],
   durationMin: 30,
   questions: [
+    // 1) MULTIPLE_CHOICE — bitta to'g'ri javob. Savolda ham, variantda ham
+    // rasm bo'lishi mumkin (ixtiyoriy; kerak bo'lmasa null yoki yozmang).
     {
       id: "q1",
       order: 0,
+      templateQuestionId: "M1",
       type: "MULTIPLE_CHOICE",
       marks: 2,
       prompt: { UZ: "$12 \\times 8$ nechchi?", RU: "Сколько будет $12 \\times 8$?" },
+      imageUrl: null,
       choices: [
-        { id: "q1-a", label: { same: true, UZ: "96" } },
+        { id: "q1-a", label: { same: true, UZ: "96" }, imageUrl: null },
         { id: "q1-b", label: { same: true, UZ: "86" } },
         { id: "q1-c", label: { same: true, UZ: "108" } },
         { id: "q1-d", label: { same: true, UZ: "92" } },
       ],
       correctChoiceIds: ["q1-a"],
     },
+    // 2) MULTIPLE_SELECT — bir necha to'g'ri javob. Faqat HAMMASI belgilansa ball.
     {
       id: "q2",
       order: 1,
+      templateQuestionId: "M2",
+      type: "MULTIPLE_SELECT",
+      marks: 3,
+      prompt: { UZ: "Qaysilari tub son?", RU: "Какие из них простые числа?" },
+      choices: [
+        { id: "q2-a", label: { same: true, UZ: "2" } },
+        { id: "q2-b", label: { same: true, UZ: "4" } },
+        { id: "q2-c", label: { same: true, UZ: "7" } },
+        { id: "q2-d", label: { same: true, UZ: "9" } },
+      ],
+      correctChoiceIds: ["q2-a", "q2-c"],
+    },
+    // 3) TRUE_FALSE — bir necha ibora, har biriga rost/yolg'on. Hammasi
+    // to'g'ri belgilangandagina ball beriladi.
+    {
+      id: "q3",
+      order: 2,
+      templateQuestionId: "M3",
+      type: "TRUE_FALSE",
+      marks: 3,
+      prompt: { UZ: "Har bir iborani baholang", RU: "Оцените каждое утверждение" },
+      trueFalseItems: [
+        { id: "q3-1", text: { UZ: "Yer yumaloq", RU: "Земля круглая" }, correct: true },
+        { id: "q3-2", text: { UZ: "Suv 50°C da qaynaydi", RU: "Вода кипит при 50°C" }, correct: false },
+        { id: "q3-3", text: { same: true, UZ: "$2 + 2 = 4$" }, correct: true },
+      ],
+    },
+    // 4) FILL_GAP — matndagi har bir ___ uchun bitta javob. gapAnswers
+    // uzunligi = ___ soni; tartib ham aynan shu.
+    {
+      id: "q4",
+      order: 3,
+      templateQuestionId: "M4",
       type: "FILL_GAP",
-      marks: 1,
-      prompt: { UZ: "$5 + 7 =$ ___", RU: "$5 + 7 =$ ___" },
-      gapAnswers: [{ same: true, UZ: "12" }],
+      marks: 2,
+      prompt: { UZ: "Poytaxt — ___ , daryo — ___", RU: "Столица — ___ , река — ___" },
+      gapAnswers: [
+        { UZ: "Toshkent", RU: "Ташкент" },
+        { UZ: "Sirdaryo", RU: "Сырдарья" },
+      ],
+    },
+    // 5) MATCHING — juftlik. O'ng ustun o'quvchiga aralashtirib ko'rsatiladi.
+    {
+      id: "q5",
+      order: 4,
+      templateQuestionId: "M5",
+      type: "MATCHING",
+      marks: 4,
+      prompt: { UZ: "Mos juftlikni toping", RU: "Найдите соответствие" },
+      matchingPairs: [
+        {
+          leftId: "q5-l1",
+          leftText: { UZ: "O'zbekiston", RU: "Узбекистан" },
+          rightId: "q5-r1",
+          rightText: { UZ: "Toshkent", RU: "Ташкент" },
+        },
+        {
+          leftId: "q5-l2",
+          leftText: { UZ: "Qozog'iston", RU: "Казахстан" },
+          rightId: "q5-r2",
+          rightText: { UZ: "Ostona", RU: "Астана" },
+        },
+      ],
+    },
+    // 6) REORDERING — correctIndex to'g'ri tartibni beradi (0 dan).
+    // prompt bu yerda ATAYLAB oddiy satr: eski format ham qabul qilinadi va
+    // "barcha tillarda shu" deb o'qiladi.
+    {
+      id: "q6",
+      order: 5,
+      templateQuestionId: "M6",
+      type: "REORDERING",
+      marks: 3,
+      prompt: "Kichikdan kattaga tartiblang",
+      reorderItems: [
+        { id: "q6-1", text: { same: true, UZ: "3" }, correctIndex: 0 },
+        { id: "q6-2", text: { same: true, UZ: "7" }, correctIndex: 1 },
+        { id: "q6-3", text: { same: true, UZ: "12" }, correctIndex: 2 },
+      ],
     },
   ],
 };
@@ -238,7 +320,7 @@ const SECTIONS: Section[] = [
       "note mavjud bo'lsa va havolalangan savol to'g'ri yechilgan bo'lsa — o'quvchi natijasida 'Izoh' ustunida ko'rinadi.",
       "SAVOL MATNI (ixtiyoriy): type / prompt / choices / correctChoiceIds va boshqa mazmun maydonlarini shu yerga ham yozish mumkin — M2 namunasiga qarang. Shundan keyin \"Yangi test → Shablondan import\" savollarni matni bilan ko'chiradi va qayta yozish shart bo'lmaydi.",
       "Matn yozilmasa hech narsa buzilmaydi — eski shablonlar avvalgidek ishlaydi, import esa bo'sh slot beradi (ball va mavzu baribir to'g'ri keladi).",
-      "Mazmun maydonlari testdagi bilan AYNAN bir xil shaklda: har olti tur uchun namuna docs/json-namunalar.md da yoki quyidagi \"Test yaratish\" bo'limida.",
+      "Mazmun maydonlari testdagi bilan AYNAN bir xil shaklda — quyidagi \"Test yaratish\" bo'limiga qarang, u yerda olti savol turining hammasi namuna bilan ko'rsatilgan.",
     ],
   },
   {
@@ -256,9 +338,18 @@ const SECTIONS: Section[] = [
       "durationMin — vaqt chegarasi daqiqada (ixtiyoriy). Yo'q yoki null bo'lsa — vaqt cheklanmaydi.",
       "Imtihon URL'dan olinadi (?examId=…), shablon esa imtihon + subject + grade bo'yicha AVTOMATIK topiladi — JSON'da templateId yozilmaydi.",
       "questions soni shablonnikiga teng bo'lishi shart — aks holda qo'llash to'xtaydi (backend ham QUESTION_COUNT_MISMATCH bilan rad etadi).",
-      "type: \"MULTIPLE_CHOICE\" | \"MULTIPLE_SELECT\" | \"TRUE_FALSE\" | \"FILL_GAP\" | \"MATCHING\" | \"REORDERING\". Har bir tur uchun to'liq namuna: docs/json-namunalar.md.",
-      "Matn maydonlari: {\"UZ\":\"…\",\"RU\":\"…\"} yoki barcha tilda bir xil bo'lsa {\"same\":true,\"UZ\":\"$x^2$\"}. Oddiy satr ham bo'ladi — u barcha tillarga tegishli deb o'qiladi.",
-      "id, order, type, marks, correctChoiceIds va boshqa kalit maydonlar hech qachon tarjima qilinmaydi — baholash aynan shularga tayanadi.",
+      "Yuqoridagi namunada olti savol turining HAMMASI bittadan ko'rsatilgan — kerakligini nusxalab oling.",
+      "HAR BIR savolda majburiy: id, order, type, marks (butun son, 0 dan katta), prompt.",
+      "MULTIPLE_CHOICE — choices[] + correctChoiceIds. correctChoiceIds da AYNAN bitta id (q1).",
+      "MULTIPLE_SELECT — xuddi shu shakl, lekin correctChoiceIds da bir nechta id (q2). Ball faqat hammasi to'g'ri belgilangandagina beriladi — qisman ball yo'q.",
+      "TRUE_FALSE — trueFalseItems[]: { id, text, correct: true/false } (q3). Bola hamma iborani to'g'ri belgilasagina ball oladi.",
+      "FILL_GAP — prompt ichida bo'sh joy ___ bilan yoziladi, gapAnswers[] esa har bir bo'shliqqa javob, o'sha tartibda (q4). Solishtirish katta-kichik harf va ortiqcha bo'shliqni hisobga olmaydi.",
+      "MATCHING — matchingPairs[]: { leftId, leftText, rightId, rightText } (q5). O'ng ustun o'quvchiga aralashtirilgan holda ko'rsatiladi.",
+      "REORDERING — reorderItems[]: { id, text, correctIndex } (q6). correctIndex — TO'G'RI tartib, 0 dan boshlanadi; o'quvchi aralashtirilgan holda ko'radi.",
+      "Matn maydonlari (prompt, label, text, leftText/rightText, gapAnswers): {\"UZ\":\"…\",\"RU\":\"…\"} yoki barcha tilda bir xil bo'lsa {\"same\":true,\"UZ\":\"$x^2$\"}. Oddiy satr ham bo'ladi (q6 dagi prompt) — u barcha tillarga tegishli deb o'qiladi.",
+      "IXTIYORIY maydonlar: imageUrl — savolda ham, har bir variantda ham (q1); yozilmasa yoki null bo'lsa rasm ko'rsatilmaydi. Boshqa turlarda (trueFalseItems, matchingPairs, reorderItems, gapAnswers) rasm qo'llab-quvvatlanmaydi.",
+      "templateQuestionId — ixtiyoriy: savolni shablondagi savolga bog'laydi (q1…q6 da M1…M6). Yozilmasa massivdagi tartib bo'yicha bog'lanadi.",
+      "id, order, type, marks, imageUrl, choices[].id, correctChoiceIds, trueFalseItems[].correct, matchingPairs[].leftId/rightId, reorderItems[].correctIndex hech qachon tarjima qilinmaydi — baholash aynan shularga tayanadi.",
       "order avtomatik qayta raqamlanadi (0 dan) — massivdagi tartib hal qiladi.",
     ],
   },

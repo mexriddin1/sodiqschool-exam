@@ -219,6 +219,28 @@ aralashtirilgan holda ko'radi.
 
 ---
 
+## Ixtiyoriy maydonlar
+
+Har bir savolda **majburiy**: `id`, `order`, `type`, `marks` (butun son, 0 dan
+katta), `prompt` — va turiga mos mazmun massivi (yuqoridagi 6 bo'lim).
+
+Qolgani ixtiyoriy:
+
+| Maydon | Qayerda | Yozilmasa nima bo'ladi |
+| --- | --- | --- |
+| `imageUrl` | savol darajasida | rasm ko'rsatilmaydi |
+| `imageUrl` | `choices[]` ichida | o'sha variant faqat matn bo'ladi |
+| `templateQuestionId` | savol darajasida | savol shablonga massivdagi **tartib** bo'yicha bog'lanadi |
+| `durationMin` | o'ramda | vaqt cheklanmaydi |
+
+> **Rasm faqat shu ikki joyda.** Savolda va variantda. `trueFalseItems`,
+> `matchingPairs`, `reorderItems`, `gapAnswers` da rasm **qo'llab-quvvatlanmaydi** —
+> ularda faqat matn. Rasmli moslash savoli kerak bo'lsa, hozircha imkoni yo'q.
+
+`templateQuestionId` shablondagi savol `id` siga to'g'ri kelishi kerak (`M1`,
+`M2`, …). Yozib qo'yish afzal: savollar tartibi keyin o'zgarsa ham bog'lanish
+buzilmaydi.
+
 ## LaTeX
 
 Savol matni va variantlarda formula `$...$` (satr ichida) yoki `$$...$$`
@@ -236,18 +258,27 @@ JSON'da teskari slash ikkilanadi: `\\frac`, `\\sqrt`.
 
 ## To'liq namuna
 
+Olti turning hammasi, o'ram bilan birga. Aynan shu namuna admin panelda ham
+bor: `/docs#test-create` (u yerda "Nusxa olish" tugmasi bilan).
+
 ```json
 {
+  "name": "5-sinf matematika (QABUL 2026)",
+  "subject": "MATH",
+  "grade": 5,
+  "languages": ["UZ", "RU"],
+  "durationMin": 30,
   "questions": [
     {
       "id": "q1",
       "order": 0,
+      "templateQuestionId": "M1",
       "type": "MULTIPLE_CHOICE",
       "marks": 2,
       "prompt": { "UZ": "$12 \\times 8$ nechchi?", "RU": "Сколько будет $12 \\times 8$?" },
       "imageUrl": null,
       "choices": [
-        { "id": "q1-a", "label": { "same": true, "UZ": "96" } },
+        { "id": "q1-a", "label": { "same": true, "UZ": "96" }, "imageUrl": null },
         { "id": "q1-b", "label": { "same": true, "UZ": "86" } },
         { "id": "q1-c", "label": { "same": true, "UZ": "108" } },
         { "id": "q1-d", "label": { "same": true, "UZ": "92" } }
@@ -257,14 +288,80 @@ JSON'da teskari slash ikkilanadi: `\\frac`, `\\sqrt`.
     {
       "id": "q2",
       "order": 1,
+      "templateQuestionId": "M2",
+      "type": "MULTIPLE_SELECT",
+      "marks": 3,
+      "prompt": { "UZ": "Qaysilari tub son?", "RU": "Какие из них простые числа?" },
+      "choices": [
+        { "id": "q2-a", "label": { "same": true, "UZ": "2" } },
+        { "id": "q2-b", "label": { "same": true, "UZ": "4" } },
+        { "id": "q2-c", "label": { "same": true, "UZ": "7" } },
+        { "id": "q2-d", "label": { "same": true, "UZ": "9" } }
+      ],
+      "correctChoiceIds": ["q2-a", "q2-c"]
+    },
+    {
+      "id": "q3",
+      "order": 2,
+      "templateQuestionId": "M3",
+      "type": "TRUE_FALSE",
+      "marks": 3,
+      "prompt": { "UZ": "Har bir iborani baholang", "RU": "Оцените каждое утверждение" },
+      "trueFalseItems": [
+        { "id": "q3-1", "text": { "UZ": "Yer yumaloq", "RU": "Земля круглая" }, "correct": true },
+        { "id": "q3-2", "text": { "UZ": "Suv 50°C da qaynaydi", "RU": "Вода кипит при 50°C" }, "correct": false },
+        { "id": "q3-3", "text": { "same": true, "UZ": "$2 + 2 = 4$" }, "correct": true }
+      ]
+    },
+    {
+      "id": "q4",
+      "order": 3,
+      "templateQuestionId": "M4",
       "type": "FILL_GAP",
-      "marks": 1,
-      "prompt": { "UZ": "$5 + 7 =$ ___", "RU": "$5 + 7 =$ ___" },
-      "gapAnswers": [{ "same": true, "UZ": "12" }]
+      "marks": 2,
+      "prompt": { "UZ": "Poytaxt — ___ , daryo — ___", "RU": "Столица — ___ , река — ___" },
+      "gapAnswers": [
+        { "UZ": "Toshkent", "RU": "Ташкент" },
+        { "UZ": "Sirdaryo", "RU": "Сырдарья" }
+      ]
+    },
+    {
+      "id": "q5",
+      "order": 4,
+      "templateQuestionId": "M5",
+      "type": "MATCHING",
+      "marks": 4,
+      "prompt": { "UZ": "Mos juftlikni toping", "RU": "Найдите соответствие" },
+      "matchingPairs": [
+        {
+          "leftId": "q5-l1", "leftText": { "UZ": "O'zbekiston", "RU": "Узбекистан" },
+          "rightId": "q5-r1", "rightText": { "UZ": "Toshkent", "RU": "Ташкент" }
+        },
+        {
+          "leftId": "q5-l2", "leftText": { "UZ": "Qozog'iston", "RU": "Казахстан" },
+          "rightId": "q5-r2", "rightText": { "UZ": "Ostona", "RU": "Астана" }
+        }
+      ]
+    },
+    {
+      "id": "q6",
+      "order": 5,
+      "templateQuestionId": "M6",
+      "type": "REORDERING",
+      "marks": 3,
+      "prompt": "Kichikdan kattaga tartiblang",
+      "reorderItems": [
+        { "id": "q6-1", "text": { "same": true, "UZ": "3" }, "correctIndex": 0 },
+        { "id": "q6-2", "text": { "same": true, "UZ": "7" }, "correctIndex": 1 },
+        { "id": "q6-3", "text": { "same": true, "UZ": "12" }, "correctIndex": 2 }
+      ]
     }
   ]
 }
 ```
+
+Faqat savollarni almashtirayotgan bo'lsangiz (`Savollar → "JSON bilan
+to'ldirish"`), o'ramni tashlab, `questions` massivining o'zini oling.
 
 ## Tekshiruv qoidalari
 

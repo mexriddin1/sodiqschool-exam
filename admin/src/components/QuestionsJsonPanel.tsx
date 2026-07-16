@@ -109,7 +109,14 @@ export function QuestionsJsonPanel({
         <button type="button" onClick={exportJson} className="text-navy hover:underline">
           JSON eksport
         </button>
-        <span className="text-gray-400 ml-auto">Namunalar: docs/json-namunalar.md</span>
+        <a
+          href="/docs#test-create"
+          target="_blank"
+          rel="noreferrer"
+          className="text-navy hover:underline ml-auto"
+        >
+          Namunalar (6 tur) ↗
+        </a>
       </div>
 
       {open && (

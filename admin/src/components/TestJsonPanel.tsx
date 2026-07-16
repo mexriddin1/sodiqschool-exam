@@ -210,8 +210,13 @@ export function TestJsonPanel({
             }}
           />
         </label>
-        <a href="/docs#test-create" className="text-xs text-gray-400 hover:underline ml-auto">
-          Namuna: /docs
+        <a
+          href="/docs#test-create"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-navy hover:underline ml-auto"
+        >
+          Namunalar (6 tur) ↗
         </a>
       </div>
 
