@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
@@ -62,13 +62,19 @@ export default function ResultDetailPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [reportViewerUrl, setReportViewerUrl] = useState<string | null>(null);
   const [reportViewerLoading, setReportViewerLoading] = useState(false);
+  // Qaysi natija uchun hisobot allaqachon avtomatik ochilgan.
+  const autoOpenedRef = useRef<string | null>(null);
 
   // Open the parent-facing report inside admin via a short-lived impersonation
   // token. Admin never has to open natija.sodiqschool.uz in a separate tab.
-  async function openReportViewer() {
+  //
+  // `silent` — avtomatik ochishda ishlatiladi: admin o'zi so'ramagan amal
+  // yiqilsa, sahifa ustiga qizil xato chiqarib qo'rqitmaymiz. Tugma joyida
+  // qoladi, bosib qayta urinish mumkin.
+  const openReportViewer = useCallback(async (silent = false) => {
     if (!r) return;
     setReportViewerLoading(true);
-    setError(null);
+    if (!silent) setError(null);
     try {
       const { token } = await api<{ token: string }>(
         `/api/admin/results/${r.id}/impersonate-token`,
@@ -79,11 +85,25 @@ export default function ResultDetailPage() {
       const url = `${CLIENT_BASE_URL}/select?impersonate=${encodeURIComponent(token)}&resultId=${encodeURIComponent(r.id)}`;
       setReportViewerUrl(url);
     } catch (e) {
-      setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
+      if (!silent) {
+        setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
+      }
     } finally {
       setReportViewerLoading(false);
     }
-  }
+  }, [r]);
+
+  // Natija ochilishi bilan hisobot ham o'zi ochiladi — admin qo'shimcha
+  // tugma bosmaydi va o'quvchi login/parolini kiritmaydi.
+  //
+  // Natija boshiga BIR marta: `load()` sahifani qayta o'qiganda (masalan AI
+  // matni yangilangach) token qayta yasalmasin — har bir token audit logga
+  // "impersonate" yozuvini qo'yadi va ro'yxat behuda to'lib ketardi.
+  useEffect(() => {
+    if (!r?.id || autoOpenedRef.current === r.id) return;
+    autoOpenedRef.current = r.id;
+    openReportViewer(true);
+  }, [r?.id, openReportViewer]);
 
   async function regenerateAi() {
     if (!r) return;
@@ -232,10 +252,11 @@ export default function ResultDetailPage() {
           type="button"
           className="btn-secondary inline-flex items-center gap-2"
           disabled={reportViewerLoading}
-          onClick={openReportViewer}
+          onClick={() => openReportViewer()}
           title="Ota-onaga ko'rinadigan hisobot sahifasini shu yerda ochib ko'rish"
         >
-          <Icon name="fileJson" size={16} /> {reportViewerLoading ? "Ochilmoqda…" : "Hisobotni ko'rish"}
+          <Icon name="fileJson" size={16} />{" "}
+          {reportViewerLoading ? "Ochilmoqda…" : reportViewerUrl ? "Hisobotni yangilash" : "Hisobotni ko'rish"}
         </button>
         <button
           type="button"
