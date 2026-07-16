@@ -22,7 +22,6 @@ import { withBack } from "@/lib/back-link";
 import { findMissingTranslations } from "@/components/I18nField";
 import { TestQuestion, TemplateSource, makeEmptyQuestion, makeQuestionFromTemplate } from "@/components/QuestionBuilder";
 import { QuestionList } from "@/components/QuestionList";
-import { TestJsonPanel } from "@/components/TestJsonPanel";
 
 interface ExamOption {
   id: string;
@@ -87,9 +86,6 @@ function NewTestForm() {
   const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Yorliqlar so'rovi tugadimi. Bo'sh `templates` ikki xil ma'no beradi —
-  // "hali kelmadi" va "yo'q" — va JSON paneli ularni farqlashi SHART.
-  const [templatesLoaded, setTemplatesLoaded] = useState(false);
   // Tanlangan shablonning savollari (mavzu/ball). Ro'yxat endpointi faqat
   // sonini beradi, shuning uchun alohida olinadi.
   const [tplQuestions, setTplQuestions] = useState<TemplateQuestion[]>([]);
@@ -101,8 +97,7 @@ function NewTestForm() {
   useEffect(() => {
     api<{ items: ExamOption[] }>(`/api/admin/exams?take=200`).then((d) => setExams(d.items ?? []));
     api<{ items: TemplateOption[] }>(`/api/admin/test-templates?take=500`)
-      .then((d) => setTemplates(d.items ?? []))
-      .finally(() => setTemplatesLoaded(true));
+      .then((d) => setTemplates(d.items ?? []));
   }, []);
 
   // Faqat shu imtihonga biriktirilgan yorliqlar. `examId = null` (eski
@@ -308,38 +303,6 @@ function NewTestForm() {
       <Link href={backHref} className="text-sm text-navy underline">← {backLabel}</Link>
       <h1 className="text-2xl font-semibold text-navy">Yangi test</h1>
 
-      {/* Imtihon tanlangandan keyin ko'rinadi: fan/sinf shu imtihonning
-          yorliqlari ichidan topiladi, ya'ni imtihonsiz JSON'ni tekshirib
-          ham bo'lmaydi. */}
-      {examId && (
-        <TestJsonPanel
-          templates={eligibleTemplates}
-          ready={templatesLoaded}
-          onApply={(v) => {
-            setSubject(v.subject);
-            setGrade(v.grade);
-            setName(v.name);
-            setLanguages(v.languages);
-            setDurationMinRaw(v.durationMin == null ? "" : String(v.durationMin));
-            // Savollar soni yorliqnikiga teng (panel tekshirgan), shuning
-            // uchun yuqoridagi "blanka yaratish" effekti ularni bosib
-            // ketmaydi — u faqat son farq qilganda ishlaydi.
-            //
-            // Shablonga bog'lashni indeks bo'yicha qo'yamiz: JSON'da bunday
-            // maydon yo'q, va bu ilgari ham amalda shunday ishlab kelgan.
-            // Farqi — endi bog'lanish ochiq yozilib, ro'yxatda mavzu yorlig'i
-            // bo'lib ko'rinadi, ya'ni noto'g'ri tartib sezilarli bo'ladi.
-            setQuestions(
-              v.questions.map((q, i) => {
-                const tpl = tplQuestions[i];
-                return tpl ? { ...q, templateQuestionId: tpl.id } : q;
-              }),
-            );
-            setError(null);
-          }}
-        />
-      )}
-
       <div className="card p-4 space-y-3">
         <div>
           <label htmlFor="exam-select" className="text-xs text-gray-500">Imtihon</label>
@@ -503,7 +466,6 @@ function NewTestForm() {
           questions={questions}
           onChange={setQuestions}
           languages={languages}
-          expectedCount={selectedTpl.questionCount}
           templateQuestions={tplQuestions}
         />
       )}

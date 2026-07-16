@@ -21,7 +21,6 @@ import {
   type QStatus,
   type TestQuestion,
 } from "@/components/QuestionBuilder";
-import { QuestionsJsonPanel } from "@/components/QuestionsJsonPanel";
 
 const STATUS_ICON: Record<QStatus, string> = { complete: "✓", partial: "●", empty: "○" };
 const STATUS_CLASS: Record<QStatus, string> = {
@@ -39,14 +38,11 @@ export function QuestionList({
   questions,
   onChange,
   languages,
-  expectedCount,
   templateQuestions,
 }: {
   questions: TestQuestion[];
   onChange: (next: TestQuestion[]) => void;
   languages: Lang[];
-  /** Shablon talab qiladigan savol soni — JSON import shu bilan tekshiriladi. */
-  expectedCount?: number;
   /**
    * Shablon savollari — har qatorda mavzu yorlig'ini ko'rsatish uchun.
    *
@@ -115,13 +111,6 @@ export function QuestionList({
           )}
         </div>
       </div>
-
-      <QuestionsJsonPanel
-        questions={questions}
-        onChange={onChange}
-        languages={languages}
-        expectedCount={expectedCount}
-      />
 
       <div className="card divide-y">
         {visible.length === 0 && (
