@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
 import { resolveBack } from "@/lib/back-link";
+import { CLIENT_BASE_URL } from "@/lib/urls";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Icon } from "@/components/Icon";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
@@ -75,8 +76,7 @@ export default function ResultDetailPage() {
       );
       // The client site accepts ?impersonate=<jwt>&resultId=<id> on /select
       // and stores the token as a cookie, then redirects to the report.
-      const clientBase = process.env.NEXT_PUBLIC_CLIENT_URL ?? "http://localhost:4321";
-      const url = `${clientBase}/select?impersonate=${encodeURIComponent(token)}&resultId=${encodeURIComponent(r.id)}`;
+      const url = `${CLIENT_BASE_URL}/select?impersonate=${encodeURIComponent(token)}&resultId=${encodeURIComponent(r.id)}`;
       setReportViewerUrl(url);
     } catch (e) {
       setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
@@ -333,7 +333,7 @@ export default function ResultDetailPage() {
 // student name, code, password and public URL are inlined into the initial
 // value so a fresh open always has fresh data.
 function ParentMessageCard({ result }: { result: Detail }) {
-  const clientBase = process.env.NEXT_PUBLIC_CLIENT_URL ?? "https://natija.sodiqschool.uz";
+  const clientBase = CLIENT_BASE_URL;
   const loginLine = result.student.loginCode
     ? `Login: ${result.student.loginCode}`
     : `Login: (o'quvchi kredensiallari hali biriktirilmagan)`;

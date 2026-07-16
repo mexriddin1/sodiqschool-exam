@@ -83,6 +83,17 @@ So'ng backend'ni qayta ishga tushiring (`pm2 restart backend` yoki
 NEXT_PUBLIC_API_URL=https://api.natija.sodiqschool.uz
 ```
 
+> **admin/.env** ham tekshiring — `NEXT_PUBLIC_CLIENT_URL` bo'lishi kerak:
+>
+> ```dotenv
+> NEXT_PUBLIC_CLIENT_URL=https://natija.sodiqschool.uz
+> ```
+>
+> Bu o'zgaruvchi hech qachon prod'da o'rnatilmagan edi va shu sababli
+> "Hisobotni ko'rish" tugmasi `localhost:4321` ga olib borardi. Kod endi
+> to'g'ri prod manziliga tushadi, lekin o'zgaruvchini ochiq yozib qo'yish
+> afzal — manzil o'zgarsa qidirib yurmaysiz.
+
 > **Diqqat:** `NEXT_PUBLIC_*` o'zgaruvchilari **build vaqtida** kodga
 > singdiriladi. Ya'ni `.env` ni build'dan **keyin** o'zgartirsangiz, hech
 > narsa o'zgarmaydi — qayta build qilish kerak.
