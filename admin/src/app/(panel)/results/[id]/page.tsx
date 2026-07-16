@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api, ApiException } from "@/lib/api";
@@ -60,21 +60,19 @@ export default function ResultDetailPage() {
 
   const [delOpen, setDelOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [reportViewerUrl, setReportViewerUrl] = useState<string | null>(null);
   const [reportViewerLoading, setReportViewerLoading] = useState(false);
-  // Qaysi natija uchun hisobot allaqachon avtomatik ochilgan.
-  const autoOpenedRef = useRef<string | null>(null);
 
-  // Open the parent-facing report inside admin via a short-lived impersonation
-  // token. Admin never has to open natija.sodiqschool.uz in a separate tab.
-  //
-  // `silent` — avtomatik ochishda ishlatiladi: admin o'zi so'ramagan amal
-  // yiqilsa, sahifa ustiga qizil xato chiqarib qo'rqitmaymiz. Tugma joyida
-  // qoladi, bosib qayta urinish mumkin.
-  const openReportViewer = useCallback(async (silent = false) => {
+  // Ota-onaga ko'rinadigan hisobotni HAQIQIY saytda, yangi tabda ochadi —
+  // qisqa muddatli impersonation tokeni bilan, ya'ni o'quvchi login/paroli
+  // kerak emas.
+  async function openReportInNewTab() {
     if (!r) return;
+    // Tab BOSISH paytida, sinxron ochiladi. Avval token'ni kutib, keyin
+    // window.open qilsak, brauzer uni "foydalanuvchi so'ramagan" deb
+    // bloklaydi — shuning uchun bo'sh tab ochib, manzilni keyin qo'yamiz.
+    const tab = window.open("about:blank", "_blank");
     setReportViewerLoading(true);
-    if (!silent) setError(null);
+    setError(null);
     try {
       const { token } = await api<{ token: string }>(
         `/api/admin/results/${r.id}/impersonate-token`,
@@ -83,27 +81,20 @@ export default function ResultDetailPage() {
       // The client site accepts ?impersonate=<jwt>&resultId=<id> on /select
       // and stores the token as a cookie, then redirects to the report.
       const url = `${CLIENT_BASE_URL}/select?impersonate=${encodeURIComponent(token)}&resultId=${encodeURIComponent(r.id)}`;
-      setReportViewerUrl(url);
-    } catch (e) {
-      if (!silent) {
-        setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        // Popup bloker baribir to'sib qo'ydi — hech bo'lmasa manzilni beramiz.
+        setError(`Yangi tab ochilmadi (popup bloker). Havola: ${url}`);
       }
+    } catch (e) {
+      tab?.close();
+      setError(e instanceof ApiException ? e.error.message : "Impersonation muvaffaqiyatsiz");
     } finally {
       setReportViewerLoading(false);
     }
-  }, [r]);
-
-  // Natija ochilishi bilan hisobot ham o'zi ochiladi — admin qo'shimcha
-  // tugma bosmaydi va o'quvchi login/parolini kiritmaydi.
-  //
-  // Natija boshiga BIR marta: `load()` sahifani qayta o'qiganda (masalan AI
-  // matni yangilangach) token qayta yasalmasin — har bir token audit logga
-  // "impersonate" yozuvini qo'yadi va ro'yxat behuda to'lib ketardi.
-  useEffect(() => {
-    if (!r?.id || autoOpenedRef.current === r.id) return;
-    autoOpenedRef.current = r.id;
-    openReportViewer(true);
-  }, [r?.id, openReportViewer]);
+  }
 
   async function regenerateAi() {
     if (!r) return;
@@ -252,11 +243,10 @@ export default function ResultDetailPage() {
           type="button"
           className="btn-secondary inline-flex items-center gap-2"
           disabled={reportViewerLoading}
-          onClick={() => openReportViewer()}
-          title="Ota-onaga ko'rinadigan hisobot sahifasini shu yerda ochib ko'rish"
+          onClick={openReportInNewTab}
+          title="Ota-onaga ko'rinadigan hisobotni yangi tabda ochish (login talab qilinmaydi)"
         >
-          <Icon name="fileJson" size={16} />{" "}
-          {reportViewerLoading ? "Ochilmoqda…" : reportViewerUrl ? "Hisobotni yangilash" : "Hisobotni ko'rish"}
+          <Icon name="fileJson" size={16} /> {reportViewerLoading ? "Ochilmoqda…" : "Open web ↗"}
         </button>
         <button
           type="button"
@@ -307,44 +297,6 @@ export default function ResultDetailPage() {
         onConfirm={onDelete}
       />
 
-      {reportViewerUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-          onClick={() => setReportViewerUrl(null)}
-        >
-          <div
-            className="bg-white rounded-lg w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50">
-              <div className="text-sm text-navy font-semibold">Hisobot ko'rish (impersonation)</div>
-              <div className="flex items-center gap-3">
-                <a
-                  href={reportViewerUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-navy underline"
-                >
-                  Alohida tabda ochish ↗
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setReportViewerUrl(null)}
-                  className="text-xl leading-none text-gray-500 hover:text-navy"
-                  aria-label="Yopish"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            <iframe
-              src={reportViewerUrl}
-              title="Report preview"
-              className="flex-1 w-full border-0"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
