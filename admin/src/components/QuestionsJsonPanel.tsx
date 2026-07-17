@@ -7,9 +7,17 @@
 // uchun (`Question` — shablon pedagogikasi, techErrorIds bilan), shuning
 // uchun qayta ishlatilmadi.
 //
-// Bu panel FAQAT savollarni almashtiradi — test nomi, fani, sinfi allaqachon
-// formada tanlangan bo'ladi. Butun testni (metadata + savollar) bitta JSON
-// bilan yaratish uchun TestJsonPanel bor.
+// Bu panel FAQAT savol MAZMUNINI almashtiradi — test nomi, fani, sinfi
+// allaqachon formada tanlangan bo'ladi. Butun testni (metadata + savollar)
+// bitta JSON bilan yaratish uchun TestJsonPanel bor.
+//
+// BALL VA BOG'LANISH JSON'DAN OLINMAYDI. Ular slotning o'zidan (ya'ni
+// shablondan) keladi:
+//   - ball shablonda qulflangan — QuestionBuilder'da input disabled, va JSON
+//     orqali uni o'zgartirish o'sha qulfni chetlab o'tish bo'lardi;
+//   - templateQuestionId esa hisobotdagi mavzu tahlilini boradigan bog'lanish
+//     — JSON bilan almashtirilsa, u jimgina uzilib, hisobot buzilardi.
+// Xuddi shu qoida tests/new dagi "Mavjud testdan nusxalash" da ham bor.
 //
 // Joylashdan oldin TEKSHIRAMIZ (dry-run) — qoidalar lib/questions-json.ts da.
 
@@ -17,6 +25,12 @@ import { useState } from "react";
 import { type Lang } from "@/components/I18nField";
 import { type TestQuestion } from "@/components/QuestionBuilder";
 import { parseQuestionsPayload, validateQuestions } from "@/lib/questions-json";
+
+/** Slotning ball manbai — shablon savoli. */
+export interface TemplateSlot {
+  id: string;
+  marks?: number;
+}
 
 interface Check {
   ok: boolean;
@@ -36,7 +50,7 @@ function validate(raw: string, expectedCount: number | undefined, languages: Lan
     return { ok: false, lines: ["JSON massiv yoki { \"questions\": [...] } bo'lishi kerak."] };
   }
 
-  const lines = validateQuestions(qs, expectedCount, languages);
+  const lines = validateQuestions(qs, expectedCount, languages, "fromTemplate");
   return { ok: lines.length === 0, lines, parsed: qs };
 }
 
@@ -45,11 +59,19 @@ export function QuestionsJsonPanel({
   onChange,
   languages,
   expectedCount,
+  templateQuestions,
 }: {
   questions: TestQuestion[];
   onChange: (next: TestQuestion[]) => void;
   languages: Lang[];
   expectedCount?: number;
+  /**
+   * Shablon savollari, test tartibida — ball va bog'lanish manbai.
+   *
+   * Yangi test sahifasida bor. Tahrirlash sahifasida YO'Q: u yerda slotlar
+   * saqlangan testdan keladi va ball/bog'lanishni allaqachon o'zida saqlaydi.
+   */
+  templateQuestions?: TemplateSlot[];
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -69,7 +91,23 @@ export function QuestionsJsonPanel({
     // sariq belgi bilan ko'rinadi. Saqlashda baribir tekshiriladi.
     const fatal = c.lines.some((l) => l.includes("JSON o'qib bo'lmadi") || l.includes("Savol soni mos emas"));
     if (fatal) return;
-    onChange(c.parsed.map((q, i) => ({ ...q, order: i })));
+    // JSON'dan faqat MAZMUN olinadi. Ball va bog'lanish — shablondan (u
+    // bo'lmasa hozirgi slotdan, ya'ni saqlangan testdan).
+    onChange(
+      c.parsed.map((q, i) => {
+        const tpl = templateQuestions?.[i];
+        const slot = questions[i];
+        const next: TestQuestion = {
+          ...q,
+          order: i,
+          marks: Math.max(1, Number(tpl?.marks ?? slot?.marks) || 1),
+        };
+        const boundTo = tpl?.id ?? slot?.templateQuestionId;
+        if (boundTo) next.templateQuestionId = boundTo;
+        else delete next.templateQuestionId;
+        return next;
+      }),
+    );
     setOpen(false);
     setText("");
     setCheck(null);
@@ -110,7 +148,7 @@ export function QuestionsJsonPanel({
           JSON eksport
         </button>
         <a
-          href="/docs#test-create"
+          href="/docs#test-questions"
           target="_blank"
           rel="noreferrer"
           className="text-navy hover:underline ml-auto"
@@ -127,12 +165,16 @@ export function QuestionsJsonPanel({
             <code className="bg-gray-100 px-1">{`{"same":true,"UZ":"$x^2$"}`}</code>. Oddiy satr ham bo'ladi —
             u barcha tillarga tegishli deb o'qiladi.
           </div>
+          <div className="text-xs text-gray-500">
+            <b>Ball yozilmaydi</b> — u shablondan olinadi.{" "}
+            <code className="bg-gray-100 px-1">marks</code> yozilsa e&apos;tiborga olinmaydi.
+          </div>
           <textarea
             className="w-full border rounded px-3 py-2 font-mono text-xs"
             rows={8}
             value={text}
             onChange={(e) => runCheck(e.target.value)}
-            placeholder={`{ "questions": [ { "id": "q1", "order": 0, "type": "MULTIPLE_CHOICE", "marks": 2, ... } ] }`}
+            placeholder={`{ "questions": [ { "id": "q1", "order": 0, "type": "MULTIPLE_CHOICE", "prompt": { "UZ": "…" }, ... } ] }`}
           />
 
           {check && (

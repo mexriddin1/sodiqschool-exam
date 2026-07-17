@@ -198,6 +198,21 @@ const TEST_CREATE_JSON = {
   ],
 };
 
+// Savollarni MAVJUD testga tashlash uchun namuna: aynan yuqoridagi olti tur,
+// lekin ball va shablon bog'lanishisiz — ular slotda allaqachon bor.
+//
+// TEST_CREATE_JSON dan hosil qilinadi, qo'lda nusxalanmaydi: ikkita namuna
+// yonma-yon turib, vaqt o'tib bir-biridan ajralib ketardi (masalan yangi
+// savol turi faqat bittasiga qo'shilardi).
+const TEST_QUESTIONS_JSON = {
+  questions: TEST_CREATE_JSON.questions.map((q) => {
+    const rest = { ...q } as Partial<typeof q>;
+    delete rest.marks;
+    delete rest.templateQuestionId;
+    return rest;
+  }),
+};
+
 const RESULT_QUESTION_OUTCOME_JSON = {
   questions: [
     {
@@ -351,6 +366,20 @@ const SECTIONS: Section[] = [
       "templateQuestionId — ixtiyoriy: savolni shablondagi savolga bog'laydi (q1…q6 da M1…M6). Yozilmasa massivdagi tartib bo'yicha bog'lanadi.",
       "id, order, type, marks, imageUrl, choices[].id, correctChoiceIds, trueFalseItems[].correct, matchingPairs[].leftId/rightId, reorderItems[].correctIndex hech qachon tarjima qilinmaydi — baholash aynan shularga tayanadi.",
       "order avtomatik qayta raqamlanadi (0 dan) — massivdagi tartib hal qiladi.",
+    ],
+  },
+  {
+    key: "test-questions",
+    title: "Savollarni mavjud testga JSON bilan to'ldirish",
+    intro:
+      "Test formasidagi \"JSON bilan to'ldirish\" oynasi (savollar ro'yxati ustida) shu formatni qabul qiladi. Yuqoridagi \"Test yaratish\" dan farqi: bu yerda FAQAT savol mazmuni bo'ladi — test nomi, fani va sinfi formada allaqachon tanlangan, BALL esa shablondan olinadi.",
+    data: TEST_QUESTIONS_JSON,
+    notes: [
+      "BALL YOZILMAYDI. \"marks\" yozsangiz e'tiborga olinmaydi (panel ogohlantiradi) — ball shablondagi savoldan olinadi va uni testdan turib o'zgartirib bo'lmaydi. Ballni o'zgartirish kerak bo'lsa — shablonni tahrirlang.",
+      "templateQuestionId ham yozilmaydi: qaysi savol qaysi shablon savoliga tegishli ekani MASSIVDAGI TARTIB bilan aniqlanadi (1-savol → shablonning 1-savoli). Shu bog'lanish hisobotdagi mavzu tahlilini beradi, shuning uchun savollarni shablondagi tartibda yozing.",
+      "questions soni shablonnikiga teng bo'lishi shart — aks holda \"Qo'llash\" to'xtaydi.",
+      "Qolgan hamma narsa \"Test yaratish\" bo'limidagidek: olti tur, matn maydonlari, LaTeX, rasm — yuqoridagi izohlarga qarang.",
+      "Butun testni (nom, fan, sinf, tillar, vaqt + savollar) bitta JSON bilan yaratmoqchi bo'lsangiz — yuqoridagi \"Test yaratish\" bo'limi, u yerda marks YOZILADI.",
     ],
   },
   {

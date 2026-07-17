@@ -121,6 +121,7 @@ export function QuestionList({
         onChange={onChange}
         languages={languages}
         expectedCount={expectedCount}
+        templateQuestions={templateQuestions}
       />
 
       <div className="card divide-y">
