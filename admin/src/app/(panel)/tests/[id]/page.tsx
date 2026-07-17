@@ -150,6 +150,7 @@ export default function TestDetailPage() {
         questions={test.questions ?? []}
         onChange={(qs) => { setTest({ ...test, questions: qs }); setDirty(true); }}
         languages={test.languages}
+        expectedCount={test.questions?.length}
       />
 
       {error && <div className="card p-3 bg-red-50 text-red-700 text-sm">{error}</div>}
