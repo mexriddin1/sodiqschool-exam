@@ -21,11 +21,10 @@ import {
   attemptAnswersSchema,
   attemptStartSchema,
   leadCreateSchema,
-  resolveText,
   TestQuestion,
 } from "../lib/schemas.js";
-import type { TestLanguage } from "@prisma/client";
 import { gradeTest } from "../services/test-grading.js";
+import { stripAnswers } from "../lib/question-view.js";
 import { generateUniquePublicCode } from "../services/code.js";
 import { calculateResult } from "../services/calculation.js";
 import { ensureStudentCredentials } from "../services/student-credentials.js";
@@ -230,54 +229,6 @@ publicTestTakingRouter.get(
   }),
 );
 
-// Strip the correct-answer fields from a test question before sending it
-// to the browser. Otherwise a savvy student could inspect the response
-// body and read off the answers.
-//
-// This is also the ONE place where language is resolved: the student's own
-// language (lead.examLanguage) picks one string out of each localized field,
-// so test-app never learns that other translations exist and never has to
-// know the language at all. Keeping the resolution server-side also means
-// the other languages never reach the browser.
-function stripAnswers(q: TestQuestion, lang: TestLanguage): unknown {
-  const t = (v: Parameters<typeof resolveText>[0]) => resolveText(v, lang);
-  const base = {
-    id: q.id,
-    order: q.order,
-    type: q.type,
-    marks: q.marks,
-    prompt: t(q.prompt),
-    imageUrl: q.imageUrl ?? null,
-  } as Record<string, unknown>;
-  if (q.choices) {
-    base.choices = q.choices.map((c) => ({ id: c.id, label: t(c.label), imageUrl: c.imageUrl ?? null }));
-  }
-  if (q.trueFalseItems) {
-    base.trueFalseItems = q.trueFalseItems.map((it) => ({ id: it.id, text: t(it.text) }));
-  }
-  if (q.gapAnswers) {
-    // Bo'shliqlar soni tilga bog'liq emas (schemas.ts izohiga qarang).
-    base.gapCount = q.gapAnswers.length;
-  }
-  if (q.matchingPairs) {
-    // Send left column in order; shuffle right column so student maps left→right.
-    const rights = q.matchingPairs.map((p) => ({ id: p.rightId, text: t(p.rightText) }));
-    // Deterministic shuffle by hashing question id — same each render, but no
-    // trivial correlation with left order.
-    const seed = q.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-    const shuffled = [...rights].sort(
-      (a, b) => (a.id.charCodeAt(0) + seed) % 13 - (b.id.charCodeAt(0) + seed) % 13,
-    );
-    base.matchingLefts = q.matchingPairs.map((p) => ({ id: p.leftId, text: t(p.leftText) }));
-    base.matchingRights = shuffled;
-  }
-  if (q.reorderItems) {
-    // Send items in their stored order (arbitrary); student reorders them.
-    base.reorderItems = q.reorderItems.map((i) => ({ id: i.id, text: t(i.text) }));
-  }
-  return base;
-}
-
 publicTestTakingRouter.post(
   "/attempts",
   requireFunnelAccess,
@@ -329,7 +280,9 @@ publicTestTakingRouter.post(
     });
 
     const questions = Array.isArray(test.questions)
-      ? (test.questions as unknown as TestQuestion[]).map((q) => stripAnswers(q, lead.examLanguage))
+      ? (test.questions as unknown as TestQuestion[]).map((q) =>
+          stripAnswers(q, lead.examLanguage, attempt.id),
+        )
       : [];
 
     ok(res, {
@@ -375,7 +328,8 @@ publicTestTakingRouter.get(
     }
     const questions = Array.isArray(attempt.test.questions)
       ? (attempt.test.questions as unknown as TestQuestion[]).map((q) =>
-          stripAnswers(q, attempt.lead.examLanguage),
+          // Urug' — o'sha urinish, ya'ni davom ettirilganda tartib o'zgarmaydi.
+          stripAnswers(q, attempt.lead.examLanguage, attempt.id),
         )
       : [];
     ok(res, {
