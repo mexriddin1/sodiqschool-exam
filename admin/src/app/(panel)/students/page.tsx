@@ -406,7 +406,7 @@ export default function StudentsPage() {
         open={!!delTarget}
         title="O'quvchini o'chirish"
         itemLabel={delTarget?.fullName ?? ""}
-        description="O'quvchining barcha bog'liq natijalari ham o'chirilishi mumkin (agar natijalar bog'langan bo'lsa, server o'chirishni rad etadi)."
+        description="O'quvchi va u bilan bog'liq HAMMA narsa o'chadi: barcha natijalari, nashr qilingan hisoboti, test urinishlari va kirish parollari. Qaytarib bo'lmaydi."
         pending={delPending}
         onCancel={() => setDelTarget(null)}
         onConfirm={onDelete}

@@ -31,6 +31,7 @@ interface LeadDetail {
   phone: string;
   grade: number;
   examLanguage: string;
+  previousSchool: string | null;
   status: string;
   studentId: string | null;
   createdAt: string;
@@ -81,6 +82,10 @@ export default function LeadDetailPage() {
         <div>
           <div className="text-xs text-gray-500">Tel</div>
           <div className="font-medium">{lead.phone}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500">Oldingi maktab</div>
+          <div className="font-medium">{lead.previousSchool || "—"}</div>
         </div>
         <div>
           <div className="text-xs text-gray-500">Status</div>

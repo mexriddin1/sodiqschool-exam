@@ -16,6 +16,7 @@ interface StudentDetail {
   studentNumber?: string | null;
   phone?: string | null;
   sex?: "MALE" | "FEMALE" | null;
+  previousSchool?: string | null;
   results: {
     id: string;
     publicCode: string;
@@ -44,10 +45,8 @@ export default function StudentDetailPage() {
 
   function tryDelete() {
     if (!s) return;
-    if (s.results.length > 0) {
-      setError(`Bu o'quvchining ${s.results.length} ta natijasi bor. Avval natijalarni o'chiring yoki arxivlang.`);
-      return;
-    }
+    // Ilgari bu yerda "natijasi bor — avval o'chiring" to'sig'i bor edi. Endi
+    // o'chirish cascade bo'ladi (natija/hisobot ham), shuning uchun to'siq yo'q.
     setError(null);
     setDelOpen(true);
   }
@@ -88,6 +87,7 @@ export default function StudentDetailPage() {
         <Field label="Jinsi" value={s.sex === "MALE" ? "O'g'il" : s.sex === "FEMALE" ? "Qiz" : "—"} />
         <Field label="Raqam" value={s.studentNumber ?? "—"} />
         <Field label="Telefon" value={s.phone ?? "—"} />
+        <Field label="Oldingi maktab" value={s.previousSchool ?? "—"} />
       </div>
 
       {error && <div className="text-bad text-sm">{error}</div>}
@@ -125,6 +125,7 @@ export default function StudentDetailPage() {
         open={delOpen}
         title="O'quvchini o'chirish"
         itemLabel={s.fullName}
+        description="O'quvchi va u bilan bog'liq HAMMA narsa o'chadi: barcha natijalari, nashr qilingan hisoboti, test urinishlari va kirish parollari. Qaytarib bo'lmaydi."
         pending={pending}
         onCancel={() => setDelOpen(false)}
         onConfirm={onDelete}

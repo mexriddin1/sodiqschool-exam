@@ -21,6 +21,7 @@ interface Test {
   languages: ("UZ" | "RU" | "EN")[];
   durationSec: number | null;
   questions: TestQuestion[];
+  attemptCount?: number;
 }
 
 const LANG_LABEL: Record<string, string> = { UZ: "O'zbek", RU: "Rus", EN: "Ingliz" };
@@ -78,14 +79,25 @@ export default function TestDetailPage() {
     }
   }
 
+  const [delError, setDelError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   async function del() {
     if (!test) return;
-    if (!confirm("Ushbu testni butunlay o'chirasizmi?")) return;
+    const n = test.attemptCount ?? 0;
+    const msg = n > 0
+      ? `Ushbu test va uning ${n} ta urinishi (o'quvchilar ishlagan) butunlay o'chadi. Davom etasizmi?`
+      : "Ushbu testni butunlay o'chirasizmi?";
+    if (!confirm(msg)) return;
+    setDelError(null);
+    setDeleting(true);
     try {
       await api(`/api/admin/tests/${test.id}`, { method: "DELETE" });
       router.push("/tests");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Xato");
+      setDelError(e instanceof Error ? e.message : "Xato");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -114,7 +126,20 @@ export default function TestDetailPage() {
             {test.subject} · {test.grade}-sinf · savol: {test.questions?.length ?? 0}
           </div>
         </div>
-        <button onClick={del} className="text-sm text-red-600 hover:underline">O'chirish</button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={del}
+            disabled={deleting}
+            className="text-sm text-red-600 hover:underline disabled:opacity-50"
+          >
+            {deleting ? "O'chirilmoqda…" : "O'chirish"}
+          </button>
+          {delError && (
+            <div className="text-xs text-red-700 bg-red-50 rounded px-2 py-1 max-w-xs text-right">
+              {delError}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="card p-4 flex flex-wrap gap-4 items-center">
