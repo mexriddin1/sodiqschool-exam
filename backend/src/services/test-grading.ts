@@ -1,6 +1,7 @@
 import type { TestLanguage } from "@prisma/client";
 
 import { resolveText, type TestQuestion } from "../lib/schemas.js";
+import { numericallyEqual } from "../lib/math-answer.js";
 
 // Per-question grading for the live test flow.
 // Rule: full marks only when the whole question is correct — no partial
@@ -57,10 +58,16 @@ export function gradeQuestion(q: TestQuestion, raw: unknown, lang: TestLanguage)
       // raw: string[] — one answer per gap.
       // Yagona matn solishtiradigan tur — kutilgan javob o'quvchi test
       // topshirgan tildan olinadi.
-      const given = Array.isArray(raw) ? raw.map(normalizeGap) : [];
-      const expected = (q.gapAnswers ?? []).map((g) => normalizeGap(resolveText(g, lang)));
+      const given = Array.isArray(raw) ? raw.map((v) => String(v ?? "")) : [];
+      const expected = (q.gapAnswers ?? []).map((g) => resolveText(g, lang));
       if (given.length !== expected.length) return zero;
-      const correct = given.every((g, i) => g === expected[i]);
+      // Har bo'shliqda avval RAQAMLI ekvivalentlik: 5.8 = 29/5 = 58/10 =
+      // 5 8/10 (MathLive \frac ham). Ikkalasi ham raqam bo'lmasa (masalan
+      // so'z) — eski aniq-satr solishtiruvi.
+      const correct = given.every((g, i) => {
+        const num = numericallyEqual(g, expected[i]!);
+        return num !== null ? num : normalizeGap(g) === normalizeGap(expected[i]);
+      });
       return { questionId: q.id, earned: correct ? q.marks : 0, correct };
     }
     case "MATCHING": {

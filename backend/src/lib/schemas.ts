@@ -441,6 +441,8 @@ export const leadCreateSchema = z.object({
   phone: z.string().trim().min(6).max(24),
   grade: z.number().int().min(5).max(11),
   examLanguage: testLanguageSchema,
+  // Oldingi maktab — ixtiyoriy. Bo'sh satr ham "yo'q" deb qabul qilinadi.
+  previousSchool: z.string().trim().max(200).optional(),
 });
 
 export const attemptStartSchema = z.object({

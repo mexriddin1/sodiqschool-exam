@@ -9,6 +9,7 @@ import { audit } from "../services/audit.js";
 import { jsonOrNull } from "../lib/json.js";
 import { parsePagination, wrapPaginated } from "../lib/pagination.js";
 import { ensureStudentCredentials } from "../services/student-credentials.js";
+import { deleteStudentCascade } from "../lib/person-delete.js";
 
 export const studentsRouter = Router();
 studentsRouter.use(requireAdmin);
@@ -294,7 +295,9 @@ studentsRouter.delete(
     const id = String(req.params.id);
     const prev = await prisma.student.findUnique({ where: { id } });
     if (!prev) throw notFound();
-    await prisma.student.delete({ where: { id } });
+    // Cascade: o'quvchi + barcha natija/hisobot/urinish/lead. Ilgari bu bare
+    // delete edi va natijasi bor o'quvchida FK (Restrict) 500 berardi.
+    await deleteStudentCascade(id);
     await audit(req.admin!.id, "delete", "Student", id, prev, null);
     ok(res, { deleted: true });
   }),

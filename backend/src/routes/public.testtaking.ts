@@ -23,6 +23,7 @@ import {
   leadCreateSchema,
   TestQuestion,
 } from "../lib/schemas.js";
+import type { TestLanguage } from "@prisma/client";
 import { gradeTest } from "../services/test-grading.js";
 import { stripAnswers } from "../lib/question-view.js";
 import { generateUniquePublicCode } from "../services/code.js";
@@ -155,6 +156,7 @@ publicTestTakingRouter.post(
         phone: data.phone,
         grade: data.grade,
         examLanguage: data.examLanguage,
+        previousSchool: data.previousSchool || null,
         ipAddress: (req.headers["x-forwarded-for"] as string) || req.ip || null,
         userAgent: String(req.headers["user-agent"] ?? "").slice(0, 512) || null,
       },
@@ -242,30 +244,12 @@ publicTestTakingRouter.post(
       throw badRequest("GRADE_MISMATCH", "Bu test sizning sinfingizga mos emas.");
     }
 
-    // Ensure a Student row exists for this lead. Self-signup students get a
-    // synthetic UID = lead id so their credentials never collide with the
-    // admin-managed roster.
-    let studentId = lead.studentId;
-    if (!studentId) {
-      const fullName = `${lead.firstName} ${lead.lastName}`.trim();
-      const student = await prisma.student.create({
-        data: {
-          fullName,
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-          phone: lead.phone,
-          sex: lead.sex,
-          grade: lead.grade,
-          examLanguage: lead.examLanguage,
-          uid: `LEAD-${lead.id.slice(0, 8).toUpperCase()}`,
-        },
-      });
-      studentId = student.id;
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { studentId, status: "STARTED" },
-      });
-    } else if (lead.status === "FORM_ONLY") {
+    // O'quvchi (Student) SHU YERDA yaratilmaydi — u faqat uchala fan
+    // topshirilgach, submit'da tug'iladi (pastga qarang). Sabab: chala qolgan
+    // odam admin "o'quvchilar" ro'yxatida paydo bo'lmasligi kerak; toki
+    // imtihonni tugatmaguncha u faqat Lead. Urinish Lead'ga bog'lanadi
+    // (studentId shart emas), shuning uchun start uchun student kerak emas.
+    if (lead.status === "FORM_ONLY") {
       await prisma.lead.update({ where: { id: lead.id }, data: { status: "STARTED" } });
     }
 
@@ -413,6 +397,41 @@ function toStrictQuestion(
   };
 }
 
+/**
+ * Bitta topshirilgan urinishni baholab, SubjectResult uchun kerakli hammasini
+ * qaytaradi. Ilgari bu mantiq submit handleri ichida bir marta yozilardi; endi
+ * imtihon tugaganda UCHALA fanni bir joyda baholaymiz, shuning uchun ajratildi.
+ */
+function gradeAttemptSubject(
+  test: { questions: unknown; subject: SubjectKey; template: { questions: unknown } },
+  answers: Record<string, unknown>,
+  lang: TestLanguage,
+) {
+  const testQuestions = test.questions as unknown as TestQuestion[];
+  const templateQuestions = (test.template.questions as unknown as Record<string, unknown>[]) ?? [];
+  const { graded, scoreRaw, scoreMax } = gradeTest(testQuestions, answers, lang);
+  const tplById = new Map<string, Record<string, unknown>>();
+  for (const tq of templateQuestions) {
+    if (typeof tq?.id === "string") tplById.set(tq.id, tq);
+  }
+  const strictQuestions: Question[] = testQuestions.map((tq, i) => {
+    const g = graded[i] ?? { earned: 0, correct: false, questionId: tq.id };
+    const tpl = tq.templateQuestionId ? tplById.get(tq.templateQuestionId) : templateQuestions[i];
+    return toStrictQuestion(tpl, tq, g.earned, g.correct);
+  });
+  return {
+    subject: test.subject,
+    totalQuestions: testQuestions.length,
+    totalMarks: testQuestions.reduce((s, q) => s + q.marks, 0),
+    strictQuestions,
+    scoreRaw,
+    scoreMax,
+  };
+}
+
+// Imtihon uchala fani. O'quvchi shu hammasini topshirgach "tugadi" hisoblanadi.
+const EXAM_SUBJECTS: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
+
 publicTestTakingRouter.post(
   "/attempts/:token/submit",
   asyncHandler(async (req, res) => {
@@ -425,9 +444,8 @@ publicTestTakingRouter.post(
     });
     if (!attempt) throw notFound();
     if (attempt.submittedAt) throw badRequest("ALREADY_SUBMITTED", "Urinish yakunlangan");
-    if (!attempt.lead.studentId || !attempt.lead.student) {
-      throw badRequest("NO_STUDENT", "Student holati topilmadi. Testni qaytadan boshlang.");
-    }
+    // NO_STUDENT tekshiruvi OLIB TASHLANDI: o'quvchi endi start'da emas, faqat
+    // shu yerda — uchala fan yig'ilganda — yaratiladi.
 
     // Prefer answers from body (last-resort save), fall back to what's stored.
     const bodyParsed = attemptAnswersSchema.safeParse(req.body ?? {});
@@ -437,59 +455,91 @@ publicTestTakingRouter.post(
     const autoSubmitted = Boolean((req.body as { autoSubmitted?: boolean })?.autoSubmitted);
     const fullscreenExits = bodyParsed.success ? bodyParsed.data.fullscreenExits : undefined;
 
-    const testQuestions = attempt.test.questions as unknown as TestQuestion[];
-    const templateQuestions = (attempt.test.template.questions as unknown as Record<string, unknown>[]) ?? [];
-
-    // Til: o'quvchi testni qaysi tilda ko'rgan bo'lsa, FILL_GAP javoblari
-    // ham o'sha tilda kutiladi.
-    const { graded, scoreRaw, scoreMax } = gradeTest(testQuestions, answers, attempt.lead.examLanguage);
-
-    // Hisobotdagi mavzu tahlili shablondan keladi — savolni shablonning
-    // QAYSI qatoriga bog'lash SHU YERDA hal bo'ladi.
-    //
-    // `templateQuestionId` bo'yicha bog'laymiz. Ilgari bu massiv indeksi edi:
-    // testning 3-savoli doim shablonning 3-qatorini olardi, ya'ni admin
-    // savollarni boshqa tartibda yozsa, hisobot jimgina noto'g'ri mavzuni
-    // ko'rsatardi.
-    //
-    // Eski testlarda bu maydon yo'q — ular indeks bo'yicha o'qiladi, chunki
-    // boshqa ma'lumot yo'q.
-    const tplById = new Map<string, Record<string, unknown>>();
-    for (const tq of templateQuestions) {
-      if (typeof tq?.id === "string") tplById.set(tq.id, tq);
-    }
-    const strictQuestions: Question[] = testQuestions.map((tq, i) => {
-      const g = graded[i] ?? { earned: 0, correct: false, questionId: tq.id };
-      const tpl = tq.templateQuestionId ? tplById.get(tq.templateQuestionId) : templateQuestions[i];
-      return toStrictQuestion(tpl, tq, g.earned, g.correct);
-    });
-
+    const lang = attempt.lead.examLanguage;
     const exam = attempt.test.exam;
-    const student = attempt.lead.student;
 
-    // Ensure per-student credentials so admin can immediately hand them out
-    // once the result is published.
-    const creds = await ensureStudentCredentials(student.id);
+    // Shu urinishni baholaymiz — javob (`completed`) va attemptga yoziladigan
+    // ball uchun.
+    const current = gradeAttemptSubject(attempt.test, answers, lang);
 
-    const totalMarks = testQuestions.reduce((s, q) => s + q.marks, 0);
-    const totalQuestions = testQuestions.length;
+    // Imtihon tugadimi? Shu lead + imtihon bo'yicha ALLAQACHON topshirilgan
+    // urinishlarning fanlari + shu urinishning fani. Uchala fan yig'ilsa —
+    // tugadi. (Bir fan qayta topshirilsa, eng oxirgi urinish olinadi.)
+    const priorAttempts = await prisma.testAttempt.findMany({
+      where: {
+        leadId: attempt.leadId,
+        submittedAt: { not: null },
+        test: { examId: exam.id },
+      },
+      include: { test: { include: { template: true } } },
+      orderBy: { submittedAt: "asc" },
+    });
+    const bySubject = new Map<SubjectKey, (typeof priorAttempts)[number]>();
+    for (const a of priorAttempts) bySubject.set(a.test.subject, a);
+    const subjects = new Set<SubjectKey>([...bySubject.keys(), attempt.test.subject]);
+    const complete = EXAM_SUBJECTS.every((s) => subjects.has(s));
 
-    // BITTA natija — bitta (o'quvchi, imtihon) uchun. Har fan alohida test
-    // sifatida topshiriladi va o'z SubjectResult'ini SHU natijaga qo'shadi.
-    //
-    // Ilgari har submit YANGI natija yaratardi va unda faqat bitta fan
-    // bo'lardi. Oqibati: (1) publish darvozasi `subjects.length !== 3` ni rad
-    // etadi — natija hech qachon nashr etilmasdi; (2) o'quvchi hisobotni
-    // ochsa, client `pickSubject` da "Subject ENGLISH missing" deb qulardi,
-    // chunki hisobot uchala fanni talab qiladi.
-    //
-    // Faqat DRAFT natija qayta ishlatiladi: nashr etilganini o'zgartirish
-    // ota-onaga ko'rsatilgan hisobotni ostidan almashtirish bo'lardi.
+    // TUGAMAGAN bo'lsa: shu urinishni yakunlangan deb belgilaymiz, xolos.
+    // O'quvchi, natija va hisobot HALI yaratilmaydi — chala qolgani faqat lead.
+    if (!complete) {
+      await prisma.testAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          submittedAt: new Date(),
+          autoSubmitted,
+          answers: answers as Prisma.InputJsonValue,
+          scoreRaw: current.scoreRaw,
+          scoreMax: current.scoreMax,
+          fullscreenExits: Math.max(attempt.fullscreenExits, fullscreenExits ?? 0),
+        },
+      });
+      // Status STARTED bo'lib qoladi — COMPLETED faqat uchala fan tugagach.
+      if (attempt.lead.status === "FORM_ONLY") {
+        await prisma.lead.update({ where: { id: attempt.leadId }, data: { status: "STARTED" } });
+      }
+      ok(res, {
+        resultId: null,
+        scoreRaw: current.scoreRaw,
+        scoreMax: current.scoreMax,
+        completed: false,
+        subjectsDone: subjects.size,
+      });
+      return;
+    }
+
+    // TUGADI — endi o'quvchi + natija tug'iladi. Barcha og'ir yozuvlar shu
+    // yerda, va shu urinish "submitted" deb ATANMASDAN OLDIN bajariladi:
+    // agar bu blok yiqilsa, urinish ochiq qoladi va o'quvchi qayta urina oladi.
+
+    // O'quvchini yaratamiz yoki qayta ishlatamiz. Eski oqimda (deploy'dan
+    // oldin boshlagan) lead.studentId allaqachon bor bo'lishi mumkin.
+    let student = attempt.lead.student;
+    if (!student) {
+      student = await prisma.student.create({
+        data: {
+          fullName: `${attempt.lead.firstName} ${attempt.lead.lastName}`.trim(),
+          firstName: attempt.lead.firstName,
+          lastName: attempt.lead.lastName,
+          phone: attempt.lead.phone,
+          sex: attempt.lead.sex,
+          grade: attempt.lead.grade,
+          examLanguage: attempt.lead.examLanguage,
+          previousSchool: attempt.lead.previousSchool,
+          uid: `LEAD-${attempt.leadId.slice(0, 8).toUpperCase()}`,
+        },
+      });
+      await prisma.lead.update({ where: { id: attempt.leadId }, data: { studentId: student.id } });
+    }
+
+    // Kirish parollari — nashrdan keyin admin darhol topshira olsin.
+    await ensureStudentCredentials(student.id);
+
+    // BITTA DRAFT natija — bitta (o'quvchi, imtihon) uchun. Nashr etilganini
+    // qayta ishlatmaymiz: ota-onaga ko'rsatilgan hisobotni almashtirmaslik uchun.
     let result = await prisma.result.findFirst({
       where: { studentId: student.id, examId: exam.id, status: "DRAFT" },
       orderBy: { createdAt: "desc" },
     });
-
     if (!result) {
       const publicCode = await generateUniquePublicCode();
       const throwawayPlain = generatePassword();
@@ -503,63 +553,68 @@ publicTestTakingRouter.post(
           accessPasswordHash: passwordHash,
           accessPassword: throwawayPlain,
           unlockedSections: defaultUnlocked,
-          // Draft — admin publishes manually from the Results tab.
           status: "DRAFT",
           manualContent: {},
         },
       });
     }
 
-    // Shu fanni qo'shamiz yoki yangilaymiz (@@unique([resultId, subject])).
-    await prisma.subjectResult.upsert({
-      where: { resultId_subject: { resultId: result.id, subject: attempt.test.subject } },
-      create: {
-        resultId: result.id,
-        subject: attempt.test.subject,
-        totalQuestions,
-        totalMarks,
-        questions: strictQuestions as unknown as Prisma.InputJsonValue,
-      },
-      update: {
-        totalQuestions,
-        totalMarks,
-        questions: strictQuestions as unknown as Prisma.InputJsonValue,
-      },
+    // Uchala fanni baholaymiz: shu urinish (yuqorida) + oldingilar (saqlangan
+    // javoblardan qayta). Har fan bitta SubjectResult beradi.
+    const perSubject = new Map<SubjectKey, ReturnType<typeof gradeAttemptSubject>>();
+    for (const a of priorAttempts) {
+      perSubject.set(a.test.subject, gradeAttemptSubject(a.test, a.answers as Record<string, unknown>, lang));
+    }
+    // Shu urinish oldingilarni bosib o'tadi (eng yangi javob).
+    perSubject.set(attempt.test.subject, current);
+
+    for (const g of perSubject.values()) {
+      await prisma.subjectResult.upsert({
+        where: { resultId_subject: { resultId: result.id, subject: g.subject } },
+        create: {
+          resultId: result.id,
+          subject: g.subject,
+          totalQuestions: g.totalQuestions,
+          totalMarks: g.totalMarks,
+          questions: g.strictQuestions as unknown as Prisma.InputJsonValue,
+        },
+        update: {
+          totalQuestions: g.totalQuestions,
+          totalMarks: g.totalMarks,
+          questions: g.strictQuestions as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    // Oldingi urinishlarni natijaga bog'laymiz (deferral'da ular resultId'siz
+    // topshirilgan edi).
+    await prisma.testAttempt.updateMany({
+      where: { id: { in: priorAttempts.map((a) => a.id) } },
+      data: { resultId: result.id },
     });
 
-    // Snapshot uchun natijaning HOZIRGI holati kerak.
-    const subjectRows = await prisma.subjectResult.findMany({
-      where: { resultId: result.id },
-      orderBy: { subject: "asc" },
-    });
-
-    // Attempt is now settled — record the score and link the result.
+    // Shu urinishni ENG OXIRIDA yakunlangan deb belgilaymiz — yuqoridagilar
+    // yiqilsa qayta urinish uchun ochiq qolsin.
     await prisma.testAttempt.update({
       where: { id: attempt.id },
       data: {
         submittedAt: new Date(),
         autoSubmitted,
         answers: answers as Prisma.InputJsonValue,
-        scoreRaw,
-        scoreMax,
+        scoreRaw: current.scoreRaw,
+        scoreMax: current.scoreMax,
         resultId: result.id,
-        // Oxirgi chiqish autosave tikigacha ulgurmagan bo'lishi mumkin —
-        // yakuniy sonni shu yerda ham olamiz. PATCH'dagidek: faqat o'sadi.
         fullscreenExits: Math.max(attempt.fullscreenExits, fullscreenExits ?? 0),
       },
     });
-    await prisma.lead.update({
-      where: { id: attempt.leadId },
-      data: { status: "COMPLETED" },
-    });
+    await prisma.lead.update({ where: { id: attempt.leadId }, data: { status: "COMPLETED" } });
 
-    // Snapshot faqat UCHALA fan yig'ilgandan keyin. computeComposite uchala
-    // SubjectKey bo'yicha aylanadi va yo'g'ini `undefined` deb o'qib
-    // TypeError beradi — u esa quyidagi catch'da jimgina yutilib, natija
-    // `calculatedSnapshot: null` bo'lib qolardi. Ya'ni har bitta-fanli
-    // submitda bu blok bekorga qulardi.
-    const complete = subjectRows.length === 3;
-    if (complete) try {
+    // Snapshot — natijaning hozirgi holatidan.
+    const subjectRows = await prisma.subjectResult.findMany({
+      where: { resultId: result.id },
+      orderBy: { subject: "asc" },
+    });
+    try {
       const snapshot = calculateResult({
         grade: exam.grade,
         thresholds: exam.admissionThresholds as unknown as AdmissionThresholds,
@@ -596,11 +651,9 @@ publicTestTakingRouter.post(
 
     ok(res, {
       resultId: result.id,
-      scoreRaw,
-      scoreMax,
-      // `completed` = butun natija yig'ildimi (uchala fan), bitta test
-      // topshirildimi degani EMAS.
-      completed: complete,
+      scoreRaw: current.scoreRaw,
+      scoreMax: current.scoreMax,
+      completed: true,
       subjectsDone: subjectRows.length,
     });
   }),

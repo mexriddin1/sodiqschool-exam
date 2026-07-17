@@ -58,9 +58,14 @@ testsRouter.get(
 testsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    const t = await prisma.test.findUnique({ where: { id: String(req.params.id) } });
+    const t = await prisma.test.findUnique({
+      where: { id: String(req.params.id) },
+      // O'chirish tasdig'i "N ta urinish o'chadi" deyishi uchun.
+      include: { _count: { select: { attempts: true } } },
+    });
     if (!t) throw notFound();
-    ok(res, t);
+    const { _count, ...rest } = t;
+    ok(res, { ...rest, attemptCount: _count.attempts });
   }),
 );
 
@@ -162,15 +167,14 @@ testsRouter.delete(
     const id = String(req.params.id);
     const prev = await prisma.test.findUnique({ where: { id } });
     if (!prev) throw notFound();
-    // Reject deletion when attempts exist so we don't silently orphan Results.
-    const attemptCount = await prisma.testAttempt.count({ where: { testId: id } });
-    if (attemptCount > 0) {
-      throw badRequest(
-        "TEST_HAS_ATTEMPTS",
-        `Bu testda ${attemptCount} ta urinish (attempt) bor. Avval ularni tozalang.`,
-      );
-    }
-    await prisma.test.delete({ where: { id } });
+    // Test + uning urinishlarini birga o'chiramiz. Ilgari urinishi borini
+    // rad etardik (TestAttempt.test = Restrict), ya'ni o'quvchi ishlagan test
+    // umuman o'chmasdi. Fan-snapshoti (SubjectResult) TESTGA bog'lanmagan —
+    // u (o'quvchi, imtihon) natijasida yashaydi, shuning uchun tegilmaydi.
+    await prisma.$transaction([
+      prisma.testAttempt.deleteMany({ where: { testId: id } }),
+      prisma.test.delete({ where: { id } }),
+    ]);
     await audit(req.admin!.id, "delete", "Test", id, { name: prev.name }, null);
     ok(res, { deleted: true });
   }),

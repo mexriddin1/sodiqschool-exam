@@ -97,6 +97,9 @@ model Student {
   birthDate          DateTime?
   grade              Int
   groupName          String?
+  // O'quvchining oldingi maktabi — funnel formasidan (ixtiyoriy). Lead'dan
+  // imtihon tugaganda ko'chiriladi.
+  previousSchool     String?
   metadata           Json?
   // Parent-facing credentials (2026-07-03). One login per student instead
   // of per Result — so a student with several exams reuses the same code
@@ -296,6 +299,8 @@ model Lead {
   phone        String
   grade        Int
   examLanguage TestLanguage
+  // Oldingi maktab — funnel formasida ixtiyoriy so'raladi.
+  previousSchool String?
   status       LeadStatus   @default(FORM_ONLY)
   studentId    String?
   ipAddress    String?
