@@ -25,6 +25,7 @@ type IconName =
   | "download"
   | "upload"
   | "copy"
+  | "clipboard"
   | "warning"
   | "save"
   | "filter"
@@ -137,6 +138,13 @@ export function Icon({ name, size = 18, ...rest }: Props) {
         <svg {...common}>
           <rect x="8" y="8" width="13" height="13" rx="2" />
           <path d="M16 4H5a2 2 0 0 0-2 2v11" />
+        </svg>
+      );
+    case "clipboard":
+      return (
+        <svg {...common}>
+          <rect x="8" y="2" width="8" height="4" rx="1" />
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
         </svg>
       );
     case "warning":

@@ -19,6 +19,7 @@ import { useState } from "react";
 import { API_BASE, api } from "@/lib/api";
 import { Icon, IconButton } from "@/components/Icon";
 import { I18nField, type I18nText, type Lang, resolveText, toI18n } from "@/components/I18nField";
+import { imageFromClipboard, toQuestionImage } from "@/lib/question-image";
 
 export type QType =
   | "MULTIPLE_CHOICE"
@@ -284,19 +285,55 @@ function MoveButton({ dir, onClick, disabled }: { dir: "up" | "down"; onClick: (
   );
 }
 
-async function uploadImage(file: File): Promise<string> {
-  // Backend does not yet expose an image upload endpoint. As an interim we
-  // store the image as a data URL inside the question JSON. If it grows too
-  // large (>200KB) we surface an error so admin knows to shrink it.
-  if (file.size > 200_000) {
-    throw new Error("Rasm hajmi 200KB dan kichik bo'lishi kerak (hozircha).");
+/**
+ * "Paste" — buferdagi skrinshotni bir bosishda biriktiradi.
+ *
+ * Fayl tanlash yo'li ATAYLAB joyida qoladi: bufer bo'sh bo'lishi, brauzer
+ * ruxsat bermasligi yoki rasm allaqachon faylda bo'lishi mumkin.
+ */
+function PasteImageButton({
+  onPasted,
+  withLabel = false,
+}: {
+  onPasted: (dataUrl: string) => void;
+  /** Savol rasmi hali yo'q bo'lganda — matnli tugma; qolgan joyda ikonka. */
+  withLabel?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      onPasted(await toQuestionImage(await imageFromClipboard()));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Xato");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!withLabel) {
+    return (
+      <IconButton
+        icon="clipboard"
+        label="Buferdan qo'yish (Paste)"
+        onClick={run}
+        disabled={busy}
+      />
+    );
   }
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Rasmni o'qib bo'lmadi"));
-    reader.readAsDataURL(file);
-  });
+  return (
+    <button
+      type="button"
+      onClick={run}
+      disabled={busy}
+      title="Skrinshot oling (Win+Shift+S), so'ng shu tugmani bosing"
+      className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-navy border border-dashed rounded-md px-3 py-1.5 cursor-pointer transition hover:border-navy w-fit disabled:opacity-50"
+    >
+      <Icon name="clipboard" size={14} />
+      {busy ? "Qo'yilmoqda…" : "Paste"}
+    </button>
+  );
 }
 
 export function QuestionEditor({
@@ -379,11 +416,12 @@ export function QuestionEditor({
                   const f = e.target.files?.[0];
                   e.target.value = "";
                   if (!f) return;
-                  try { upd({ imageUrl: await uploadImage(f) }); }
+                  try { upd({ imageUrl: await toQuestionImage(f) }); }
                   catch (err) { alert(err instanceof Error ? err.message : "Xato"); }
                 }}
               />
             </label>
+            <PasteImageButton onPasted={(imageUrl) => upd({ imageUrl })} />
             <IconButton
               icon="delete"
               label="Rasmni o'chirish"
@@ -393,22 +431,25 @@ export function QuestionEditor({
           </div>
         </div>
       ) : (
-        <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-navy border border-dashed rounded-md px-3 py-1.5 cursor-pointer transition hover:border-navy w-fit">
-          <Icon name="upload" size={14} />
-          Rasm qo'shish
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (!f) return;
-              try { upd({ imageUrl: await uploadImage(f) }); }
-              catch (err) { alert(err instanceof Error ? err.message : "Xato"); }
-            }}
-          />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-navy border border-dashed rounded-md px-3 py-1.5 cursor-pointer transition hover:border-navy w-fit">
+            <Icon name="upload" size={14} />
+            Rasm qo'shish
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                try { upd({ imageUrl: await toQuestionImage(f) }); }
+                catch (err) { alert(err instanceof Error ? err.message : "Xato"); }
+              }}
+            />
+          </label>
+          <PasteImageButton withLabel onPasted={(imageUrl) => upd({ imageUrl })} />
+        </div>
       )}
 
       {(q.type === "MULTIPLE_CHOICE" || q.type === "MULTIPLE_SELECT") && (
@@ -516,13 +557,14 @@ function ChoiceEditor({ q, onChange, multi, languages }: { q: TestQuestion; onCh
                     e.target.value = "";
                     if (!f) return;
                     try {
-                      setChoice({ imageUrl: await uploadImage(f) });
+                      setChoice({ imageUrl: await toQuestionImage(f) });
                     } catch (err) {
                       alert(err instanceof Error ? err.message : "Xato");
                     }
                   }}
                 />
               </label>
+              <PasteImageButton onPasted={(imageUrl) => setChoice({ imageUrl })} />
               <IconButton
                 icon="delete"
                 label="Variantni o'chirish"
