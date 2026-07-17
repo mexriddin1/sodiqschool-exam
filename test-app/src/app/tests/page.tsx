@@ -69,6 +69,7 @@ function TestsListInner() {
 
   const doneCount = items.filter((t) => t.completed).length;
   const allDone = items.length > 0 && doneCount === items.length;
+  const next = items.find((t) => t.isNext);
 
   return (
     // Planshet: markazda, kartalar yonma-yon (uchta fan — uchta ustun).
@@ -125,16 +126,25 @@ function TestsListInner() {
       {!loading && items.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3 stagger">
           {items.map((t) => (
-            <TestCard
-              key={t.id}
-              t={t}
-              lang={lang}
-              busy={starting === t.id}
-              disabled={Boolean(starting)}
-              onStart={() => start(t.id)}
-            />
+            <TestCard key={t.id} t={t} lang={lang} />
           ))}
         </div>
+      )}
+
+      {/* Bitta umumiy "Boshlash" — o'quvchi fanni tanlamaydi, imtihon qat'iy
+          tartibda ketadi. Tugma navbatdagi fanni ochadi. */}
+      {!loading && !allDone && next && (
+        <button
+          onClick={() => start(next.id)}
+          disabled={Boolean(starting)}
+          className="btn btn-accent btn-block"
+        >
+          {starting
+            ? tr(lang, "opening")
+            : doneCount === 0
+              ? tr(lang, "startExam")
+              : tr(lang, "continueExam")}
+        </button>
       )}
 
       {error && (
@@ -147,15 +157,7 @@ function TestsListInner() {
   );
 }
 
-function TestCard({
-  t, lang, busy, disabled, onStart,
-}: {
-  t: SequencedTest;
-  lang: Lang;
-  busy: boolean;
-  disabled: boolean;
-  onStart: () => void;
-}) {
+function TestCard({ t, lang }: { t: SequencedTest; lang: Lang }) {
   const tint = SUBJECT_TINT[t.subject];
   // Qulflangan karta xira: navbati kelmagani ko'rinib tursin, lekin nima
   // kutayotgani ham bilinsin.
@@ -197,9 +199,7 @@ function TestCard({
       </div>
 
       {t.isNext && (
-        <button onClick={onStart} disabled={disabled} className="btn btn-accent btn-sm btn-block">
-          {busy ? tr(lang, "opening") : tr(lang, "start")}
-        </button>
+        <span className="chip chip-accent justify-center">{tr(lang, "nextUp")}</span>
       )}
       {t.locked && (
         <span className="chip justify-center" title={tr(lang, "seqHint")}>

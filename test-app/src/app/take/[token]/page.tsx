@@ -16,7 +16,8 @@ import {
   saveAttempt,
 } from "@/lib/offline-store";
 import QuestionRenderer, { ClientQuestion } from "@/components/QuestionRenderer";
-import { DEFAULT_LANG, tr, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, subjectLabel, tr, type Lang } from "@/lib/i18n";
+import { SUBJECT_SEQUENCE, type Subject } from "@/lib/tests";
 
 interface Attempt {
   token: string;
@@ -77,6 +78,9 @@ export default function TakeTestPage() {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [answers, setAnswersState] = useState<Record<string, unknown>>({});
   const [idx, setIdx] = useState(0);
+  // Oxirgi savoldan keyingi "Ko'rib chiqish" ekrani. `started` ichida qoladi —
+  // timer, fullscreen qo'riqchi va autosave ishlab t: yakunlash SHU yerdan.
+  const [reviewing, setReviewing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [fs, setFs] = useState(false);
   const [fsExits, setFsExits] = useState(0);
@@ -364,6 +368,35 @@ export default function TakeTestPage() {
   const q = attempt.questions[idx];
   const progressPct = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
   const lowTime = remainingSec != null && remainingSec < 60;
+  const isLastQuestion = idx >= totalQuestions - 1;
+
+  // Keyingi fan (qat'iy tartib). curIdx topilmasa yoki oxirgi bo'lsa — bu
+  // fan imtihonning oxirgisi, "o'tish" emas "yakunlash".
+  const curSubject = attempt.test.subject as Subject;
+  const curSeqIdx = SUBJECT_SEQUENCE.indexOf(curSubject);
+  const nextSubject: Subject | undefined =
+    curSeqIdx >= 0 ? SUBJECT_SEQUENCE[curSeqIdx + 1] : undefined;
+  const isLastSubject = !nextSubject;
+  const unansweredCount = totalQuestions - answeredCount;
+
+  // Review'dagi asosiy tugma: tasdiq (javobsizlar bo'lsa ogohlantirish) va
+  // yakunlash. Yuborilgach orqaga qaytib bo'lmaydi (backend ALREADY_SUBMITTED).
+  const finishSubject = () => {
+    let msg: string;
+    if (isLastSubject) {
+      msg = unansweredCount > 0
+        ? t("confirmFinishUnanswered", { count: unansweredCount })
+        : t("confirmFinish");
+    } else {
+      const vars = {
+        count: unansweredCount,
+        current: subjectLabel(lang, curSubject),
+        next: subjectLabel(lang, nextSubject!),
+      };
+      msg = unansweredCount > 0 ? t("confirmNextUnanswered", vars) : t("confirmNextAll", vars);
+    }
+    if (confirm(msg)) submit(false);
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[var(--bg)]">
@@ -382,12 +415,10 @@ export default function TakeTestPage() {
             </div>
           )}
 
+          {/* "Yakunlash" endi to'g'ridan-to'g'ri yubormaydi — avval Ko'rib
+              chiqish ekranini ochadi (javobsiz savollar ko'rinsin). */}
           <button
-            onClick={() => {
-              if (confirm(t("confirmFinish"))) {
-                submit(false);
-              }
-            }}
+            onClick={() => setReviewing(true)}
             className="btn btn-neg btn-sm flex-none"
           >
             {t("finish")}
@@ -404,83 +435,160 @@ export default function TakeTestPage() {
         </div>
       </header>
 
-      {/* Savol kartasi ekran markazida — tepaga yopishib turmaydi.
-          Markazlash ICHKI o'ramda (min-h-full + place-items-center), skroll
-          esa tashqarida: aks holda kartadan balandroq savolda markazlash uning
-          TEPASINI kesib qo'yadi va u yerga skroll qilib bo'lmaydi. */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="min-h-full grid place-items-center p-4 sm:p-6">
-          {/* key = savol id: savol almashganda karta qaytadan chiziladi va
-              slide animatsiyasi ishlaydi. */}
-          <div key={q?.id ?? idx} className="w-full max-w-3xl card p-5 sm:p-6 lg:p-8 animate-slide-in">
-          {q ? (
-            <QuestionRenderer
-              lang={lang}
-              q={q}
-              answer={answers[q.id]}
-              onChange={(val) => {
-                const next = { ...answers, [q.id]: val };
-                setAnswersState(next);
-                // Fire-and-forget local save so refresh restores instantly.
-                saveAnswers(token, next).catch(() => undefined);
-              }}
-            />
-          ) : (
-            <div className="text-muted">{t("noQuestion")}</div>
-          )}
-          </div>
-        </div>
-      </main>
+      {reviewing ? (
+        <>
+          {/* Ko'rib chiqish: barcha savollar — javob berilgan yashil,
+              BERILMAGAN qizil. Raqamni bosib o'sha savolga qaytiladi. */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="min-h-full p-4 sm:p-6">
+              <div className="max-w-3xl mx-auto card p-5 sm:p-6 space-y-4 animate-rise">
+                <div>
+                  <h2 className="text-lg font-bold text-ink">{t("reviewTitle")}</h2>
+                  <p className="text-sm text-muted mt-1">{t("reviewHint")}</p>
+                </div>
+                <span className={`chip ${unansweredCount > 0 ? "chip-neg" : "chip-pos"}`}>
+                  {unansweredCount > 0
+                    ? t("reviewUnansweredCount", { count: unansweredCount })
+                    : t("reviewAllAnswered")}
+                </span>
+                <div className="grid grid-cols-8 sm:grid-cols-10 gap-2">
+                  {attempt.questions.map((qq, i) => {
+                    const answered = answeredValueSet(answers[qq.id]);
+                    return (
+                      <button
+                        key={qq.id}
+                        type="button"
+                        onClick={() => { setIdx(i); setReviewing(false); }}
+                        aria-label={`${t("questionNav", { n: i + 1 })}${answered ? t("answeredSuffix") : ""}`}
+                        className={`num w-9 h-9 text-xs font-bold rounded-[8px] border-2 transition-colors ${
+                          answered
+                            ? "bg-pos-weak border-[#C9E7D8] text-[#1F7350]"
+                            : "bg-neg-weak border-[#F3D3CE] text-[#9C3A2D]"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </main>
 
-      {/* pb: 3D tugmalarning pastki soyasi kesilmasin. */}
-      <footer className="border-t border-line bg-surface px-3 sm:px-4 pt-3 pb-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIdx((i) => Math.max(0, i - 1))}
-            disabled={idx === 0}
-            className="btn btn-ghost btn-sm flex-none"
-          >
-            {t("prev")}
-          </button>
+          <footer className="border-t border-line bg-surface px-3 sm:px-4 pt-3 pb-4">
+            <div className="max-w-3xl mx-auto flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setReviewing(false)}
+                className="btn btn-ghost btn-sm flex-none"
+              >
+                {t("backToQuestions")}
+              </button>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={finishSubject}
+                className="btn btn-accent btn-sm flex-none"
+              >
+                {isLastSubject
+                  ? t("finishExamBtn")
+                  : t("goNextSubject", { subject: subjectLabel(lang, nextSubject!) })}
+              </button>
+            </div>
+          </footer>
+        </>
+      ) : (
+        <>
+          {/* Savol kartasi ekran markazida — tepaga yopishib turmaydi.
+              Markazlash ICHKI o'ramda (min-h-full + place-items-center), skroll
+              esa tashqarida: aks holda kartadan balandroq savolda markazlash uning
+              TEPASINI kesib qo'yadi va u yerga skroll qilib bo'lmaydi. */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="min-h-full grid place-items-center p-4 sm:p-6">
+              {/* key = savol id: savol almashganda karta qaytadan chiziladi va
+                  slide animatsiyasi ishlaydi. */}
+              <div key={q?.id ?? idx} className="w-full max-w-3xl card p-5 sm:p-6 lg:p-8 animate-slide-in">
+              {q ? (
+                <QuestionRenderer
+                  lang={lang}
+                  q={q}
+                  answer={answers[q.id]}
+                  onChange={(val) => {
+                    const next = { ...answers, [q.id]: val };
+                    setAnswersState(next);
+                    // Fire-and-forget local save so refresh restores instantly.
+                    saveAnswers(token, next).catch(() => undefined);
+                  }}
+                />
+              ) : (
+                <div className="text-muted">{t("noQuestion")}</div>
+              )}
+              </div>
+            </div>
+          </main>
 
-          {/* Bir qator, gorizontal skroll: 50 savolli Ingliz testida o'ralgan
-              to'r ikki-uch qatorga cho'zilib, ekranning yarmini yeb qo'yadi. */}
-          <div ref={navRef} className="flex-1 flex gap-1.5 overflow-x-auto scroll-nav py-1">
-            {attempt.questions.map((qq, i) => {
-              const answered = answeredValueSet(answers[qq.id]);
-              const current = i === idx;
-              return (
+          {/* pb: 3D tugmalarning pastki soyasi kesilmasin. */}
+          <footer className="border-t border-line bg-surface px-3 sm:px-4 pt-3 pb-4">
+            <div className="max-w-3xl mx-auto flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                disabled={idx === 0}
+                className="btn btn-ghost btn-sm flex-none"
+              >
+                {t("prev")}
+              </button>
+
+              {/* Bir qator, gorizontal skroll: 50 savolli Ingliz testida o'ralgan
+                  to'r ikki-uch qatorga cho'zilib, ekranning yarmini yeb qo'yadi. */}
+              <div ref={navRef} className="flex-1 flex gap-1.5 overflow-x-auto scroll-nav py-1">
+                {attempt.questions.map((qq, i) => {
+                  const answered = answeredValueSet(answers[qq.id]);
+                  const current = i === idx;
+                  return (
+                    <button
+                      key={qq.id}
+                      type="button"
+                      onClick={() => setIdx(i)}
+                      aria-label={`${t("questionNav", { n: i + 1 })}${answered ? t("answeredSuffix") : ""}`}
+                      aria-current={current ? "true" : undefined}
+                      className={`num flex-none w-8 h-8 text-xs font-bold rounded-[8px] border-2 transition-colors ${
+                        current
+                          ? "bg-navy border-navy text-white"
+                          : answered
+                            ? "bg-pos-weak border-[#C9E7D8] text-[#1F7350]"
+                            : "bg-surface border-line text-faint hover:border-line-strong"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Oxirgi savolda "Keyingi" o'rniga "Ko'rib chiqish" — u review
+                  ekranini ochadi (disabled emas, hozir tugash yo'li shu). */}
+              {isLastQuestion ? (
                 <button
-                  key={qq.id}
                   type="button"
-                  onClick={() => setIdx(i)}
-                  aria-label={`${t("questionNav", { n: i + 1 })}${answered ? t("answeredSuffix") : ""}`}
-                  aria-current={current ? "true" : undefined}
-                  className={`num flex-none w-8 h-8 text-xs font-bold rounded-[8px] border-2 transition-colors ${
-                    current
-                      ? "bg-navy border-navy text-white"
-                      : answered
-                        ? "bg-pos-weak border-[#C9E7D8] text-[#1F7350]"
-                        : "bg-surface border-line text-faint hover:border-line-strong"
-                  }`}
+                  onClick={() => setReviewing(true)}
+                  className="btn btn-accent btn-sm flex-none"
                 >
-                  {i + 1}
+                  {t("toReview")}
                 </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIdx((i) => Math.min(totalQuestions - 1, i + 1))}
-            disabled={idx >= totalQuestions - 1}
-            className="btn btn-accent btn-sm flex-none"
-          >
-            {t("next")}
-          </button>
-        </div>
-      </footer>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIdx((i) => Math.min(totalQuestions - 1, i + 1))}
+                  className="btn btn-accent btn-sm flex-none"
+                >
+                  {t("next")}
+                </button>
+              )}
+            </div>
+          </footer>
+        </>
+      )}
 
       {/* To'liq ekrandan chiqilsa — savolni butunlay yopadigan oyna.
           Ilgari bu tepada ingichka qizil chiziq edi: test ortida to'liq

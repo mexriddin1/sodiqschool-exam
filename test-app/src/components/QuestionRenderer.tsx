@@ -46,7 +46,29 @@ let mathliveReady = false;
 async function loadMathlive() {
   if (mathliveReady || typeof window === "undefined") return;
   await import("mathlive");
+  configureKeyboard();
   mathliveReady = true;
+}
+
+// Virtual klaviaturani sozlaymiz. Muammo: standart klaviaturada ARALASH KASR
+// (5 8/10) kiritish og'ir edi — bola 1/5 ni yozib, keyin sonlarni almashtirishga
+// urinardi. Endi alohida "Kasr" tabida ikkita tayyor tugma: oddiy kasr
+// (▢/▢) va aralash kasr (▢ ▢/▢), sonlar bilan birga. Chiqadigan LaTeX
+// (\frac{..}{..}, n\frac{..}{..}) backenddagi parseRational tushunadigan shakl.
+function configureKeyboard() {
+  const mvk = (window as unknown as { mathVirtualKeyboard?: { layouts: unknown } }).mathVirtualKeyboard;
+  if (!mvk) return;
+  const fractions = {
+    label: "▢/▢",
+    tooltip: "Kasrlar",
+    rows: [
+      ["7", "8", "9", { latex: "\\frac{#0}{#0}", tooltip: "Oddiy kasr" }],
+      ["4", "5", "6", { latex: "#0\\frac{#0}{#0}", label: "▢ ▢/▢", tooltip: "Aralash kasr" }],
+      ["1", "2", "3", { latex: "." }],
+      ["0", { latex: "-" }, "[separator]", "[backspace]"],
+    ],
+  };
+  mvk.layouts = ["numeric", fractions];
 }
 
 export default function QuestionRenderer({ q, answer, onChange, lang }: Props) {

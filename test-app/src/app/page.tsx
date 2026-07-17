@@ -29,6 +29,7 @@ export default function HomePage() {
   const [phone, setPhone] = useState("");
   const [grade, setGrade] = useState<number | "">("");
   const [examLanguage, setExamLanguage] = useState<Lang | "">("");
+  const [previousSchool, setPreviousSchool] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -90,6 +91,7 @@ export default function HomePage() {
           phone: toE164(phone),
           grade: Number(grade),
           examLanguage,
+          previousSchool: previousSchool.trim() || undefined,
         }),
       });
       sessionStorage.setItem("sodiq_lead_id", leadId);
@@ -237,6 +239,19 @@ export default function HomePage() {
               />
             </div>
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="previousSchool">{t("previousSchool")}</label>
+          <input
+            id="previousSchool"
+            type="text"
+            value={previousSchool}
+            onChange={(e) => setPreviousSchool(e.target.value)}
+            className="field"
+            placeholder={t("previousSchoolHint")}
+            maxLength={200}
+          />
         </div>
 
         <div>
