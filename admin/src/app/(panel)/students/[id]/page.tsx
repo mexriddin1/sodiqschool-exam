@@ -17,6 +17,7 @@ interface StudentDetail {
   phone?: string | null;
   sex?: "MALE" | "FEMALE" | null;
   previousSchool?: string | null;
+  createdAt: string;
   results: {
     id: string;
     publicCode: string;
@@ -88,6 +89,7 @@ export default function StudentDetailPage() {
         <Field label="Raqam" value={s.studentNumber ?? "—"} />
         <Field label="Telefon" value={s.phone ?? "—"} />
         <Field label="Oldingi maktab" value={s.previousSchool ?? "—"} />
+        <Field label="Qachon qo'shilgan" value={new Date(s.createdAt).toLocaleString("uz-UZ")} />
       </div>
 
       {error && <div className="text-bad text-sm">{error}</div>}

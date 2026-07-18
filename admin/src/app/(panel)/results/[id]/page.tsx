@@ -16,6 +16,7 @@ interface Detail {
   accessPassword?: string;
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   publishedAt: string | null;
+  roadmapOpenedAt: string | null;
   createdAt: string;
   manualContent: Record<string, unknown>;
   calculatedSnapshot: Record<string, unknown> | null;
@@ -374,11 +375,15 @@ Sodiq School Academic Assessment Office`;
 // Report sections the parent sees are gated per-Result. Overview metrics
 // stay on; deeper narrative / roadmap / xulosalar unlock only after the
 // parent visits the school. Admin toggles that here with instant PATCH.
+// "Rivojlanish yo'li" (roadmap) ATAYLAB yo'q — u endi doimiy toggle emas,
+// 20 daqiqalik oyna (pastdagi alohida blok). "O'sish ko'rsatkichi" esa doim
+// ochiq. Bu yerda faqat narrative va risks_notes qulflanadi.
 const SECTION_KEYS = [
   { key: "narrative", label: "Batafsil tahlil", hint: "Bir qarashda, uch fan bo'yicha diagnostik hikoya" },
-  { key: "roadmap", label: "Rivojlanish yo'li", hint: "3/6/12 oylik dastur va oylik reja" },
   { key: "risks_notes", label: "Xatarlar va xulosalar", hint: "Xatarlar tahlili, ota-ona va komissiya xulosasi" },
 ] as const;
+
+const ROADMAP_WINDOW_MS = 20 * 60 * 1000;
 
 function SectionAccessCard({ result, onUpdated }: { result: Detail; onUpdated: () => void }) {
   const [pending, setPending] = useState(false);
@@ -454,7 +459,7 @@ function SectionAccessCard({ result, onUpdated }: { result: Detail; onUpdated: (
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {SECTION_KEYS.map((s) => {
           const on = current.has(s.key);
           return (
@@ -485,7 +490,53 @@ function SectionAccessCard({ result, onUpdated }: { result: Detail; onUpdated: (
         })}
       </div>
 
+      <RoadmapWindow result={result} onUpdated={onUpdated} />
+
       {error && <div className="text-bad text-sm">{error}</div>}
+    </div>
+  );
+}
+
+// "Rivojlanish yo'li" DOIMIY ochiq emas — publish yoki shu tugma bosilganda
+// 20 daqiqagina ochiladi, keyin avto yopiladi. "O'sish ko'rsatkichi" bundan
+// mustaqil (doim ochiq). Holat mijozda hisoblanadi; sahifa yangilanganda
+// qayta baholanadi.
+function RoadmapWindow({ result, onUpdated }: { result: Detail; onUpdated: () => void }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openedAt = result.roadmapOpenedAt ? new Date(result.roadmapOpenedAt).getTime() : null;
+  const remainingMs = openedAt != null ? openedAt + ROADMAP_WINDOW_MS - Date.now() : -1;
+  const isOpen = remainingMs > 0;
+  const remainingMin = Math.ceil(remainingMs / 60000);
+
+  async function openRoadmap() {
+    setPending(true);
+    setError(null);
+    try {
+      await api(`/api/admin/results/${result.id}/open-roadmap`, { method: "POST" });
+      onUpdated();
+    } catch (e) {
+      setError(e instanceof ApiException ? e.error.message : "Xato");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <div className="font-medium text-sm">Rivojlanish yo'li (roadmap)</div>
+        <div className="text-xs text-gray-500 mt-0.5">
+          {isOpen
+            ? `Ochiq — yana ${remainingMin} daqiqa, keyin avto yopiladi.`
+            : "Yopiq. Ochilsa faqat 20 daqiqaga ochiladi."}
+          {error && <span className="text-bad ml-2">{error}</span>}
+        </div>
+      </div>
+      <button type="button" className="btn-secondary text-xs" disabled={pending} onClick={openRoadmap}>
+        {pending ? "…" : isOpen ? "Yana 20 daqiqaga ochish" : "20 daqiqaga ochish"}
+      </button>
     </div>
   );
 }

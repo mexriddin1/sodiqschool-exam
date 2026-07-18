@@ -4,10 +4,19 @@
 // yaratilgan bo'lsa unga link.
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { resolveBack, withBack } from "@/lib/back-link";
+import KatexInline from "@/components/KatexInline";
+
+interface AnswerRow {
+  n: number;
+  type: string;
+  student: string;
+  correct: string;
+  isCorrect: boolean;
+}
 
 interface Attempt {
   id: string;
@@ -46,6 +55,7 @@ export default function LeadDetailPage() {
   const back = resolveBack(useSearchParams(), { href: "/leads", label: "Leadlar ro'yxati" });
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openAttempt, setOpenAttempt] = useState<string | null>(null);
 
   useEffect(() => {
     api<LeadDetail>(`/api/admin/leads/${params.id}`)
@@ -127,52 +137,114 @@ export default function LeadDetailPage() {
                     Ekrandan chiqish
                   </th>
                   <th className="p-3">Natija</th>
+                  <th className="p-3">Javoblar</th>
                 </tr>
               </thead>
               <tbody>
                 {lead.attempts.map((a) => (
-                  <tr key={a.id} className="border-b">
-                    <td className="p-3 font-medium">{a.test.name}</td>
-                    <td className="p-3">{a.test.subject}</td>
-                    <td className="p-3 text-xs">{new Date(a.startedAt).toLocaleString("uz-UZ")}</td>
-                    <td className="p-3 text-xs">
-                      {a.submittedAt ? new Date(a.submittedAt).toLocaleString("uz-UZ") : "—"}
-                      {a.autoSubmitted && <span className="ml-1 text-orange-600 text-[10px]">(auto)</span>}
-                    </td>
-                    <td className="p-3">
-                      {a.scoreRaw != null ? `${a.scoreRaw} / ${a.scoreMax}` : "—"}
-                    </td>
-                    {/* 0 marta chiqqan — normal holat, ko'zni tortmasin.
-                        Chiqqan bo'lsa ko'rinsin, lekin bu ayblov emas: bola
-                        Esc ni tasodifan bosishi ham mumkin. */}
-                    <td className="p-3">
-                      {a.fullscreenExits > 0 ? (
-                        <span className="text-orange-600 font-medium">{a.fullscreenExits} marta</span>
-                      ) : (
-                        <span className="text-gray-400">0</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {a.result ? (
-                        // Natija sahifasi "orqaga" ni shu yerga qaytarsin —
-                        // aks holda natijalar ro'yxatiga tashlab yuboradi.
-                        <Link
-                          href={withBack(`/results/${a.result.id}`, `/leads/${params.id}`, "Lead")}
-                          className="text-navy underline"
+                  <Fragment key={a.id}>
+                    <tr className="border-b">
+                      <td className="p-3 font-medium">{a.test.name}</td>
+                      <td className="p-3">{a.test.subject}</td>
+                      <td className="p-3 text-xs">{new Date(a.startedAt).toLocaleString("uz-UZ")}</td>
+                      <td className="p-3 text-xs">
+                        {a.submittedAt ? new Date(a.submittedAt).toLocaleString("uz-UZ") : "—"}
+                        {a.autoSubmitted && <span className="ml-1 text-orange-600 text-[10px]">(auto)</span>}
+                      </td>
+                      <td className="p-3">
+                        {a.scoreRaw != null ? `${a.scoreRaw} / ${a.scoreMax}` : "—"}
+                      </td>
+                      {/* 0 marta chiqqan — normal holat, ko'zni tortmasin.
+                          Chiqqan bo'lsa ko'rinsin, lekin bu ayblov emas: bola
+                          Esc ni tasodifan bosishi ham mumkin. */}
+                      <td className="p-3">
+                        {a.fullscreenExits > 0 ? (
+                          <span className="text-orange-600 font-medium">{a.fullscreenExits} marta</span>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {a.result ? (
+                          // Natija sahifasi "orqaga" ni shu yerga qaytarsin —
+                          // aks holda natijalar ro'yxatiga tashlab yuboradi.
+                          <Link
+                            href={withBack(`/results/${a.result.id}`, `/leads/${params.id}`, "Lead")}
+                            className="text-navy underline"
+                          >
+                            {a.result.publicCode} ({a.result.status})
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          onClick={() => setOpenAttempt(openAttempt === a.id ? null : a.id)}
+                          className="text-navy text-xs hover:underline"
                         >
-                          {a.result.publicCode} ({a.result.status})
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
+                          {openAttempt === a.id ? "Yopish" : "Ko'rish"}
+                        </button>
+                      </td>
+                    </tr>
+                    {openAttempt === a.id && (
+                      <tr>
+                        <td colSpan={8} className="p-3 bg-gray-50">
+                          <AttemptAnswers attemptId={a.id} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Bitta urinishning savol-javoblari: Savol raqami | O'quvchi Javobi | To'g'ri
+// javob. To'g'ri qatorlar yashil, noto'g'ri qizil. Javoblar KatexInline bilan
+// (matematik ifodalar $...$ ichida keladi).
+function AttemptAnswers({ attemptId }: { attemptId: string }) {
+  const [rows, setRows] = useState<AnswerRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api<{ rows: AnswerRow[] }>(`/api/admin/attempts/${attemptId}/answers`)
+      .then((d) => { if (alive) setRows(d.rows); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Xato"); });
+    return () => { alive = false; };
+  }, [attemptId]);
+
+  if (error) return <div className="text-sm text-bad">{error}</div>;
+  if (!rows) return <div className="text-sm text-gray-500">Yuklanmoqda…</div>;
+  if (rows.length === 0) return <div className="text-sm text-gray-500">Savol yo'q.</div>;
+
+  return (
+    <div className="overflow-x-auto rounded border border-line bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs uppercase text-gray-500 border-b">
+            <th className="p-2 w-20">Savol raqami</th>
+            <th className="p-2">O'quvchi Javobi</th>
+            <th className="p-2">To'g'ri javob</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.n} className={`border-b ${r.isCorrect ? "bg-green-50" : "bg-red-50"}`}>
+              <td className="p-2 num align-top">{r.n}</td>
+              <td className="p-2 align-top"><KatexInline source={r.student} /></td>
+              <td className="p-2 align-top"><KatexInline source={r.correct} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

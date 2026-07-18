@@ -43,6 +43,9 @@ export default function ResultsPage() {
   const [examId, setExamId] = useState<string>("");
   const [exams, setExams] = useState<{ id: string; title: string; grade: number }[]>([]);
   const [sort, setSort] = useState<"created-desc" | "created-asc">("created-desc");
+  // Standart ko'rinish — BUGUN qo'shilgan natijalar (nechta bo'lsa shuncha).
+  // "Barchasi" — hamma natija, sahifalab.
+  const [scope, setScope] = useState<"today" | "all">("today");
   const [error, setError] = useState<string | null>(null);
   const [delTarget, setDelTarget] = useState<ResultRow | null>(null);
   const [delPending, setDelPending] = useState(false);
@@ -58,6 +61,7 @@ export default function ResultsPage() {
       if (status) qs.set("status", status);
       if (examId) qs.set("examId", examId);
       if (grade) qs.set("grade", grade);
+      if (scope === "today") qs.set("today", "1");
       if (sort !== "created-desc") qs.set("sort", sort);
       const res = await fetch(`${API_BASE}/api/admin/results/export.csv?${qs}`, {
         credentials: "include",
@@ -96,17 +100,24 @@ export default function ResultsPage() {
     if (examId) qs.set("examId", examId);
     if (grade) qs.set("grade", grade);
     if (sort !== "created-desc") qs.set("sort", sort);
-    qs.set("page", String(page));
-    qs.set("take", String(PAGE_TAKE));
+    if (scope === "today") {
+      // Bugun'da hammasi bir sahifada — "10 tami 15 tami farqi yo'q".
+      qs.set("today", "1");
+      qs.set("take", "500");
+      qs.set("page", "1");
+    } else {
+      qs.set("page", String(page));
+      qs.set("take", String(PAGE_TAKE));
+    }
     setLoading(true);
     api<PagedResponse>(`/api/admin/results?${qs}`)
       .then((d) => { setList(d.items); setTotal(d.total); setPages(d.pages); })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }
-  // Reset to page 1 when any filter/sort changes; keep page when only page changes.
-  useEffect(() => { setPage(1); }, [q, status, examId, grade, sort]);
-  useEffect(refresh, [q, status, examId, grade, sort, page]);
+  // Reset to page 1 when any filter/sort/scope changes; keep page when only page changes.
+  useEffect(() => { setPage(1); }, [q, status, examId, grade, sort, scope]);
+  useEffect(refresh, [q, status, examId, grade, sort, scope, page]);
 
   const stats = useMemo(() => {
     const out = { DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 };
@@ -168,6 +179,12 @@ export default function ResultsPage() {
           </>
         }
       >
+        <FilterField label="Ko'rinish">
+          <select className="input" value={scope} onChange={(e) => setScope(e.target.value as "today" | "all")}>
+            <option value="today">Bugun</option>
+            <option value="all">Barchasi</option>
+          </select>
+        </FilterField>
         <FilterField label="Qidirish" className="flex-1 min-w-[180px]">
           <input className="input" placeholder="kod yoki o'quvchi ismi" value={q} onChange={(e) => setQ(e.target.value)} />
         </FilterField>
@@ -240,7 +257,9 @@ export default function ResultsPage() {
           </tbody>
         </table>
         </div>
-        <Pagination page={page} take={PAGE_TAKE} total={total} pages={pages} loading={loading} onChange={setPage} />
+        {scope === "all" && (
+          <Pagination page={page} take={PAGE_TAKE} total={total} pages={pages} loading={loading} onChange={setPage} />
+        )}
       </div>
 
       <DeleteConfirmDialog
