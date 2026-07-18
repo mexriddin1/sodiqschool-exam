@@ -66,13 +66,13 @@ export default function HomePage() {
   }
 
   const phoneOk = isUzPhoneComplete(phone);
-  const filled = [firstName, lastName, sex, phoneOk, grade, examLanguage].filter(Boolean).length;
-  const progress = Math.round((filled / 6) * 100);
+  const filled = [firstName, lastName, sex, phoneOk, grade, examLanguage, previousSchool.trim()].filter(Boolean).length;
+  const progress = Math.round((filled / 7) * 100);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!firstName || !lastName || !sex || !phone || !grade || !examLanguage) {
+    if (!firstName || !lastName || !sex || !phone || !grade || !examLanguage || !previousSchool.trim()) {
       setError(t("fillAll"));
       return;
     }
@@ -91,7 +91,7 @@ export default function HomePage() {
           phone: toE164(phone),
           grade: Number(grade),
           examLanguage,
-          previousSchool: previousSchool.trim() || undefined,
+          previousSchool: previousSchool.trim(),
         }),
       });
       sessionStorage.setItem("sodiq_lead_id", leadId);
@@ -167,7 +167,7 @@ export default function HomePage() {
         <form onSubmit={submit} className="card p-5 lg:p-6 space-y-4 animate-rise" style={{ animationDelay: "0.08s" }}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg">{t("studentInfo")}</h2>
-          <span className="chip num">{filled}/6</span>
+          <span className="chip num">{filled}/7</span>
         </div>
         <div className="progress progress-sm">
           <div className="progress-bar" style={{ width: `${progress}%` }} />
@@ -251,6 +251,7 @@ export default function HomePage() {
             className="field"
             placeholder={t("previousSchoolHint")}
             maxLength={200}
+            required
           />
         </div>
 

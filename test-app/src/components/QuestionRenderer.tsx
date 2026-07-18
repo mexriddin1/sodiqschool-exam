@@ -55,8 +55,17 @@ async function loadMathlive() {
 // urinardi. Endi alohida "Kasr" tabida ikkita tayyor tugma: oddiy kasr
 // (▢/▢) va aralash kasr (▢ ▢/▢), sonlar bilan birga. Chiqadigan LaTeX
 // (\frac{..}{..}, n\frac{..}{..}) backenddagi parseRational tushunadigan shakl.
+interface MathKeyboard {
+  layouts: unknown;
+  visible?: boolean;
+  boundingRect?: DOMRect;
+  addEventListener?: (t: string, cb: () => void) => void;
+}
+
+let keyboardGeometryHooked = false;
+
 function configureKeyboard() {
-  const mvk = (window as unknown as { mathVirtualKeyboard?: { layouts: unknown } }).mathVirtualKeyboard;
+  const mvk = (window as unknown as { mathVirtualKeyboard?: MathKeyboard }).mathVirtualKeyboard;
   if (!mvk) return;
   const fractions = {
     label: "▢/▢",
@@ -69,6 +78,20 @@ function configureKeyboard() {
     ],
   };
   mvk.layouts = ["numeric", fractions];
+
+  // Klaviatura pastdan fixed chiqadi va fokusdagi input'ni bekitardi. Uning
+  // balandligini `--mvk-pad` ga yozamiz — take sahifasidagi scroll konteyneri
+  // shuncha pastki bo'shliq oladi va input klaviatura ustiga ko'tariladi
+  // (MathInput focus'da scrollIntoView ham qiladi).
+  if (!keyboardGeometryHooked && typeof mvk.addEventListener === "function") {
+    keyboardGeometryHooked = true;
+    const sync = () => {
+      const h = mvk.visible ? Math.round(mvk.boundingRect?.height ?? 0) : 0;
+      document.documentElement.style.setProperty("--mvk-pad", `${h}px`);
+    };
+    mvk.addEventListener("geometrychange", sync);
+    sync();
+  }
 }
 
 export default function QuestionRenderer({ q, answer, onChange, lang }: Props) {
@@ -232,14 +255,22 @@ function MathInput({ value, onChange }: { value: string; onChange: (v: string) =
       const el = ref.current as any;
       const h = () => onChange(String(el.value ?? ""));
       el.addEventListener("input", h);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (el as any).__h = h;
+      el.__h = h;
+      // Fokusda: klaviatura ochilib (--mvk-pad qo'yilib) bo'lgach input'ni
+      // ko'rinadigan joyga suramiz — aks holda klaviatura uni bekitib qolardi.
+      const f = () => {
+        setTimeout(() => ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+      };
+      el.addEventListener("focusin", f);
+      el.__f = f;
     });
     return () => {
       disposed = true;
       const el = ref.current;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (el && (el as any).__h) el.removeEventListener("input", (el as any).__h);
+      const anyEl = el as any;
+      if (anyEl?.__h) el!.removeEventListener("input", anyEl.__h);
+      if (anyEl?.__f) el!.removeEventListener("focusin", anyEl.__f);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

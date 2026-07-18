@@ -17,7 +17,7 @@ import {
 } from "@/lib/offline-store";
 import QuestionRenderer, { ClientQuestion } from "@/components/QuestionRenderer";
 import { DEFAULT_LANG, subjectLabel, tr, type Lang } from "@/lib/i18n";
-import { SUBJECT_SEQUENCE, type Subject } from "@/lib/tests";
+import { SUBJECT_SEQUENCE, nextTest, type Subject, type TestRow } from "@/lib/tests";
 
 interface Attempt {
   token: string;
@@ -213,6 +213,31 @@ export default function TakeTestPage() {
         },
       );
       await clearAttempt(token);
+
+      // Keyingi fan bo'lsa — TO'G'RIDAN o'sha fanning boshlash ekraniga o'tamiz
+      // (ortiqcha "Tugatildi → Keyingisini boshlash" sahifasi ko'rsatilmaydi).
+      // Faqat oxirgi fan tugagach /done (tabrik + yopish).
+      const cur = attempt?.test.subject as Subject | undefined;
+      const seqIdx = cur ? SUBJECT_SEQUENCE.indexOf(cur) : -1;
+      const hasNextInSeq = seqIdx >= 0 && seqIdx < SUBJECT_SEQUENCE.length - 1;
+      const leadId = typeof window !== "undefined" ? sessionStorage.getItem("sodiq_lead_id") : null;
+      if (hasNextInSeq && leadId) {
+        try {
+          const d = await api<{ items: TestRow[] }>(`/api/test-taking/leads/${leadId}/tests`);
+          const next = nextTest(d.items ?? []);
+          if (next) {
+            const started = await api<{ token: string }>("/api/test-taking/attempts", {
+              method: "POST",
+              body: JSON.stringify({ leadId, testId: next.id }),
+            });
+            router.replace(`/take/${started.token}`);
+            return res;
+          }
+        } catch {
+          // Keyingisini ochib bo'lmadi — /done'ga tushamiz, u yerdan qo'lda.
+        }
+      }
+
       setPhase("done");
       router.replace(`/done/${token}`);
       return res;
@@ -227,7 +252,7 @@ export default function TakeTestPage() {
         setError(e instanceof Error ? e.message : t("submitFailed"));
       }
     }
-  }, [answers, router, token, fsExits]);
+  }, [answers, router, token, fsExits, attempt]);
 
   // 5) Auto-submit when timer hits zero.
   useEffect(() => {
@@ -502,8 +527,10 @@ export default function TakeTestPage() {
           {/* Savol kartasi ekran markazida — tepaga yopishib turmaydi.
               Markazlash ICHKI o'ramda (min-h-full + place-items-center), skroll
               esa tashqarida: aks holda kartadan balandroq savolda markazlash uning
-              TEPASINI kesib qo'yadi va u yerga skroll qilib bo'lmaydi. */}
-          <main className="flex-1 overflow-y-auto">
+              TEPASINI kesib qo'yadi va u yerga skroll qilib bo'lmaydi.
+              paddingBottom: math klaviatura ochilganda (--mvk-pad) shuncha
+              bo'shliq — savol/input klaviatura ustiga chiqadi (7-punkt). */}
+          <main className="flex-1 overflow-y-auto" style={{ paddingBottom: "var(--mvk-pad, 0px)" }}>
             <div className="min-h-full grid place-items-center p-4 sm:p-6">
               {/* key = savol id: savol almashganda karta qaytadan chiziladi va
                   slide animatsiyasi ishlaydi. */}
