@@ -195,6 +195,11 @@ model Result {
   //   "roadmap"   — 3/6/12 oylik Rivojlanish yo'li
   //   "risks_notes" — Xatarlar, ota-ona/komissiya xulosalari
   unlockedSections   String[]     @default([])
+  // "Rivojlanish yo'li" (roadmap) sekiyasi DOIMIY ochiq emas: publish paytida
+  // yoki admin "ochish" bosganda shu vaqtga qo'yiladi va 20 daqiqagina ochiq
+  // turadi (public.result.ts roadmapOpen). O'sish ko'rsatkichi bundan mustaqil,
+  // doim ochiq.
+  roadmapOpenedAt    DateTime?
   publishedAt        DateTime?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt

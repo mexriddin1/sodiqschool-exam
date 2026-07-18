@@ -15,6 +15,10 @@ import {
 
 const RESULT_COOKIE_AGE_MS = 1 * 24 * 60 * 60 * 1000;
 
+// "Rivojlanish yo'li" (roadmap) sekiyasi publish/ochilishdan keyin shuncha
+// vaqt ochiq turadi, keyin avto yopiladi.
+const ROADMAP_WINDOW_MS = 20 * 60 * 1000;
+
 export const publicResultRouter = Router();
 
 /**
@@ -214,6 +218,12 @@ publicResultRouter.get(
       calculatedSnapshot: result.calculatedSnapshot,
       aiNarrative: result.aiNarrative,
       unlockedSections: result.unlockedSections ?? [],
+      // "Rivojlanish yo'li" DOIMIY toggle emas — publish yoki admin "ochish"
+      // paytidan 20 daqiqagina ochiq. O'sish ko'rsatkichi bundan mustaqil
+      // (client'da doim ochiq). Vaqtni SERVER hisoblaydi (bitta "hozir").
+      roadmapOpen:
+        result.roadmapOpenedAt != null &&
+        Date.now() - new Date(result.roadmapOpenedAt).getTime() < ROADMAP_WINDOW_MS,
       resultId: result.id,
     });
   }),

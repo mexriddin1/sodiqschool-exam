@@ -78,10 +78,16 @@ function buildResultsFilter(query: Record<string, unknown>): Prisma.ResultWhereI
   const status = query.status ? String(query.status) : undefined;
   const grade = query.grade ? Number(query.grade) : undefined;
   const q = String(query.q ?? "").trim();
+  // ?today=1 → faqat bugun (server vaqti bo'yicha yarim tundan) qo'shilgan
+  // natijalar. list + CSV export ikkalasiga tegadi.
+  const today = query.today === "1" || query.today === "true";
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   return {
     ...(examId && { examId }),
     ...(status && { status: status as Prisma.EnumResultStatusFilter }),
     ...(Number.isFinite(grade) && { student: { grade } }),
+    ...(today && { createdAt: { gte: startOfToday } }),
     ...(q && {
       OR: [
         { publicCode: { contains: q.toUpperCase() } },
@@ -313,6 +319,8 @@ resultsRouter.post(
         // required per operator preference.
         status: "PUBLISHED",
         publishedAt: new Date(),
+        // "Rivojlanish yo'li" 20 daqiqaga ochiladi (publish payti).
+        roadmapOpenedAt: new Date(),
         manualContent: json(data.manualContent),
         subjects: {
           create: subjectInputs.map((s) => ({
@@ -484,6 +492,10 @@ resultsRouter.post(
       data: {
         status: "PUBLISHED",
         publishedAt: new Date(),
+        // Publish "Rivojlanish yo'li" ni 20 daqiqaga ochadi (natija birinchi
+        // publish bo'lgan payt). Keyin avto yopiladi; qayta ochish uchun
+        // open-roadmap.
+        roadmapOpenedAt: new Date(),
         calculatedSnapshot: snapshot as unknown as Prisma.InputJsonValue,
       },
     });
@@ -796,7 +808,29 @@ resultsRouter.post(
 // Whitelist of section keys the admin can toggle. Any string sent by the
 // admin that isn't in this list is dropped — prevents the frontend from
 // accidentally shipping a typo key that clients then rely on.
-const ALLOWED_SECTION_KEYS = ["narrative", "roadmap", "risks_notes"] as const;
+//
+// "roadmap" ATAYLAB yo'q: u endi doimiy toggle emas, 20 daqiqalik oyna
+// (roadmapOpenedAt + open-roadmap endpoint). "O'sish ko'rsatkichi" esa doim
+// ochiq (client'da hardcode). Faqat narrative va risks_notes qulflanadi.
+const ALLOWED_SECTION_KEYS = ["narrative", "risks_notes"] as const;
+
+// "Rivojlanish yo'li" (roadmap) sekiyasini 20 daqiqaga ochadi. Publish ham
+// shu vaqtni qo'yadi; bu tugma keyinchalik qayta ochish uchun.
+resultsRouter.post(
+  "/:id/open-roadmap",
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const prev = await prisma.result.findUnique({ where: { id }, select: { id: true } });
+    if (!prev) throw notFound();
+    const updated = await prisma.result.update({
+      where: { id },
+      data: { roadmapOpenedAt: new Date() },
+      select: { id: true, roadmapOpenedAt: true },
+    });
+    await audit(req.admin!.id, "open-roadmap", "Result", id, null, { roadmapOpenedAt: updated.roadmapOpenedAt });
+    ok(res, updated);
+  }),
+);
 
 resultsRouter.patch(
   "/:id/unlocked-sections",

@@ -29,6 +29,8 @@ import { stripAnswers } from "../lib/question-view.js";
 import { generateUniquePublicCode } from "../services/code.js";
 import { calculateResult } from "../services/calculation.js";
 import { ensureStudentCredentials } from "../services/student-credentials.js";
+import { recomputeCohortRanks } from "../services/snapshot.js";
+import { invalidateStats } from "./admin.stats.js";
 import { readDefaultUnlockedSections, readFunnelOpen, readFunnelPassword } from "./admin.settings.js";
 
 // Public API for the natijalar.sodiqschool.uz site — no admin auth. Anyone
@@ -534,10 +536,13 @@ publicTestTakingRouter.post(
     // Kirish parollari — nashrdan keyin admin darhol topshira olsin.
     await ensureStudentCredentials(student.id);
 
-    // BITTA DRAFT natija — bitta (o'quvchi, imtihon) uchun. Nashr etilganini
-    // qayta ishlatmaymiz: ota-onaga ko'rsatilgan hisobotni almashtirmaslik uchun.
+    // BITTA natija — bitta (o'quvchi, imtihon) uchun. Mavjud ARXIVLANMAGAN
+    // natijani qayta ishlatamiz (DRAFT ham, PUBLISHED ham) — aks holda qayta
+    // topshirish ikkinchi natija yasab, dublikat bo'lardi. Yangi natija darhol
+    // PUBLISHED bo'lib yaratiladi (quyida): o'quvchi login/parolsiz baribir
+    // ko'rolmaydi, shuning uchun draft bosqichi keraksiz.
     let result = await prisma.result.findFirst({
-      where: { studentId: student.id, examId: exam.id, status: "DRAFT" },
+      where: { studentId: student.id, examId: exam.id, status: { not: "ARCHIVED" } },
       orderBy: { createdAt: "desc" },
     });
     if (!result) {
@@ -553,7 +558,8 @@ publicTestTakingRouter.post(
           accessPasswordHash: passwordHash,
           accessPassword: throwawayPlain,
           unlockedSections: defaultUnlocked,
-          status: "DRAFT",
+          status: "PUBLISHED",
+          publishedAt: new Date(),
           manualContent: {},
         },
       });
@@ -641,12 +647,24 @@ publicTestTakingRouter.post(
             questions: s.questions as unknown as Question[],
           })),
       });
+      // AVTO-PUBLISH: o'quvchi imtihonni tugatishi bilan natija darhol nashr
+      // etiladi (draft bosqichi yo'q). roadmapOpenedAt=now — "Rivojlanish yo'li"
+      // sekiyasi shu daqiqadan 20 daqiqa ochiq turadi. AI tahlil bu yerda
+      // YOZILMAYDI — admin kerak bo'lsa "AI yaratish" (generate-ai) bilan
+      // keyin yozdiradi (har lead'da avtomatik DeepSeek xarajati bo'lmasin).
       await prisma.result.update({
         where: { id: result.id },
-        data: { calculatedSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+        data: {
+          calculatedSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+          status: "PUBLISHED",
+          publishedAt: result.publishedAt ?? new Date(),
+          roadmapOpenedAt: new Date(),
+        },
       });
+      await recomputeCohortRanks(exam.id);
+      invalidateStats();
     } catch (e) {
-      console.warn("[test-taking] snapshot preview failed for result", result.id, e);
+      console.warn("[test-taking] snapshot/publish failed for result", result.id, e);
     }
 
     ok(res, {
