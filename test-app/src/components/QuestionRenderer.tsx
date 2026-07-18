@@ -107,14 +107,16 @@ export default function QuestionRenderer({ q, answer, onChange, lang, subject }:
         </span>
       </div>
 
-      <div className="text-lg leading-relaxed text-ink font-display">
-        <KatexInline source={q.prompt} />
-      </div>
-
+      {/* Rasm SAVOL MATNIDAN OLDIN — ko'p savol rasmga ishora qiladi
+          ("chizmaga qarang, ..."), shuning uchun o'quvchi avval rasmni ko'rsin. */}
       {q.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={q.imageUrl} alt="" className="max-h-64 rounded-[12px] border border-line" />
       )}
+
+      <div className="text-lg leading-relaxed text-ink font-display">
+        <KatexInline source={q.prompt} />
+      </div>
 
       {q.type === "MULTIPLE_CHOICE" && (
         <ChoiceInput lang={lang} q={q} answer={typeof answer === "string" ? answer : ""} onChange={onChange} multi={false} />
