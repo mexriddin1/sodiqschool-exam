@@ -4,7 +4,6 @@ import Layout from '../layouts/Layout.astro';
 import StageDetail from '../components/StageDetail.astro';
 import LockedSection from '../components/LockedSection.astro';
 import SnapshotStory from '../components/SnapshotStory.astro';
-import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
 import {
   isReportReady, pickSubject, resolveOverrides, applyBloomFallback, resolveVerdict,
@@ -29,10 +28,11 @@ import { adjustedSubtitle } from '../lib/adjusted-label';
 import { buildBloomBars } from '../lib/bloom-fill';
 const m = r.meta;
 const programs = buildPrograms(r);
-// Section access gates — roadmap unlocks only after admin grants access
-// (parent visits school). Overview metrics stay visible.
+// "Rivojlanish yo'li" DOIMIY ochiq emas — publish yoki admin "ochish" paytidan
+// 20 daqiqagina (server hisoblaydi: me.roadmapOpen). "O'sish imkoniyati"
+// (sec12) esa doim ochiq — pastda locked={false}.
 const gate = {
-  roadmap: isUnlocked(me.unlockedSections, 'roadmap'),
+  roadmap: Boolean(me.roadmapOpen),
 };
 // AI narrative injected into §Diagnostika / §Tahlil / §Rivojlanish.
 // Falls back to the deterministic long-form story when generation hasn't run.
@@ -507,11 +507,12 @@ const nn = (id) => {
     </LockedSection>
     )}
 
-    {/* 12 · SKILL GROWTH (payoff of the roadmap) */}
+    {/* 12 · SKILL GROWTH — "O'sish ko'rsatkichi" DOIM ochiq (roadmap oynasidan
+        mustaqil): barcha natijalar uchun, publish holatidan qat'i nazar. */}
     {showSection('sec12') && (
     <LockedSection eyebrow="12" title="O'sish imkoniyati"
       hint="Har o'lchanadigan ko'rsatkichning hozirgi va prognozli darajasi."
-      locked={!gate.roadmap}>
+      locked={false}>
       <section class="section" id="sec12">
         <header class="sec-head">
           <div class="eyebrow">{nn('sec12')}</div>

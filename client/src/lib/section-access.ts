@@ -2,11 +2,13 @@
 // risks_notes) is visible to the current parent. Overview metrics are always
 // on; the deeper analysis is unlocked by the admin per Result.
 
-export type SectionKey = "narrative" | "roadmap" | "risks_notes";
+// "roadmap" ATAYLAB yo'q — u endi doimiy unlockedSections kaliti emas, balki
+// 20 daqiqalik vaqt oynasi (me.roadmapOpen, backend hisoblaydi). "O'sish
+// ko'rsatkichi" esa doim ochiq. Bu yerda faqat narrative va risks_notes.
+export type SectionKey = "narrative" | "risks_notes";
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
   narrative: "Batafsil tahlil",
-  roadmap: "Rivojlanish yo'li (3/6/12 oy)",
   risks_notes: "Xatarlar va xulosalar",
 };
 

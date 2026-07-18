@@ -4,7 +4,6 @@ import Layout from '../layouts/Layout.astro';
 import StageDetail from '../components/StageDetail.astro';
 import LockedSection from '../components/LockedSection.astro';
 import SnapshotStory from '../components/SnapshotStory.astro';
-import { isUnlocked } from '../lib/section-access';
 import { fetchMyResult } from '../lib/session';
 import {
   isReportReady, pickSubject, resolveOverrides, applyBloomFallback, gradeLevelFallback, resolveVerdict,
@@ -33,8 +32,10 @@ import { aiParagraphs, hasAiText } from '../lib/ai-md';
 const aiSubj = me.aiNarrative?.english ?? null;
 const m = r.meta;
 const programs = buildEnglishPrograms(r);
+// "Rivojlanish yo'li" 20 daqiqalik oyna (me.roadmapOpen); "O'sish imkoniyati"
+// esa doim ochiq (pastda locked={false}).
 const gate = {
-  roadmap: isUnlocked(me.unlockedSections, 'roadmap'),
+  roadmap: Boolean(me.roadmapOpen),
 };
 // roadmap stops (essentials only) + the journey's end-goal label
 const roadStops = programs.map((p, i) => ({ n: i + 1, range: p.range, label: p.road.label, gain: p.road.gain, note: p.road.note, color: p.priority.color }));
@@ -498,11 +499,12 @@ const nn = (id) => {
     </LockedSection>
     )}
 
-    {/* 10 · SKILL GROWTH (payoff of the roadmap) */}
+    {/* 10 · SKILL GROWTH — "O'sish ko'rsatkichi" DOIM ochiq (roadmap oynasidan
+        mustaqil). */}
     {showSection('sec10') && (
     <LockedSection eyebrow="10" title="O'sish imkoniyati"
       hint="Ko'rsatkichlar hozirgi va prognozli darajasi."
-      locked={!gate.roadmap}>
+      locked={false}>
       <section class="section" id="sec10">
         <header class="sec-head">
           <div class="eyebrow">{nn('sec10')}</div>

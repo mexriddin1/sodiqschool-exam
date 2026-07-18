@@ -44,6 +44,10 @@ export interface PublicResultPayload {
   // Which report sections the parent has been granted access to. Overview
   // metrics are always shown; everything else is gated on this list.
   unlockedSections?: string[];
+  // "Rivojlanish yo'li" (roadmap) DOIMIY toggle emas — publish yoki admin
+  // "ochish" paytidan 20 daqiqagina ochiq. Server hisoblaydi. "O'sish
+  // ko'rsatkichi" bundan mustaqil (doim ochiq).
+  roadmapOpen?: boolean;
 }
 
 /**
