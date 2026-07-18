@@ -39,6 +39,9 @@ type Props = {
   onChange: (a: unknown) => void;
   /** Lead tili — savol matni ham shu tilda kelgan. */
   lang: Lang;
+  /** Test fani — FILL_GAP faqat MATH'da matematik klaviatura (MathLive)
+      ishlatadi; boshqa fanlarda oddiy matn maydoni (oddiy klaviatura). */
+  subject: string;
 };
 
 // Import MathLive lazily once — needed for FILL_GAP math input.
@@ -94,7 +97,7 @@ function configureKeyboard() {
   }
 }
 
-export default function QuestionRenderer({ q, answer, onChange, lang }: Props) {
+export default function QuestionRenderer({ q, answer, onChange, lang, subject }: Props) {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -123,7 +126,7 @@ export default function QuestionRenderer({ q, answer, onChange, lang }: Props) {
         <TrueFalseInput lang={lang} q={q} answer={(answer && typeof answer === "object" ? answer : {}) as Record<string, boolean>} onChange={onChange} />
       )}
       {q.type === "FILL_GAP" && (
-        <FillGapInput lang={lang} q={q} answer={Array.isArray(answer) ? (answer as string[]) : []} onChange={onChange} />
+        <FillGapInput lang={lang} q={q} answer={Array.isArray(answer) ? (answer as string[]) : []} onChange={onChange} math={subject === "MATH"} />
       )}
       {q.type === "MATCHING" && (
         <MatchingInput lang={lang} q={q} answer={(answer && typeof answer === "object" ? answer : {}) as Record<string, string>} onChange={onChange} />
@@ -219,26 +222,36 @@ function TrueFalseInput({ lang, q, answer, onChange }: { lang: Lang; q: ClientQu
   );
 }
 
-function FillGapInput({ lang, q, answer, onChange }: { lang: Lang; q: ClientQuestion; answer: string[]; onChange: (a: unknown) => void }) {
+function FillGapInput({ lang, q, answer, onChange, math }: { lang: Lang; q: ClientQuestion; answer: string[]; onChange: (a: unknown) => void; math: boolean }) {
   const count = q.gapCount ?? 1;
   const values: string[] = Array.from({ length: count }, (_, i) => answer[i] ?? "");
-  useEffect(() => { loadMathlive(); }, []);
+  // MathLive faqat matematika uchun kerak — boshqa fanlarda yuklamaymiz.
+  useEffect(() => { if (math) loadMathlive(); }, [math]);
+  const setGap = (i: number, next: string) => {
+    const arr = [...values];
+    arr[i] = next;
+    onChange(arr);
+  };
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted">
-        {tr(lang, "gapHint")}
-      </div>
+      {/* Kalkulyator klaviaturasi haqidagi eslatma faqat matematikada — boshqa
+          fanlarda oddiy matn maydoni (oddiy klaviatura). */}
+      {math && <div className="text-xs text-muted">{tr(lang, "gapHint")}</div>}
       {values.map((v, i) => (
         <div key={i} className="flex items-center gap-3">
           <span className="option-badge flex-none num">{i + 1}</span>
-          <MathInput
-            value={v}
-            onChange={(next) => {
-              const arr = [...values];
-              arr[i] = next;
-              onChange(arr);
-            }}
-          />
+          {math ? (
+            <MathInput value={v} onChange={(next) => setGap(i, next)} />
+          ) : (
+            <input
+              type="text"
+              value={v}
+              onChange={(e) => setGap(i, e.target.value)}
+              className="field flex-1"
+              autoComplete="off"
+              autoCapitalize="off"
+            />
+          )}
         </div>
       ))}
     </div>

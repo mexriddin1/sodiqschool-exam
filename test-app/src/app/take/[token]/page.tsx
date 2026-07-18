@@ -539,6 +539,7 @@ export default function TakeTestPage() {
                 <QuestionRenderer
                   lang={lang}
                   q={q}
+                  subject={attempt.test.subject}
                   answer={answers[q.id]}
                   onChange={(val) => {
                     const next = { ...answers, [q.id]: val };
