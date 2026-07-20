@@ -162,7 +162,7 @@ subjects.forEach((s, i) => {
         <div>
           <div class="hero-readout">
             <span class="big">{composite}</span><span class="slash">/100</span>
-            <span class="ci">3 fan o'rtachasi</span>
+            <span class="ci">Umumiy natija</span>
           </div>
           <div class="hero-mini">
             {subjects.map((s) => (
@@ -205,7 +205,7 @@ subjects.forEach((s, i) => {
         </header>
         <div class="story">
           <p>
-            Farzandingiz uch kirish imtihonida o'rtacha <b>{composite}/100</b> ball oldi —
+            Farzandingiz uch kirish imtihonida umumiy <b>{composite}/100</b> ball oldi —
             <b>{compBand.label.toLowerCase()}</b> ({compBand.tavsif?.toLowerCase()}).
             Eng yuqori natija — <b>{topSubj.name.toLowerCase()}</b> ({topSubj.percent}).
           </p>
@@ -213,13 +213,13 @@ subjects.forEach((s, i) => {
             <p>
               Cross-fan eng kuchli tomoni — <b>{crossStrength}</b>.{' '}
               Yo'qotilgan ballarning <b>~{avgTechPct}% i e'tiborsizlik (texnik) xatosi</b>,
-              bilmaslik emas. Tuzatilgan o'rtacha — ~{compAdjusted}.
+              bilmaslik emas. Tuzatilgan umumiy ball — ~{compAdjusted}.
             </p>
           )}
           {growthList && (
             <p>
               O'sish yo'nalishlari: <b>{growthList}</b>.{' '}
-              Salohiyat o'rtachasi <b>{compPotential}</b>; tavsiya — <b>{verdict.label.toLowerCase()}</b>.
+              Umumiy salohiyat <b>{compPotential}</b>; tavsiya — <b>{verdict.label.toLowerCase()}</b>.
             </p>
           )}
         </div>
@@ -231,15 +231,15 @@ subjects.forEach((s, i) => {
       <header class="sec-head">
         <div class="eyebrow">02</div>
         <h2>Umumiy daraja</h2>
-        <p class="lead">O'rtacha ball qaysi <b>toifada</b> — va e'tiborsizliksiz qayergacha yetadi.</p>
+        <p class="lead">Umumiy ball qaysi <b>toifada</b> — va e'tiborsizliksiz qayergacha yetadi.</p>
       </header>
       <div class="statcards">
         <div class="statcard">
-          <div class="sl">O'rtacha ball</div>
+          <div class="sl">Umumiy natija</div>
           <span class="toifa-badge" style={`background:${compBand.color}`}>{compBand.label}</span>
           <div class="sv" style={`color:${compBand.color}`}>{composite}<span class="unit">/100</span></div>
           <div class="rule" style={`background:${compBand.color}`}></div>
-          <div class="sd">Uch fan o'rtachasi</div>
+          <div class="sd">Uch fan bo'yicha umumiy</div>
         </div>
         <div class="statcard">
           <div class="sl">Taxmin oralig'i</div>
