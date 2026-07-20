@@ -44,13 +44,22 @@ type Props = {
   subject: string;
 };
 
-// Import MathLive lazily once — needed for FILL_GAP math input.
-let mathliveReady = false;
-async function loadMathlive() {
-  if (mathliveReady || typeof window === "undefined") return;
-  await import("mathlive");
-  configureKeyboard();
-  mathliveReady = true;
+// Import MathLive lazily — needed for FILL_GAP math input.
+let mathliveImported = false;
+async function loadMathlive(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  try {
+    if (!mathliveImported) {
+      await import("mathlive");
+      mathliveImported = true;
+    }
+    configureKeyboard(); // idempotent — teardown'dan keyin qayta ulanadi
+    return true;
+  } catch {
+    // Safari'da import/registratsiya yiqilsa OQ EKRAN bo'lmasin: math input
+    // oddiy (bo'sh) ko'rinadi, chaqiruvchi ready=false bilan tinch qoladi.
+    return false;
+  }
 }
 
 // Virtual klaviaturani sozlaymiz. Muammo: standart klaviaturada ARALASH KASR
@@ -63,6 +72,8 @@ interface MathKeyboard {
   visible?: boolean;
   boundingRect?: DOMRect;
   addEventListener?: (t: string, cb: () => void) => void;
+  removeEventListener?: (t: string, cb: () => void) => void;
+  hide?: () => void;
 }
 
 function getVirtualKeyboard(): MathKeyboard | undefined {
@@ -74,11 +85,20 @@ function getVirtualKeyboard(): MathKeyboard | undefined {
  *  saqlaydi. */
 function scrollFieldIntoView(el: Element | null) {
   if (!el) return;
-  requestAnimationFrame(() => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+  requestAnimationFrame(() => {
+    try {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch {
+      /* Safari — hech qachon throw qilmasin */
+    }
+  });
 }
 
 let keyboardGeometryHooked = false;
 let lastKbVisible = false;
+let geometrySync: (() => void) | null = null;
+// Nechta math-field ochiq — oxirgisi yopilganda global klaviaturani tozalaymiz.
+let mathFieldCount = 0;
 
 function configureKeyboard() {
   const mvk = getVirtualKeyboard();
@@ -99,24 +119,53 @@ function configureKeyboard() {
   // balandligini `--mvk-pad` ga yozamiz — take sahifasidagi scroll konteyneri
   // shuncha pastki bo'shliq oladi.
   //
-  // Scroll ATAYLAB shu yerda (geometrychange), oldingi qattiq setTimeout(250)
-  // taxminida EMAS: klaviatura HAQIQATAN ochilib, balandligi ma'lum bo'lgach
-  // (visible ko'tarilgan qirra) fokusdagi input bir marta ko'rinadigan joyga
-  // suriladi. Shu tufayli goh markazlanib, goh ostida qolish yo'qoladi.
+  // Scroll ATAYLAB shu yerda (geometrychange): klaviatura HAQIQATAN ochilib,
+  // balandligi ma'lum bo'lgach (visible ko'tarilgan qirra) fokusdagi input bir
+  // marta ko'rinadigan joyga suriladi. sync() BUTUNLAY try/catch — u global
+  // klaviatura event'i, throw qilsa Safari'da butun sahifa buzilishi mumkin.
   if (!keyboardGeometryHooked && typeof mvk.addEventListener === "function") {
     keyboardGeometryHooked = true;
     const sync = () => {
-      const visible = !!mvk.visible;
-      const h = visible ? Math.round(mvk.boundingRect?.height ?? 0) : 0;
-      document.documentElement.style.setProperty("--mvk-pad", `${h}px`);
-      if (visible && !lastKbVisible) {
-        const active = document.activeElement;
-        if (active?.tagName?.toLowerCase() === "math-field") scrollFieldIntoView(active);
+      try {
+        const visible = !!mvk.visible;
+        const h = visible ? Math.round(mvk.boundingRect?.height ?? 0) : 0;
+        document.documentElement.style.setProperty("--mvk-pad", `${h}px`);
+        if (visible && !lastKbVisible) {
+          const active = document.activeElement;
+          if (active?.tagName?.toLowerCase() === "math-field") scrollFieldIntoView(active);
+        }
+        lastKbVisible = visible;
+      } catch {
+        /* Safari geometry/teardown — yutamiz */
       }
-      lastKbVisible = visible;
     };
+    geometrySync = sync;
     mvk.addEventListener("geometrychange", sync);
     sync();
+  }
+}
+
+// Oxirgi math-field unmount bo'lganda global klaviaturani tozalaymiz.
+// MUAMMO: ilgari `geometrychange` listener HECH QACHON olib tashlanmasdi —
+// Matematikadan Ingliz tiliga o'tganda qolgan global klaviatura mashinasi
+// Safari'da yiqilib, butun sahifani OQ qilardi. Endi listener'ni olib tashlaymiz,
+// klaviaturani yashiramiz va flag'larni tiklaymiz (keyingi MATH fanida qayta
+// ulanadi — configureKeyboard idempotent).
+function teardownKeyboard() {
+  const mvk = getVirtualKeyboard();
+  try {
+    if (mvk && geometrySync && typeof mvk.removeEventListener === "function") {
+      mvk.removeEventListener("geometrychange", geometrySync);
+    }
+    if (mvk && typeof mvk.hide === "function") mvk.hide();
+  } catch {
+    /* Safari — yutamiz */
+  }
+  keyboardGeometryHooked = false;
+  geometrySync = null;
+  lastKbVisible = false;
+  if (typeof document !== "undefined") {
+    document.documentElement.style.setProperty("--mvk-pad", "0px");
   }
 }
 
@@ -290,50 +339,72 @@ function MathInput({ value, onChange }: { value: string; onChange: (v: string) =
   // holatni ushlab qolardi va bir input'ga yozganda boshqasi o'chib ketardi.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // Fokus holati: o'quvchi yozayotganda qiymatni qayta o'rnatmaslik uchun.
+  const focusedRef = useRef(false);
+  // Boshlang'ich tiklash (saqlangan javobni yuklash) bir marta — fokusdan qat'i nazar.
+  const restoredRef = useRef(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let disposed = false;
-    loadMathlive().then(() => {
-      if (disposed || !ref.current) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const el = ref.current as any;
-      // Fizik (laptop) klaviatura DOIM ishlasin; suzuvchi klaviatura planshetda
-      // fokusda o'zi chiqadi. "auto" — MathLive standarti, shunchaki oshkor qilamiz.
-      el.mathVirtualKeyboardPolicy = "auto";
-      const h = () => onChangeRef.current(String(el.value ?? ""));
-      el.addEventListener("input", h);
-      el.__h = h;
-      // Fokusda klaviatura ALLAQACHON ochiq bo'lsa (masalan ikkinchi bo'shliqqa
-      // o'tganda) darhol suramiz — balandlik ma'lum. Yopiq bo'lsa, ochilish
-      // qirrasini configureKeyboard'dagi geometrychange suradi.
-      const f = () => {
-        if (getVirtualKeyboard()?.visible) scrollFieldIntoView(ref.current);
-      };
-      el.addEventListener("focusin", f);
-      el.__f = f;
-      setReady(true);
-    });
+    mathFieldCount++;
+    loadMathlive()
+      .then((ok) => {
+        if (disposed || !ok || !ref.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const el = ref.current as any;
+        // Fizik (laptop) klaviatura DOIM ishlasin; suzuvchi klaviatura planshetda
+        // fokusda o'zi chiqadi. "auto" — MathLive standarti, shunchaki oshkor qilamiz.
+        el.mathVirtualKeyboardPolicy = "auto";
+        const h = () => onChangeRef.current(String(el.value ?? ""));
+        el.addEventListener("input", h);
+        el.__h = h;
+        // Fokusda klaviatura ALLAQACHON ochiq bo'lsa (ikkinchi bo'shliqqa o'tganda)
+        // darhol suramiz. Yopiq bo'lsa — geometrychange (ochilish qirrasi) suradi.
+        const fin = () => {
+          focusedRef.current = true;
+          if (getVirtualKeyboard()?.visible) scrollFieldIntoView(ref.current);
+        };
+        const fout = () => { focusedRef.current = false; };
+        el.addEventListener("focusin", fin);
+        el.addEventListener("focusout", fout);
+        el.__fin = fin;
+        el.__fout = fout;
+        setReady(true);
+      })
+      .catch(() => { /* oq ekran bo'lmasin */ });
     return () => {
       disposed = true;
-      const el = ref.current;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyEl = el as any;
-      if (anyEl?.__h) el!.removeEventListener("input", anyEl.__h);
-      if (anyEl?.__f) el!.removeEventListener("focusin", anyEl.__f);
+      const el = ref.current as any;
+      try {
+        if (el?.__h) el.removeEventListener("input", el.__h);
+        if (el?.__fin) el.removeEventListener("focusin", el.__fin);
+        if (el?.__fout) el.removeEventListener("focusout", el.__fout);
+      } catch { /* ignore */ }
+      mathFieldCount--;
+      // Oxirgi math-field yopildi — global klaviaturani tozalaymiz (Safari
+      // teardown crash'ining oldini oladi).
+      if (mathFieldCount <= 0) teardownKeyboard();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Qiymatni tiklash — FAQAT element MathLive tomonidan upgrade qilingach
-  // (`ready`). `setValue` ishlatamiz (xom `.value =` upgrade bo'lmagan elementda
-  // ishonchsiz — savol almashib qaytganda javob yo'qolardi). silenceNotifications:
-  // bu DASTUR o'rnatgan qiymat, `input` event chiqmasin — aks holda tiklashning
-  // o'zi yozuvni qo'zg'atib, javoblarni buzardi.
+  // Qiymatni tiklash — FAQAT upgrade bo'lgach (`ready`). `setValue` (xom
+  // `.value =` upgrade bo'lmagan elementda ishonchsiz). silenceNotifications:
+  // dastur o'rnatgan qiymat, `input` event chiqmasin.
+  //
+  // MUHIM (#2): FOKUSDA bo'lganda qiymatni qayta o'rnatmaymiz. O'quvchi
+  // yozayotganda controlled `value` bir belgi orqada qolishi mumkin; uni
+  // qaytadan setValue qilsak yozilgan belgi o'chib ketardi ("goh yozadi, goh
+  // yo'q"). Boshlang'ich tiklash (saqlangan javob) esa bir marta bajarilib,
+  // fokusdan qat'i nazar yuklanadi.
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const el = ref.current as any;
     if (!el || !ready) return;
+    if (restoredRef.current && focusedRef.current) return;
+    restoredRef.current = true;
     if (String(el.value ?? "") !== value) {
       if (typeof el.setValue === "function") {
         el.setValue(value, { silenceNotifications: true });
@@ -410,10 +481,13 @@ function MatchingInput({ lang, q, answer, onChange }: { lang: Lang; q: ClientQue
   // mount'dan keyin chiziladi.
   useEffect(() => { recompute(); }, [recompute]);
   useEffect(() => {
-    const ro = new ResizeObserver(recompute);
-    if (boxRef.current) ro.observe(boxRef.current);
+    // ResizeObserver eski Safari (<13.1) da yo'q — feature-detect qilamiz, aks
+    // holda MATCHING savolda `new ResizeObserver` throw qilib (error boundary
+    // bo'lsa ham) savolni buzardi. window resize baribir chiziqlarni qayta chizadi.
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(recompute) : null;
+    if (ro && boxRef.current) ro.observe(boxRef.current);
     window.addEventListener("resize", recompute);
-    return () => { ro.disconnect(); window.removeEventListener("resize", recompute); };
+    return () => { ro?.disconnect(); window.removeEventListener("resize", recompute); };
   }, [recompute]);
 
   const connect = (leftId: string, rightId: string) => {

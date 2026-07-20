@@ -3,6 +3,7 @@
 // Same helper as admin's KatexInline — inline / block math via $...$ / $$...$$.
 
 import { useEffect, useRef } from "react";
+import { latexifyUnicodeScripts } from "@/lib/unicode-math";
 
 export default function KatexInline({ source, block }: { source: string; block?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -12,13 +13,17 @@ export default function KatexInline({ source, block }: { source: string; block?:
     (async () => {
       const katex = await import("katex");
       if (disposed || !ref.current) return;
+      // Xom Unicode daraja/indeks belgilarini (x², H₂O) KaTeX $^{}$/$_{}$ ga
+      // aylantiramiz — aks holda ular sahifa shriftiga tayanadi va Mac'da
+      // (glif yo'q) buzilib ko'rinadi. LaTeX'ga aylangach hamma OS'da bir xil.
+      const src = latexifyUnicodeScripts(source);
       const parts: { type: "text" | "block" | "inline"; content: string }[] = [];
       let buf = "";
       let mode: "text" | "block" | "inline" = "text";
       let i = 0;
-      while (i < source.length) {
-        const c = source[i];
-        const next = source[i + 1];
+      while (i < src.length) {
+        const c = src[i];
+        const next = src[i + 1];
         if (mode === "text" && c === "$" && next === "$") {
           if (buf) { parts.push({ type: "text", content: buf }); buf = ""; }
           mode = "block"; i += 2; continue;

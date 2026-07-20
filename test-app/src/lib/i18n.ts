@@ -389,7 +389,10 @@ export function tr<K extends keyof Dict>(
   vars?: Record<string, string | number>,
 ): string {
   let s: string = DICT[lang && isLang(lang) ? lang : DEFAULT_LANG][key];
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+  // split/join — String.replaceAll emas: eski Safari (<13.1) da replaceAll yo'q
+  // va u ATV render yo'lida chaqiriladi (throw -> oq ekran). Bu literal
+  // almashtirish bilan bir xil natija beradi, hamma brauzerda ishlaydi.
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
 

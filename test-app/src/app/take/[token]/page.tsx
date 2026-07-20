@@ -101,6 +101,16 @@ export default function TakeTestPage() {
 
   // 1) Load attempt (from server; fall back to IndexedDB if offline).
   useEffect(() => {
+    // Token o'zgardi (masalan Matematika -> Ingliz tili). Next bu sahifani
+    // remount QILMASLIGI mumkin (bir xil route, boshqa param), shuning uchun
+    // holatni QO'LDA tiklaymiz — aks holda yangi fan eski savol indeksi/review
+    // holatida ochilardi va submit qayta ishlamasdi (submittedRef true qolardi).
+    submittedRef.current = false;
+    setIdx(0);
+    setReviewing(false);
+    setFsExits(0);
+    setError(null);
+    setPhase("loading");
     (async () => {
       try {
         const data = await api<Attempt>(`/api/test-taking/attempts/${token}`);

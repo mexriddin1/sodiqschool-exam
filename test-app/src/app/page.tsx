@@ -94,7 +94,12 @@ export default function HomePage() {
           previousSchool: previousSchool.trim(),
         }),
       });
-      sessionStorage.setItem("sodiq_lead_id", leadId);
+      // Safari Private Mode'da setItem QuotaExceededError beradi — uni yutamiz,
+      // aks holda forma shu yerda yiqilib o'quvchi keyingi bosqichga o'tolmasdi.
+      // leadId baribir URL'da (?lead=) uzatiladi, keyingi sahifa o'shandan oladi.
+      try {
+        sessionStorage.setItem("sodiq_lead_id", leadId);
+      } catch { /* private mode — e'tiborsiz */ }
       router.push(`/tests?lead=${leadId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("genericError"));
