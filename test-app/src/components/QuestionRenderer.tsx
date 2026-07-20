@@ -50,7 +50,14 @@ async function loadMathlive(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   try {
     if (!mathliveImported) {
-      await import("mathlive");
+      const mod = await import("mathlive");
+      // Klaviatura bosish ovozi fayllari yo'q — 404 log'larni o'chiramiz.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mod as any).MathfieldElement.soundsDirectory = null;
+      } catch {
+        /* ignore */
+      }
       mathliveImported = true;
     }
     configureKeyboard(); // idempotent — teardown'dan keyin qayta ulanadi
@@ -103,17 +110,53 @@ let mathFieldCount = 0;
 function configureKeyboard() {
   const mvk = getVirtualKeyboard();
   if (!mvk) return;
-  const fractions = {
-    label: "▢/▢",
-    tooltip: "Kasrlar",
-    rows: [
-      ["7", "8", "9", { latex: "\\frac{#0}{#0}", tooltip: "Oddiy kasr" }],
-      ["4", "5", "6", { latex: "#0\\frac{#0}{#0}", label: "▢ ▢/▢", tooltip: "Aralash kasr" }],
-      ["1", "2", "3", { latex: "." }],
-      ["0", { latex: "-" }, "[separator]", "[backspace]"],
-    ],
-  };
-  mvk.layouts = ["numeric", fractions];
+  // Sodiq maktabi — YAGONA maxsus klaviatura (bitta bo'lim, qatlamsiz). 5-11 sinf
+  // math FILL_GAP javoblarini qamraydi: butun/manfiy/o'nlik son, oddiy va aralash
+  // kasr, o'zgaruvchilar (x y a b), daraja, ildiz, tengsizlik, qavs. Ataylab yo'q:
+  // vergul (o'nlik baholashni buzardi), = × ∫ π va h.k. (kichik sinflar uchun
+  // parse bo'lmaydigan kiritishga yo'l ochardi).
+  mvk.layouts = [
+    {
+      label: "123",
+      tooltip: "Imtihon klaviaturasi",
+      rows: [
+        [
+          { latex: "x" }, { latex: "y" }, { latex: "a" }, { latex: "b" },
+          "[separator-5]",
+          "7", "8", "9",
+          "[separator-5]",
+          { class: "small", latex: "\\frac{#@}{#?}", tooltip: "Kasr" },
+          { class: "small", latex: "#0\\frac{#0}{#0}", label: "n&#188;", tooltip: "Aralash kasr" },
+        ],
+        [
+          "(", ")", { latex: "<" }, { latex: ">" },
+          "[separator-5]",
+          "4", "5", "6",
+          "[separator-5]",
+          { latex: "#@^{2}", tooltip: "Kvadrat" },
+          { latex: "#@^{#?}", tooltip: "Daraja" },
+        ],
+        [
+          { latex: "\\le" }, { latex: "\\ge" }, "+", "-",
+          "[separator-5]",
+          "1", "2", "3",
+          "[separator-5]",
+          { latex: "\\sqrt{#0}", tooltip: "Ildiz" },
+          "[backspace]",
+        ],
+        [
+          "[left]", "[right]",
+          "[separator-5]",
+          "[separator]",
+          "0", ".",
+          "[separator]",
+          "[separator-5]",
+          "[undo]",
+          "[hide-keyboard]",
+        ],
+      ],
+    },
+  ];
 
   // Klaviatura pastdan fixed chiqadi va fokusdagi input'ni bekitardi. Uning
   // balandligini `--mvk-pad` ga yozamiz — take sahifasidagi scroll konteyneri
@@ -356,6 +399,9 @@ function MathInput({ value, onChange }: { value: string; onChange: (v: string) =
         // Fizik (laptop) klaviatura DOIM ishlasin; suzuvchi klaviatura planshetda
         // fokusda o'zi chiqadi. "auto" — MathLive standarti, shunchaki oshkor qilamiz.
         el.mathVirtualKeyboardPolicy = "auto";
+        // "(" mos yopiladi; darajadan keyin bitta raqam kiritilsa avtomatik chiqadi.
+        el.smartFence = true;
+        el.smartSuperscript = true;
         const h = () => onChangeRef.current(String(el.value ?? ""));
         el.addEventListener("input", h);
         el.__h = h;
