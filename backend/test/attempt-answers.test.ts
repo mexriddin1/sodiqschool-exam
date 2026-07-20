@@ -52,7 +52,7 @@ test("to'g'ri javoblar: har tur uchun isCorrect va ko'rinish", () => {
     q1: "b",
     q2: ["a", "c"],
     q3: { t1: true, t2: false },
-    q4: ["\\frac{29}{5}"], // 5.8 ga teng (raqamli ekvivalentlik)
+    q4: ["5.8"], // aynan saqlangan javob
     q5: { l1: "r1", l2: "r2" },
     q6: ["i1", "i2"],
   };
@@ -62,7 +62,7 @@ test("to'g'ri javoblar: har tur uchun isCorrect va ko'rinish", () => {
 
   assert.equal(rows[0]!.student, "4");
   assert.equal(rows[0]!.correct, "4");
-  assert.equal(rows[3]!.student, "$\\frac{29}{5}$"); // FILL_GAP $...$ ga o'raladi
+  assert.equal(rows[3]!.student, "$5.8$"); // FILL_GAP ko'rinishi $...$ ga o'raladi
   assert.equal(rows[3]!.correct, "$5.8$");
   assert.ok(rows[4]!.correct.includes("O'zbekiston → Toshkent"));
   assert.ok(rows[5]!.student.includes("→"));
@@ -73,7 +73,7 @@ test("noto'g'ri va javobsiz javoblar", () => {
     q1: "a",           // noto'g'ri
     q2: ["a"],         // chala -> noto'g'ri
     // q3 javobsiz
-    q4: ["6"],         // noto'g'ri qiymat
+    q4: ["29/5"],      // qiymati 5.8 ga teng, LEKIN forma boshqa -> endi NOTO'G'RI
   };
   const rows = buildAnswerRows(questions, answers, "UZ");
   assert.equal(rows[0]!.isCorrect, false);
@@ -81,6 +81,7 @@ test("noto'g'ri va javobsiz javoblar", () => {
   assert.equal(rows[1]!.isCorrect, false);
   assert.equal(rows[2]!.isCorrect, false);
   assert.equal(rows[2]!.student, "—"); // javobsiz
+  // Raqamli ekvivalentlik O'CHIRILGAN: 29/5 endi 5.8 ga teng deb qabul qilinmaydi.
   assert.equal(rows[3]!.isCorrect, false);
-  assert.equal(rows[3]!.student, "$6$");
+  assert.equal(rows[3]!.student, "$29/5$");
 });

@@ -1,7 +1,7 @@
 import type { TestLanguage } from "@prisma/client";
 
-import { resolveText, type TestQuestion } from "../lib/schemas.js";
-import { numericallyEqual } from "../lib/math-answer.js";
+import { resolveText, type I18nText, type TestQuestion } from "../lib/schemas.js";
+import { normalizeAnswer } from "../lib/normalize-answer.js";
 
 // Per-question grading for the live test flow.
 // Rule: full marks only when the whole question is correct — no partial
@@ -17,8 +17,12 @@ export interface GradedQuestion {
   correct: boolean;
 }
 
-function normalizeGap(v: unknown): string {
-  return String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+// Bitta bo'shliqning qabul qilinadigan javoblari. Yangi shakl — variantlar
+// massivi (I18nText[]); eski shakl — bitta I18nText (yoki xom string). O'qish
+// yo'llari zod'siz cast qilgani uchun ikkalasini ham himoyaviy o'qiymiz.
+function resolveAcceptedGap(gap: unknown, lang: TestLanguage): string[] {
+  const list = Array.isArray(gap) ? gap : [gap];
+  return list.map((a) => normalizeAnswer(resolveText(a as I18nText | string, lang)));
 }
 
 function arraysEqualSet(a: string[], b: string[]): boolean {
@@ -55,18 +59,21 @@ export function gradeQuestion(q: TestQuestion, raw: unknown, lang: TestLanguage)
       return { questionId: q.id, earned: allCorrect ? q.marks : 0, correct: allCorrect };
     }
     case "FILL_GAP": {
-      // raw: string[] — one answer per gap.
+      // raw: string[] — har bo'shliq uchun bitta javob.
       // Yagona matn solishtiradigan tur — kutilgan javob o'quvchi test
       // topshirgan tildan olinadi.
+      //
+      // RAQAMLI ekvivalentlik YO'Q (5.8 va 29/5 avtomatik teng emas) — FORMA
+      // nazorat qilinadi. Har bo'shliqning qabul qilinadigan variantlaridan
+      // (admin kiritgan) biriga NORMALLANGAN javob mos kelsa — to'g'ri.
+      // Normalizatsiya faqat texnik farqlarni yo'qotadi (qavs, bo'shliq,
+      // \le/\leq, $) — qiymatni EMAS.
       const given = Array.isArray(raw) ? raw.map((v) => String(v ?? "")) : [];
-      const expected = (q.gapAnswers ?? []).map((g) => resolveText(g, lang));
-      if (given.length !== expected.length) return zero;
-      // Har bo'shliqda avval RAQAMLI ekvivalentlik: 5.8 = 29/5 = 58/10 =
-      // 5 8/10 (MathLive \frac ham). Ikkalasi ham raqam bo'lmasa (masalan
-      // so'z) — eski aniq-satr solishtiruvi.
+      const gaps = q.gapAnswers ?? [];
+      if (given.length !== gaps.length) return zero;
       const correct = given.every((g, i) => {
-        const num = numericallyEqual(g, expected[i]!);
-        return num !== null ? num : normalizeGap(g) === normalizeGap(expected[i]);
+        const accepted = resolveAcceptedGap(gaps[i], lang);
+        return accepted.includes(normalizeAnswer(g));
       });
       return { questionId: q.id, earned: correct ? q.marks : 0, correct };
     }

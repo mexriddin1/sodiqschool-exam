@@ -142,8 +142,10 @@ const TEST_CREATE_JSON = {
         { id: "q3-3", text: { same: true, UZ: "$2 + 2 = 4$" }, correct: true },
       ],
     },
-    // 4) FILL_GAP — matndagi har bir ___ uchun bitta javob. gapAnswers
-    // uzunligi = ___ soni; tartib ham aynan shu.
+    // 4) FILL_GAP — matndagi har bir ___ uchun javob(lar). gapAnswers uzunligi
+    // = ___ soni; tartib ham aynan shu. Har bo'shliq — QABUL QILINADIGAN
+    // variantlar massivi: o'quvchi javobi shulardan biriga mos kelsa — to'g'ri.
+    // (Eski bitta-javobli { ... } shakl ham ishlaydi, o'zi massivga o'raladi.)
     {
       id: "q4",
       order: 3,
@@ -152,8 +154,11 @@ const TEST_CREATE_JSON = {
       marks: 2,
       prompt: { UZ: "Poytaxt — ___ , daryo — ___", RU: "Столица — ___ , река — ___" },
       gapAnswers: [
-        { UZ: "Toshkent", RU: "Ташкент" },
-        { UZ: "Sirdaryo", RU: "Сырдарья" },
+        [{ UZ: "Toshkent", RU: "Ташкент" }],
+        [
+          { UZ: "Sirdaryo", RU: "Сырдарья" },
+          { UZ: "Sirdaryo daryosi", RU: "река Сырдарья" },
+        ],
       ],
     },
     // 5) MATCHING — juftlik. O'ng ustun o'quvchiga aralashtirib ko'rsatiladi.
@@ -358,7 +363,7 @@ const SECTIONS: Section[] = [
       "MULTIPLE_CHOICE — choices[] + correctChoiceIds. correctChoiceIds da AYNAN bitta id (q1).",
       "MULTIPLE_SELECT — xuddi shu shakl, lekin correctChoiceIds da bir nechta id (q2). Ball faqat hammasi to'g'ri belgilangandagina beriladi — qisman ball yo'q.",
       "TRUE_FALSE — trueFalseItems[]: { id, text, correct: true/false } (q3). Bola hamma iborani to'g'ri belgilasagina ball oladi.",
-      "FILL_GAP — prompt ichida bo'sh joy ___ bilan yoziladi, gapAnswers[] esa har bir bo'shliqqa javob, o'sha tartibda (q4). Solishtirish katta-kichik harf va ortiqcha bo'shliqni hisobga olmaydi.",
+      "FILL_GAP — prompt ichida bo'sh joy ___ bilan yoziladi, gapAnswers[] esa har bo'shliqqa QABUL QILINADIGAN javob variantlari massivi, o'sha tartibda (q4): masalan 3a+4b uchun 4b+3a ni ham qo'shsangiz ikkalasi to'g'ri. Solishtirish QIYMAT bo'yicha EMAS — forma bo'yicha (0.5 va 1/2 boshqa javob). Faqat texnik farqlar e'tiborsiz: katta-kichik harf, ortiqcha bo'shliq, LaTeX qavs/bo'shliq (\\frac12 = \\frac{1}{2}), \\le/\\leq, va $...$ chegaralar.",
       "MATCHING — matchingPairs[]: { leftId, leftText, rightId, rightText } (q5). O'ng ustun o'quvchiga aralashtirilgan holda ko'rsatiladi.",
       "REORDERING — reorderItems[]: { id, text, correctIndex } (q6). correctIndex — TO'G'RI tartib, 0 dan boshlanadi; o'quvchi aralashtirilgan holda ko'radi.",
       "Matn maydonlari (prompt, label, text, leftText/rightText, gapAnswers): {\"UZ\":\"…\",\"RU\":\"…\"} yoki barcha tilda bir xil bo'lsa {\"same\":true,\"UZ\":\"$x^2$\"}. Oddiy satr ham bo'ladi (q6 dagi prompt) — u barcha tillarga tegishli deb o'qiladi.",

@@ -69,7 +69,8 @@ export function findMissingTranslations(
     prompt?: I18nText | string;
     choices?: { label: I18nText | string }[];
     trueFalseItems?: { text: I18nText | string }[];
-    gapAnswers?: (I18nText | string)[];
+    // Har bo'shliq — variantlar massivi (yangi) yoki bitta javob (eski).
+    gapAnswers?: (I18nText | string | (I18nText | string)[])[];
     matchingPairs?: { leftText: I18nText | string; rightText: I18nText | string }[];
     reorderItems?: { text: I18nText | string }[];
   }[],
@@ -81,7 +82,8 @@ export function findMissingTranslations(
       q.prompt,
       ...(q.choices ?? []).map((c) => c.label),
       ...(q.trueFalseItems ?? []).map((t) => t.text),
-      ...(q.gapAnswers ?? []),
+      // Har bo'shliqning barcha variantlarini tekislaymiz (eski bitta shakl ham).
+      ...(q.gapAnswers ?? []).flatMap((g) => (Array.isArray(g) ? g : [g])),
       ...(q.matchingPairs ?? []).flatMap((p) => [p.leftText, p.rightText]),
       ...(q.reorderItems ?? []).map((r) => r.text),
     ];

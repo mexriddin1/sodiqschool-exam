@@ -51,8 +51,9 @@ export interface TestQuestion {
   choices?: Choice[];
   correctChoiceIds?: string[];
   trueFalseItems?: TFItem[];
-  // Massiv uzunligi = bo'shliqlar soni; til bo'yicha o'zgarmaydi.
-  gapAnswers?: I18nText[];
+  // TASHQI massiv = bo'shliqlar soni (til bo'yicha o'zgarmaydi).
+  // ICHKI massiv = shu bo'shliq uchun qabul qilinadigan javob variantlari.
+  gapAnswers?: I18nText[][];
   matchingPairs?: MatchPair[];
   reorderItems?: ReorderItem[];
 }
@@ -110,7 +111,7 @@ export function makeQuestionFromTemplate(
     ...(tq.choices ? { choices: tq.choices as Choice[] } : {}),
     ...(tq.correctChoiceIds ? { correctChoiceIds: tq.correctChoiceIds } : {}),
     ...(tq.trueFalseItems ? { trueFalseItems: tq.trueFalseItems as TFItem[] } : {}),
-    ...(tq.gapAnswers ? { gapAnswers: tq.gapAnswers as I18nText[] } : {}),
+    ...(tq.gapAnswers ? { gapAnswers: tq.gapAnswers as I18nText[][] } : {}),
     ...(tq.matchingPairs ? { matchingPairs: tq.matchingPairs as MatchPair[] } : {}),
     ...(tq.reorderItems ? { reorderItems: tq.reorderItems as ReorderItem[] } : {}),
   };
@@ -159,7 +160,7 @@ export function applyTypeDefaults(q: TestQuestion, type: QType): TestQuestion {
       ];
       break;
     case "FILL_GAP":
-      next.gapAnswers = [{}];
+      next.gapAnswers = [[{}]];
       break;
     case "MATCHING":
       next.matchingPairs = [
@@ -183,7 +184,8 @@ export function questionTextFields(q: TestQuestion): (I18nText | string | undefi
     q.prompt,
     ...(q.choices ?? []).map((c) => c.label),
     ...(q.trueFalseItems ?? []).map((t) => t.text),
-    ...(q.gapAnswers ?? []),
+    // Har bo'shliqning barcha variantlarini tekislaymiz (eski bitta shakl ham).
+    ...(q.gapAnswers ?? []).flat(),
     ...(q.matchingPairs ?? []).flatMap((p) => [p.leftText, p.rightText]),
     ...(q.reorderItems ?? []).map((r) => r.text),
   ];
@@ -645,37 +647,68 @@ function TrueFalseEditor({ q, onChange, languages }: { q: TestQuestion; onChange
 }
 
 function FillGapEditor({ q, onChange, languages }: { q: TestQuestion; onChange: (n: TestQuestion) => void; languages: Lang[] }) {
-  const answers = q.gapAnswers ?? [{}];
+  // Eski (bir javobli) shakl — I18nText[] — bo'lishi mumkin: har elementni
+  // variantlar massiviga o'raymiz, shunda editor eski testni ham to'g'ri ko'radi.
+  const rawGaps = (q.gapAnswers ?? [[{}]]) as unknown as (I18nText | I18nText[])[];
+  const gaps: I18nText[][] = rawGaps.map((g) => (Array.isArray(g) ? g : [g]));
+
+  const setGaps = (next: I18nText[][]) => onChange({ ...q, gapAnswers: next });
+  const editGap = (gi: number, fn: (variants: I18nText[]) => I18nText[]) => {
+    const next = gaps.map((g, i) => (i === gi ? fn([...g]) : g));
+    setGaps(next);
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="text-xs text-gray-500">
-        Savol matnida bo'sh joyni <code className="bg-gray-100 px-1">___</code> bilan belgilang. Har bir bo'sh joy uchun mos javobni tartib bo'yicha kiriting.
+        Savol matnida bo'sh joyni <code className="bg-gray-100 px-1">___</code> bilan belgilang. Har bo'shliq
+        uchun to'g'ri javobni kiriting. Bir bo'shliqqa bir nechta variant qo'shsangiz, ularning HAR BIRI
+        to'g'ri deb qabul qilinadi (masalan <code>3a+4b</code> va <code>4b+3a</code>). Texnik farqlar —
+        qavs, bo'shliq, <code>\le</code>/<code>\leq</code>, <code>$</code> — avtomatik e'tiborsiz, ularni
+        qayta kiritish shart emas.
       </div>
-      {answers.map((a, i) => (
-        <Row key={i}>
-          <RowBadge>{i + 1}</RowBadge>
-          <div className="flex-1 min-w-0">
-            <I18nField
-              value={a}
-              onChange={(v) => {
-                const next = [...answers];
-                next[i] = v;
-                onChange({ ...q, gapAnswers: next });
-              }}
-              languages={languages}
-              placeholder={`${i + 1}-bo'shliq uchun to'g'ri javob`}
-            />
+      {gaps.map((variants, gi) => (
+        <div key={gi} className="rounded-md border border-gray-200 p-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <RowBadge>{gi + 1}</RowBadge>
+            <span className="text-xs text-gray-500">{gi + 1}-bo'shliq</span>
+            <div className="ml-auto">
+              <IconButton
+                icon="delete"
+                label="Bo'shliqni o'chirish"
+                variant="danger"
+                disabled={gaps.length === 1}
+                onClick={() => setGaps(gaps.filter((_, i) => i !== gi))}
+              />
+            </div>
           </div>
-          <IconButton
-            icon="delete"
-            label="Bo'shliqni o'chirish"
-            variant="danger"
-            disabled={answers.length === 1}
-            onClick={() => onChange({ ...q, gapAnswers: answers.filter((_, idx) => idx !== i) })}
-          />
-        </Row>
+          <div className="space-y-1.5 pl-1">
+            {variants.map((a, vi) => (
+              <div key={vi} className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <I18nField
+                    value={a}
+                    onChange={(v) => editGap(gi, (arr) => { arr[vi] = v; return arr; })}
+                    languages={languages}
+                    placeholder={vi === 0 ? `${gi + 1}-bo'shliq uchun to'g'ri javob` : "Yana qabul qilinadigan variant"}
+                  />
+                </div>
+                <IconButton
+                  icon="delete"
+                  label="Variantni o'chirish"
+                  variant="danger"
+                  disabled={variants.length === 1}
+                  onClick={() => editGap(gi, (arr) => arr.filter((_, i) => i !== vi))}
+                />
+              </div>
+            ))}
+            <AddRowButton onClick={() => editGap(gi, (arr) => [...arr, {}])}>
+              Yana javob varianti
+            </AddRowButton>
+          </div>
+        </div>
       ))}
-      <AddRowButton onClick={() => onChange({ ...q, gapAnswers: [...answers, {}] })}>
+      <AddRowButton onClick={() => setGaps([...gaps, [{}]])}>
         Bo'shliq qo'shish
       </AddRowButton>
     </div>

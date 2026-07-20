@@ -65,10 +65,23 @@ interface MathKeyboard {
   addEventListener?: (t: string, cb: () => void) => void;
 }
 
+function getVirtualKeyboard(): MathKeyboard | undefined {
+  return (window as unknown as { mathVirtualKeyboard?: MathKeyboard }).mathVirtualKeyboard;
+}
+
+/** Fokusdagi (yoki berilgan) math-field'ni klaviatura ustidagi ko'rinadigan
+ *  joyga suradi. scroll-margin-bottom (= --mvk-pad) klaviatura ostida qolishdan
+ *  saqlaydi. */
+function scrollFieldIntoView(el: Element | null) {
+  if (!el) return;
+  requestAnimationFrame(() => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+}
+
 let keyboardGeometryHooked = false;
+let lastKbVisible = false;
 
 function configureKeyboard() {
-  const mvk = (window as unknown as { mathVirtualKeyboard?: MathKeyboard }).mathVirtualKeyboard;
+  const mvk = getVirtualKeyboard();
   if (!mvk) return;
   const fractions = {
     label: "▢/▢",
@@ -84,13 +97,23 @@ function configureKeyboard() {
 
   // Klaviatura pastdan fixed chiqadi va fokusdagi input'ni bekitardi. Uning
   // balandligini `--mvk-pad` ga yozamiz — take sahifasidagi scroll konteyneri
-  // shuncha pastki bo'shliq oladi va input klaviatura ustiga ko'tariladi
-  // (MathInput focus'da scrollIntoView ham qiladi).
+  // shuncha pastki bo'shliq oladi.
+  //
+  // Scroll ATAYLAB shu yerda (geometrychange), oldingi qattiq setTimeout(250)
+  // taxminida EMAS: klaviatura HAQIQATAN ochilib, balandligi ma'lum bo'lgach
+  // (visible ko'tarilgan qirra) fokusdagi input bir marta ko'rinadigan joyga
+  // suriladi. Shu tufayli goh markazlanib, goh ostida qolish yo'qoladi.
   if (!keyboardGeometryHooked && typeof mvk.addEventListener === "function") {
     keyboardGeometryHooked = true;
     const sync = () => {
-      const h = mvk.visible ? Math.round(mvk.boundingRect?.height ?? 0) : 0;
+      const visible = !!mvk.visible;
+      const h = visible ? Math.round(mvk.boundingRect?.height ?? 0) : 0;
       document.documentElement.style.setProperty("--mvk-pad", `${h}px`);
+      if (visible && !lastKbVisible) {
+        const active = document.activeElement;
+        if (active?.tagName?.toLowerCase() === "math-field") scrollFieldIntoView(active);
+      }
+      lastKbVisible = visible;
     };
     mvk.addEventListener("geometrychange", sync);
     sync();
@@ -262,22 +285,34 @@ function FillGapInput({ lang, q, answer, onChange, math }: { lang: Lang; q: Clie
 
 function MathInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLElement | null>(null);
+  // Listener MOUNT'da bir marta ulanadi, lekin har doim ENG SO'NGGI onChange'ni
+  // chaqirishi shart. Aks holda (oldingi bug) callback mount paytidagi bo'sh
+  // holatni ushlab qolardi va bir input'ga yozganda boshqasi o'chib ketardi.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
     let disposed = false;
     loadMathlive().then(() => {
       if (disposed || !ref.current) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const el = ref.current as any;
-      const h = () => onChange(String(el.value ?? ""));
+      // Fizik (laptop) klaviatura DOIM ishlasin; suzuvchi klaviatura planshetda
+      // fokusda o'zi chiqadi. "auto" — MathLive standarti, shunchaki oshkor qilamiz.
+      el.mathVirtualKeyboardPolicy = "auto";
+      const h = () => onChangeRef.current(String(el.value ?? ""));
       el.addEventListener("input", h);
       el.__h = h;
-      // Fokusda: klaviatura ochilib (--mvk-pad qo'yilib) bo'lgach input'ni
-      // ko'rinadigan joyga suramiz — aks holda klaviatura uni bekitib qolardi.
+      // Fokusda klaviatura ALLAQACHON ochiq bo'lsa (masalan ikkinchi bo'shliqqa
+      // o'tganda) darhol suramiz — balandlik ma'lum. Yopiq bo'lsa, ochilish
+      // qirrasini configureKeyboard'dagi geometrychange suradi.
       const f = () => {
-        setTimeout(() => ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+        if (getVirtualKeyboard()?.visible) scrollFieldIntoView(ref.current);
       };
       el.addEventListener("focusin", f);
       el.__f = f;
+      setReady(true);
     });
     return () => {
       disposed = true;
@@ -289,19 +324,34 @@ function MathInput({ value, onChange }: { value: string; onChange: (v: string) =
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Qiymatni tiklash — FAQAT element MathLive tomonidan upgrade qilingach
+  // (`ready`). `setValue` ishlatamiz (xom `.value =` upgrade bo'lmagan elementda
+  // ishonchsiz — savol almashib qaytganda javob yo'qolardi). silenceNotifications:
+  // bu DASTUR o'rnatgan qiymat, `input` event chiqmasin — aks holda tiklashning
+  // o'zi yozuvni qo'zg'atib, javoblarni buzardi.
   useEffect(() => {
-    const el = ref.current;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (el && (el as any).value !== value) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (el as any).value = value;
+    const el = ref.current as any;
+    if (!el || !ready) return;
+    if (String(el.value ?? "") !== value) {
+      if (typeof el.setValue === "function") {
+        el.setValue(value, { silenceNotifications: true });
+      } else {
+        el.value = value;
+      }
     }
-  }, [value]);
+  }, [value, ready]);
+
   return (
-    // @ts-ignore — math-field is a custom element registered at runtime
-    <math-field ref={ref as unknown as React.Ref<HTMLElement>}>
-      {value}
-    </math-field>
+    // @ts-ignore — math-field is a custom element registered at runtime.
+    // Boshlang'ich qiymat REACT bolasi orqali BERILMAYDI: MathLive o'z light
+    // DOM'ini qayta yozadi, React esa uni boshqarishga urinsa DOM to'qnashadi
+    // (input o'chishi/yo'qolishi shundan ham edi). Qiymat faqat setValue orqali.
+    <math-field
+      ref={ref as unknown as React.Ref<HTMLElement>}
+      style={{ scrollMarginBottom: "var(--mvk-pad, 0px)" }}
+    />
   );
 }
 

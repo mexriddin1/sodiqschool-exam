@@ -292,6 +292,16 @@ const localizedText = z
   .union([z.string(), i18nTextSchema])
   .transform((v): I18nText => (typeof v === "string" ? { same: true, UZ: v } : v));
 
+// Bitta bo'shliq uchun QABUL QILINADIGAN javoblar ro'yxati. O'quvchi javobi
+// (normallangan) shulardan biriga mos kelsa — to'g'ri. Masalan `3a+4b` uchun
+// `4b+3a` ham, `\frac{1}{2}` uchun `0.5` ham (admin xohlasa) kiritiladi.
+//
+// Eski (bitta javobli) shaklni ham qabul qilamiz va massivga o'raymiz — shu
+// tufayli DB backfill'i UMUMAN kerak emas, eski testlar buzilmaydi.
+const gapAcceptedAnswers = z
+  .union([localizedText, z.array(localizedText)])
+  .transform((v): I18nText[] => (Array.isArray(v) ? v : [v]));
+
 /**
  * Berilgan til uchun matnni tanlaydi. `same` bo'lsa — UZ hamma til uchun.
  *
@@ -365,10 +375,10 @@ export const testQuestionSchema = z.object({
   choices: z.array(choiceSchema).optional(),
   correctChoiceIds: z.array(z.string()).optional(),
   trueFalseItems: z.array(trueFalseItemSchema).optional(),
-  // Massiv uzunligi = bo'shliqlar soni, ya'ni til bo'yicha O'ZGARMAYDI:
-  // struktura umumiy, faqat matn tillanadi. Aks holda forma tilga qarab
-  // boshqacha ko'rinardi (stripAnswers dagi gapCount).
-  gapAnswers: z.array(localizedText).optional(),
+  // TASHQI massiv uzunligi = bo'shliqlar soni (til bo'yicha O'ZGARMAYDI:
+  // struktura umumiy, faqat matn tillanadi — stripAnswers dagi gapCount).
+  // ICHKI massiv = shu bo'shliq uchun qabul qilinadigan javob variantlari.
+  gapAnswers: z.array(gapAcceptedAnswers).optional(),
   matchingPairs: z.array(matchingPairSchema).optional(),
   reorderItems: z.array(reorderItemSchema).optional(),
 });
@@ -393,7 +403,7 @@ const questionContentShape = {
   choices: z.array(choiceSchema).optional(),
   correctChoiceIds: z.array(z.string()).optional(),
   trueFalseItems: z.array(trueFalseItemSchema).optional(),
-  gapAnswers: z.array(localizedText).optional(),
+  gapAnswers: z.array(gapAcceptedAnswers).optional(),
   matchingPairs: z.array(matchingPairSchema).optional(),
   reorderItems: z.array(reorderItemSchema).optional(),
 };

@@ -60,7 +60,13 @@ function displayAnswers(q: TestQuestion, raw: unknown, lang: TestLanguage): { st
     }
     case "FILL_GAP": {
       const given = Array.isArray(raw) ? raw.map((v) => String(v ?? "")) : [];
-      const expected = (q.gapAnswers ?? []).map((g) => resolveText(g, lang));
+      // Har bo'shliqda qabul qilinadigan variantlar bo'lishi mumkin — ASOSIY
+      // (birinchi) variantni ko'rsatamiz. Eski (bitta) shaklni ham himoyaviy
+      // o'qiymiz.
+      const expected = (q.gapAnswers ?? []).map((gap) => {
+        const list = (Array.isArray(gap) ? gap : [gap]) as unknown[];
+        return resolveText(list[0] as Parameters<typeof resolveText>[0], lang);
+      });
       // Matematik ifoda bo'lishi mumkin — $...$ ga o'raymiz (KatexInline render).
       return {
         student: given.length ? given.map((g) => math(g || "")).join(", ") : dash,
