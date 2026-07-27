@@ -29,7 +29,8 @@ export interface WeakArea {
   n: number;
   correct: number;
   wrong: number;
-  // 0..100 — how far below the "healthy" 75% target this area is.
+  // 0..100 — how far below the 100% target ("point A", full mastery) this
+  // area is. severity = 100 - percent.
   severity: number;
   qualitative: string | null;
   lowConfidence: boolean;
@@ -38,18 +39,21 @@ export interface WeakArea {
   evidenceIds: string[];
 }
 
-// Groups performing at or above this level are treated as "solid" and skipped.
-// 75% keeps the list focused on real gaps; 60 would flood the roadmap with
-// marginal areas that don't actually need dedicated time.
-const HEALTHY_THRESHOLD = 75;
+// The exam checks whether the student is at "point A" — full mastery. Any
+// group below 100% is a real gap the roadmap must close. We still require
+// n >= 2 (see toWeak): a single lucky-miss on one question is not a reliable
+// indicator (CLAUDE.md: n<3 → low confidence, not a precise number) and must
+// not spawn a whole topic phase. That n-guard is the main throttle that keeps
+// the 100%-target roadmap from ballooning.
+const TARGET_THRESHOLD = 100;
 
 function toWeak(
   dimension: WeakDimension,
   group: GroupStat,
 ): WeakArea | null {
   if (group.n < 2) return null;
-  if (group.percent >= HEALTHY_THRESHOLD) return null;
-  const gap = Math.max(0, HEALTHY_THRESHOLD - group.percent);
+  if (group.percent >= TARGET_THRESHOLD) return null;
+  const gap = Math.max(0, TARGET_THRESHOLD - group.percent);
   return {
     dimension,
     name: group.name,
@@ -89,12 +93,11 @@ export function extractWeakAreas(r: SubjectReport): WeakArea[] {
   return out;
 }
 
-// Convenience: the top-N weak topics (skipping strand/skill/etc.) — the
-// roadmap's "primary focus" list is built from these. Topics are the most
-// actionable dimension: they map cleanly to lessons, textbook chapters and
-// video playlists.
-export function topWeakTopics(r: SubjectReport, n = 5): WeakArea[] {
-  return extractWeakAreas(r)
-    .filter((w) => w.dimension === "topic")
-    .slice(0, n);
+// Convenience: ALL weak topics (skipping strand/skill/etc.), highest severity
+// first — the roadmap's "primary focus" list is built from these. Topics are
+// the most actionable dimension: they map cleanly to lessons, textbook
+// chapters and video playlists. With the 100% target every non-perfect topic
+// surfaces here, so callers page/bucket the full list themselves.
+export function allWeakTopics(r: SubjectReport): WeakArea[] {
+  return extractWeakAreas(r).filter((w) => w.dimension === "topic");
 }

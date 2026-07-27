@@ -3,5 +3,5 @@
 // all three subjects render identically in StageDetail.astro).
 import { buildProgramsFor, buildSkillGrowthFor } from './programs.js';
 
-export function buildEnglishPrograms(r) { return buildProgramsFor('ENGLISH', r); }
+export function buildEnglishPrograms(r, aiRoadmap) { return buildProgramsFor('ENGLISH', r, aiRoadmap); }
 export function buildEnglishSkillGrowth(r) { return buildSkillGrowthFor('ENGLISH', r); }

@@ -1,20 +1,23 @@
-// DeepSeek narrative generator.
+// Gemini narrative + roadmap generator.
 //
-// One JSON-structured call per subject returns diagnostika/tahlil/growth
-// /skills/bloom (+reasoning for math). Summary is one more call. Total: 4
-// requests per result — half the round-trips of the earlier per-section
-// version, and the model can now write each subject holistically instead of
-// repeating student name and boilerplate across separate calls.
+// Per result: one JSON-structured call per subject writes the parent-facing
+// story (diagnostika), one per subject authors the next-level (A→B) roadmap
+// topics (skipped when a subject has no spare months), and one composite
+// summary — up to 7 Gemini requests total. Provider was migrated from DeepSeek
+// to Google Gemini (see callGeminiJson); the call shapes and telemetry are
+// otherwise unchanged.
 
-import { computeReport, computeComposite, DEFAULT_ADMISSION_THRESHOLDS, extractWeights } from "@sodiq/compute";
-import type { SubjectInput, SubjectKey, SubjectReport } from "@sodiq/compute";
+import { computeReport, computeComposite, DEFAULT_ADMISSION_THRESHOLDS, extractWeights, buildRoadmapAiContext } from "@sodiq/compute";
+import type { SubjectInput, SubjectKey, SubjectReport, RoadmapAiContext } from "@sodiq/compute";
 
-const COST_PER_1M_INPUT_USD = 0.27;
-const COST_PER_1M_OUTPUT_USD = 1.1;
+// Gemini 2.5 Flash pricing (USD per 1M tokens). Verify against the live
+// pricing page — these two numbers are the only ones to change if it moves.
+const COST_PER_1M_INPUT_USD = 0.30;
+const COST_PER_1M_OUTPUT_USD = 2.5;
 
-const API_BASE = process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com";
-const API_KEY  = process.env.DEEPSEEK_API_KEY ?? "";
-const MODEL    = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
+const API_BASE = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
+const API_KEY  = process.env.GEMINI_API_KEY ?? "";
+const MODEL    = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
 const SUBJECT_LABEL: Record<SubjectKey, string> = {
   MATH: "matematika",
@@ -56,6 +59,54 @@ export interface AiNarrative {
   summary:           { crossCutting: string; finalRecommendation: string };
 }
 
+// AI-authored roadmap delta persisted to Result.aiRoadmap. The deterministic
+// engine (@sodiq/compute buildRoadmapV2) owns the skeleton + weak-fixing
+// stages; this only supplies the next-level (A→B) topics and optional polished
+// wording for the weak topics. Merged into the roadmap at render time
+// (client/src/lib/programs.js).
+export interface SubjectRoadmapAi {
+  nextLevelTopics: { topic: string; description: string; rationale: string; order: number }[];
+  focusDescriptions?: { topic: string; description: string }[];
+}
+
+export interface AiRoadmap {
+  math:             SubjectRoadmapAi;
+  english:          SubjectRoadmapAi;
+  criticalThinking: SubjectRoadmapAi;
+}
+
+// Gemini responseSchema (OpenAPI subset — UPPERCASE type names).
+const ROADMAP_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    nextLevelTopics: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          topic: { type: "STRING" },
+          description: { type: "STRING" },
+          rationale: { type: "STRING" },
+          order: { type: "INTEGER" },
+        },
+        required: ["topic", "description", "rationale", "order"],
+      },
+    },
+    focusDescriptions: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          topic: { type: "STRING" },
+          description: { type: "STRING" },
+        },
+        required: ["topic", "description"],
+      },
+    },
+  },
+  required: ["nextLevelTopics"],
+};
+
 // Compact statistics — every prompt uses this shape so the model has the same
 // numeric grounding across sections and won't invent figures.
 function subjectDigest(subject: SubjectKey, report: SubjectReport) {
@@ -88,49 +139,52 @@ function subjectDigest(subject: SubjectKey, report: SubjectReport) {
   };
 }
 
-async function callDeepSeekJson<T extends Record<string, string>>(
+// Gemini structured JSON call. Mirrors the old DeepSeek helper's contract
+// (returns a parsed object + telemetry) so the rest of the module is unchanged.
+// Pass `responseSchema` (OpenAPI subset, UPPERCASE types) to force a strict
+// shape; omit it for free-form JSON (e.g. the single-key `diagnostika` story).
+async function callGeminiJson<T>(
   section: string,
   system: string,
   user: string,
+  responseSchema?: unknown,
 ): Promise<{ obj: T; telemetry: RunTelemetry }> {
   const t0 = Date.now();
-  const res = await fetch(`${API_BASE}/chat/completions`, {
+  const res = await fetch(`${API_BASE}/models/${MODEL}:generateContent`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${API_KEY}` },
+    headers: { "content-type": "application/json", "x-goog-api-key": API_KEY },
     body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.4,
-      // Enough room for ~5-6 sections × 4-5 sentences each without truncation.
-      // Previous 1600 sometimes clipped the JSON so trailing keys came back
-      // empty and the client rendered empty `.ai-narrative` cards.
-      // 6-8 paragrafli hikoya ~1500 completion token'da chiqadi; 3200 —
-      // JSON kesilishining oldini oladi va kelajakda uzunroq bo'lsa ham
-      // yetadi.
-      max_tokens: 3200,
-      response_format: { type: "json_object" },
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: {
+        temperature: 0.4,
+        // Enough room for a 6-8 paragraph story / roadmap without truncation.
+        maxOutputTokens: 3200,
+        responseMimeType: "application/json",
+        ...(responseSchema ? { responseSchema } : {}),
+      },
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`DeepSeek ${section} failed (${res.status}): ${body.slice(0, 400)}`);
+    throw new Error(`Gemini ${section} failed (${res.status}): ${body.slice(0, 400)}`);
   }
   const json = await res.json() as {
-    choices: { message: { content: string } }[];
-    usage: { prompt_tokens: number; completion_tokens: number };
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    promptFeedback?: { blockReason?: string };
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
   };
-  const raw = json.choices[0]?.message?.content ?? "{}";
+  // Safety blocks / empty candidates yield no text — degrade to {} exactly like
+  // the previous parse-failure path so fire-and-forget generation never crashes.
+  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
   let obj: T;
   try { obj = JSON.parse(raw) as T; } catch { obj = {} as T; }
   return {
     obj,
     telemetry: {
       section,
-      promptTokens: json.usage?.prompt_tokens ?? 0,
-      completionTokens: json.usage?.completion_tokens ?? 0,
+      promptTokens: json.usageMetadata?.promptTokenCount ?? 0,
+      completionTokens: json.usageMetadata?.candidatesTokenCount ?? 0,
       ms: Date.now() - t0,
       ts: new Date().toISOString(),
     },
@@ -194,7 +248,7 @@ async function generateSubjectAll(
     `Statistika (JSON):\n${JSON.stringify(digest)}\n\n` +
     `Vazifa: bitta JSON obyekt qaytar. Kalit: \`diagnostika\`. Uning qiymati — 6-8 paragrafdan iborat uzun oqim ` +
     `matn (paragraflar bo'sh qatorlar bilan ajratilgan). Struktura tizim yo'riqnomasida ko'rsatilgan. Bola ismini eslatmang.`;
-  const { obj, telemetry } = await callDeepSeekJson<Record<string, string>>(
+  const { obj, telemetry } = await callGeminiJson<Record<string, string>>(
     `${subject}.all`, subjectSystemPrompt(), userPrompt,
   );
   const story = (obj.diagnostika || "").trim();
@@ -224,12 +278,64 @@ async function generateSummary(
     `Statistika (JSON):\n${JSON.stringify({ subjects: digests, composite })}\n\n` +
     `Vazifa: JSON qaytar, kalitlar: crossCutting, finalRecommendation. ` +
     `Har biri 3-5 qisqa gap, muhim joylar **bold**. Ismini eslatmang.`;
-  const { obj, telemetry } = await callDeepSeekJson<Record<string, string>>(
+  const { obj, telemetry } = await callGeminiJson<Record<string, string>>(
     "summary.all", summarySystemPrompt(), userPrompt,
   );
   return {
     crossCutting:         (obj.crossCutting || "").trim(),
     finalRecommendation:  (obj.finalRecommendation || "").trim(),
+    telemetry,
+  };
+}
+
+// ---- Next-level (A→B) roadmap generation ------------------------------------
+
+function roadmapSystemPrompt() {
+  return (
+    "Siz Sodiq School o'quv rejalashtiruvchisisiz. Bir fan bo'yicha o'quvchining KEYINGI DARAJA (A dan B ga) mavzularini tuzasiz.\n\n" +
+    STYLE_RULES +
+    "\n\nSizga o'quvchining ZAIF mavzulari (bularni O'ZGARTIRMANG — ular alohida hal qilinadi) va keyingi darajaga ajratilgan oylar soni beriladi.\n\n" +
+    "Qoidalar (majburiy):\n" +
+    "- O'quvchi JORIY sinf dasturini to'liq (100%) o'zlashtirgan deb faraz qiling va faqat KEYINGI daraja (keyingi sinf yoki chuqurroq) mavzularini taklif qiling.\n" +
+    "- Berilgan zaif mavzularni takrorlamang, yangi 'zaiflik' qo'shmang — bular kelajak mavzulari.\n" +
+    "- Mavzular fan va sinfga qat'iy MOS bo'lsin. Aloqasiz yoki ma'nosiz mavzu YO'Q.\n" +
+    "- `order` bilan mantiqiy ketma-ketlikda tartiblang (oson→murakkab).\n" +
+    "- Har mavzu ~3-4 haftalik ish; mavzular soni ajratilgan oylarni to'ldirsin.\n\n" +
+    "JSON qaytaring: { nextLevelTopics: [{topic, description, rationale, order}], focusDescriptions?: [{topic, description}] }.\n" +
+    "focusDescriptions (ixtiyoriy) — faqat berilgan zaif mavzularni ota-onaga tushunarli qilib qayta ifodalash; yangi mavzu QO'SHMANG."
+  );
+}
+
+function roadmapUserPrompt(ctx: RoadmapAiContext, approxTopics: number) {
+  return (
+    `Fan: ${SUBJECT_LABEL[ctx.subject]}. ${ctx.grade}-sinf o'quvchisi (ism ATAMASIZ).\n\n` +
+    `Zaif mavzular (O'ZGARTIRMANG):\n${JSON.stringify(ctx.weakTopics)}\n\n` +
+    `Keyingi darajaga ajratilgan vaqt: ${ctx.nextMonths} oy (~${approxTopics} ta mavzu).\n\n` +
+    `Vazifa: ${ctx.grade}-sinfdan keyingi darajaga olib chiquvchi ~${approxTopics} ta mavzuni JSON'da bering. ` +
+    `Struktura tizim yo'riqnomasida ko'rsatilgan.`
+  );
+}
+
+async function generateSubjectRoadmap(
+  subject: SubjectKey,
+  input: SubjectInput,
+  _opts: PromptOptions,
+): Promise<{ roadmap: SubjectRoadmapAi; telemetry: RunTelemetry | null }> {
+  const report = computeReport(input);
+  const ctx = buildRoadmapAiContext(subject, report);
+  // No spare months → no next-level work; skip the call to save tokens.
+  if (ctx.nextMonths <= 0) {
+    return { roadmap: { nextLevelTopics: [] }, telemetry: null };
+  }
+  const approxTopics = Math.max(1, Math.round(ctx.nextMonths / 1.5));
+  const { obj, telemetry } = await callGeminiJson<SubjectRoadmapAi>(
+    `${subject}.roadmap`, roadmapSystemPrompt(), roadmapUserPrompt(ctx, approxTopics), ROADMAP_SCHEMA,
+  );
+  return {
+    roadmap: {
+      nextLevelTopics: Array.isArray(obj.nextLevelTopics) ? obj.nextLevelTopics : [],
+      focusDescriptions: Array.isArray(obj.focusDescriptions) ? obj.focusDescriptions : undefined,
+    },
     telemetry,
   };
 }
@@ -246,17 +352,25 @@ export interface GenerateInput {
 
 export interface GenerateOutput {
   narrative: AiNarrative;
+  roadmap: AiRoadmap;
   usage: AiUsageSummary;
 }
 
-/** 4 DeepSeek calls total: one per subject + one composite summary. */
+/**
+ * Up to 7 Gemini calls total: 3 per-subject narratives + 3 per-subject
+ * next-level roadmaps (skipped when a subject has no spare months) + 1
+ * composite summary.
+ */
 export async function generateResultNarrative(input: GenerateInput): Promise<GenerateOutput> {
   const opts: PromptOptions = { studentName: input.student.fullName, grade: input.student.grade };
 
-  const [math, english, ct] = await Promise.all([
+  const [math, english, ct, mathRoad, engRoad, ctRoad] = await Promise.all([
     generateSubjectAll("MATH", input.math, opts),
     generateSubjectAll("ENGLISH", input.english, opts),
     generateSubjectAll("CRITICAL_THINKING", input.criticalThinking, opts),
+    generateSubjectRoadmap("MATH", input.math, opts),
+    generateSubjectRoadmap("ENGLISH", input.english, opts),
+    generateSubjectRoadmap("CRITICAL_THINKING", input.criticalThinking, opts),
   ]);
 
   const mathReport = computeReport(input.math);
@@ -276,7 +390,10 @@ export async function generateResultNarrative(input: GenerateInput): Promise<Gen
   });
   const summary = await generateSummary(digests, composite, opts);
 
-  const runs = [math.telemetry, english.telemetry, ct.telemetry, summary.telemetry];
+  const runs = [
+    math.telemetry, english.telemetry, ct.telemetry, summary.telemetry,
+    mathRoad.telemetry, engRoad.telemetry, ctRoad.telemetry,
+  ].filter((r): r is RunTelemetry => r !== null);
   const promptTokens = runs.reduce((s, r) => s + r.promptTokens, 0);
   const completionTokens = runs.reduce((s, r) => s + r.completionTokens, 0);
   const costUsd = Number(
@@ -289,6 +406,11 @@ export async function generateResultNarrative(input: GenerateInput): Promise<Gen
       english:          english.sections,
       criticalThinking: ct.sections,
       summary:          { crossCutting: summary.crossCutting, finalRecommendation: summary.finalRecommendation },
+    },
+    roadmap: {
+      math:             mathRoad.roadmap,
+      english:          engRoad.roadmap,
+      criticalThinking: ctRoad.roadmap,
     },
     usage: {
       model: MODEL,

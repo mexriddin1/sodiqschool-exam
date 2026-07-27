@@ -184,9 +184,17 @@ model Result {
   //   summary: { crossCutting, finalRecommendation }
   // }
   aiNarrative        Json?
-  // Token accounting for the DeepSeek runs that produced aiNarrative. Shape:
-  // { model, promptTokens, completionTokens, totalTokens, costUsd, generatedAt,
-  //   runs: [{ section, promptTokens, completionTokens, ms, ts }] }
+  // AI-authored roadmap delta merged into the deterministic roadmap at render.
+  // Only the next-level (A→B) topics + optional polished weak-topic wording;
+  // the weak-fixing stages come from @sodiq/compute. Shape: {
+  //   math:   { nextLevelTopics: [{ topic, description, rationale, order }],
+  //             focusDescriptions?: [{ topic, description }] },
+  //   english, criticalThinking: same
+  // }
+  aiRoadmap          Json?
+  // Token accounting for the Gemini runs that produced aiNarrative + aiRoadmap.
+  // Shape: { model, promptTokens, completionTokens, totalTokens, costUsd,
+  //   generatedAt, runs: [{ section, promptTokens, completionTokens, ms, ts }] }
   aiUsage            Json?
   // Sections of the parent-facing report that are currently unlocked.
   // Empty [] = only the "overview" hero is visible; parents unlock deeper

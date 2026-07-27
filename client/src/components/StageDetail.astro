@@ -7,12 +7,24 @@
 const { program: p, idx } = Astro.props;
 const rationale = Array.isArray(p.rationale) ? p.rationale : [];
 const catalog = Array.isArray(p.resourceCatalog) ? p.resourceCatalog : [];
+// Distinguish gap-closing stages (reach point A = 100%) from the next-level
+// (A→B) stage so parents read the roadmap's intent at a glance.
+const kindBadge = p.kind === 'next'
+  ? { text: 'Keyingi daraja · A→B', bg: '#EAF1FF', fg: '#3266C9' }
+  : p.kind === 'gap'
+  ? { text: 'Bo\'shliqni yopish · A', bg: '#FFF1E6', fg: '#FF8A32' }
+  : null;
 ---
 <div class="stage-detail" data-stage={idx - 1} hidden={idx !== 1} style={`--sc:${p.priority.color}`}>
   <header class="sd-head">
     <span class="sd-num">{idx}</span>
     <div class="sd-headmain">
-      <div class="sd-eyebrow">{p.phase}</div>
+      <div class="sd-eyebrow">
+        {p.phase}
+        {kindBadge && (
+          <span style={`display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:${kindBadge.bg};color:${kindBadge.fg};`}>{kindBadge.text}</span>
+        )}
+      </div>
       <h3 class="sd-title">{p.title}</h3>
       <p class="sd-mission">{p.mission}</p>
     </div>

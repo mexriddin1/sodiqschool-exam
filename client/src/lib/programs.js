@@ -27,12 +27,17 @@ function confidenceForStage(idx) {
 }
 
 // A "focus item" from roadmap-v2 → concise action bullet on the stage card.
-function focusToAction(f) {
+// `isNext` = next-level (A→B) stage: framed as "learn new material", not
+// "close a gap" (those topics have no gap percent — it's fresh content).
+function focusToAction(f, isNext) {
+  if (isNext) {
+    return { do: `${f.canonicalTopic} ni o'rganish`, dose: `haftada 3–4 soat` };
+  }
   const dose = f.weak.severity >= 50
-    ? `${f.weak.percent}/100 · haftada 5 soat`
+    ? `${f.weak.percent}/100 → 100 · haftada 5 soat`
     : f.weak.severity >= 30
-    ? `${f.weak.percent}/100 · haftada 3–4 soat`
-    : `${f.weak.percent}/100 · haftada 2 soat`;
+    ? `${f.weak.percent}/100 → 100 · haftada 3–4 soat`
+    : `${f.weak.percent}/100 → 100 · haftada 2 soat`;
   return { do: `${f.canonicalTopic} bo'yicha bo'shliqni yopish`, dose };
 }
 
@@ -61,12 +66,15 @@ function rolesForStage(stage) {
 }
 
 function stageToProgram(stage, idx, m0) {
+  // "next" = next-level (A→B) stage: fresh material, targets framed as
+  // "learn/master", not "close gap to 100". "gap" = drive a weakness to 100.
+  const isNext = stage.kind === 'next';
   const prio = priorityForStage(idx);
   const scale = stage.targetScore;
   const totalHours = stage.weekPlan.reduce((s, w) => s + w.hours, 0);
   const focusTitles = stage.focusItems.map((f) => f.canonicalTopic);
   const baselineLabel = focusTitles[0] ?? 'Umumiy diagnostika';
-  const baselineVal = stage.focusItems[0]?.weak.percent ?? m0;
+  const baselineVal = isNext ? scale.from : (stage.focusItems[0]?.weak.percent ?? m0);
 
   // Legacy resources shape (exercises/books/platforms/videos) + new richer
   // block. StageDetail reads either.
@@ -80,7 +88,7 @@ function stageToProgram(stage, idx, m0) {
   };
 
   const actions = stage.focusItems.length > 0
-    ? stage.focusItems.slice(0, 4).map(focusToAction)
+    ? stage.focusItems.slice(0, 4).map((f) => focusToAction(f, isNext))
     : [
         { do: `Mavjud mavzularni spiral takror`, dose: `haftada 2–3 soat` },
         { do: `Aralash mashqlar bilan mustahkamlash`, dose: `haftada 1 mini-test` },
@@ -95,7 +103,9 @@ function stageToProgram(stage, idx, m0) {
   }));
 
   const kpis = stage.focusItems.length > 0
-    ? stage.focusItems.map((f) => `${f.canonicalTopic}: ${f.weak.percent} → ≥${Math.min(100, f.weak.percent + 15)}`)
+    ? stage.focusItems.map((f) => isNext
+        ? `${f.canonicalTopic}: yangi mavzu → mustaqil o'zlashtirish`
+        : `${f.canonicalTopic}: ${f.weak.percent} → 100`)
     : [`Umumiy ball: ${scale.from} → ${scale.to}`];
 
   const criteria = [
@@ -118,12 +128,12 @@ function stageToProgram(stage, idx, m0) {
     actions,
     road: {
       label: focusTitles[0] ?? `Umumiy ball`,
-      gain: { from: baselineVal, to: Math.min(100, baselineVal + 20) },
+      gain: isNext ? { from: scale.from, to: scale.to } : { from: baselineVal, to: 100 },
       note: stage.weeklyHours,
     },
     priority: prio,
     baseline: { label: baselineLabel, val: baselineVal, color: BAND_COLORS.bad },
-    target: { label: `Maqsad`, val: `≥${scale.to}`, color: BAND_COLORS.green },
+    target: { label: `Maqsad`, val: isNext ? `≥${scale.to}` : `100`, color: BAND_COLORS.green },
     overall: { from: scale.from, to: scale.to },
     weeklyHours: stage.weeklyHours,
     monthlyHours: `~${Math.round(totalHours / stage.months)} soat`,
@@ -131,8 +141,8 @@ function stageToProgram(stage, idx, m0) {
     growthBars: [
       ...stage.focusItems.slice(0, 2).map((f) => ({
         label: f.canonicalTopic,
-        from: f.weak.percent,
-        to: Math.min(100, f.weak.percent + 15),
+        from: isNext ? 0 : f.weak.percent,
+        to: isNext ? Math.max(80, scale.to) : 100,
         color: BAND_COLORS.bad,
       })),
       { label: `Umumiy ball`, from: scale.from, to: scale.to, color: BAND_COLORS.ok },
@@ -174,13 +184,17 @@ function stageToProgram(stage, idx, m0) {
     roles: rolesForStage(stage),
     criteria,
     kpis,
-    smart: `${stage.months} oy ichida ${focusTitles.slice(0, 2).join(' va ')} bo'yicha ${baselineVal} dan kamida ${Math.min(100, baselineVal + 15)} ga ko'tarish; haftada ${stage.weeklyHours} muntazam mashq va oxirida mini-diagnostika orqali.`,
+    smart: isNext
+      ? `${stage.range}da ${focusTitles.slice(0, 2).join(' va ')} kabi keyingi daraja mavzularini o'zlashtirish; haftada ${stage.weeklyHours} muntazam mashq.`
+      : `${stage.range}da ${focusTitles.slice(0, 2).join(' va ')} bo'yicha ${baselineVal} dan 100 ga ko'tarish; haftada ${stage.weeklyHours} muntazam mashq va oxirida mini-diagnostika orqali.`,
     risks: [
       { risk: `Mashq muntazam bo'lmasligi`, mitigation: `Kalendar + eslatma + qisqa sessiya (20–30 daq)` },
       { risk: `Prerequisitelar zaif bo'lib qolishi`, mitigation: `Har mavzu boshida 2–3 kunlik "aql tushirish" bilan asosini takrorlash` },
     ],
     closing,
     confidence: confidenceForStage(idx),
+    // "gap" (bo'shliqni yopish → A) yoki "next" (A→B keyingi daraja) — UI badge.
+    kind: stage.kind,
   };
 }
 
@@ -188,8 +202,8 @@ function stageToProgram(stage, idx, m0) {
 // programs-en.js / programs-ct.js wrappers for the other subjects. The
 // subject key determines which prereq graph and resource catalog the
 // roadmap-v2 engine looks in.
-export function buildProgramsFor(subject, r) {
-  const roadmap = buildRoadmapV2(subject, r);
+export function buildProgramsFor(subject, r, aiRoadmap) {
+  const roadmap = buildRoadmapV2(subject, r, aiRoadmap);
   // Drop stages with no actual work — a strong student shouldn't see three
   // empty roadmap cards. If every stage is empty (perfect score) the UI
   // hides the roadmap section entirely.
@@ -219,5 +233,5 @@ export function buildSkillGrowthFor(subject, r) {
 }
 
 // Backwards-compatible MATH-specific exports (index.astro calls these).
-export function buildPrograms(r) { return buildProgramsFor('MATH', r); }
+export function buildPrograms(r, aiRoadmap) { return buildProgramsFor('MATH', r, aiRoadmap); }
 export function buildSkillGrowth(r) { return buildSkillGrowthFor('MATH', r); }

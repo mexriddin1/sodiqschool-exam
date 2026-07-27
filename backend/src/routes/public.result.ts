@@ -217,6 +217,7 @@ publicResultRouter.get(
       })),
       calculatedSnapshot: result.calculatedSnapshot,
       aiNarrative: result.aiNarrative,
+      aiRoadmap: result.aiRoadmap,
       unlockedSections: result.unlockedSections ?? [],
       // "Rivojlanish yo'li" DOIMIY toggle emas — publish yoki admin "ochish"
       // paytidan 20 daqiqagina ochiq. O'sish ko'rsatkichi bundan mustaqil

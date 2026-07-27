@@ -651,7 +651,7 @@ publicTestTakingRouter.post(
       // etiladi (draft bosqichi yo'q). roadmapOpenedAt=now — "Rivojlanish yo'li"
       // sekiyasi shu daqiqadan 20 daqiqa ochiq turadi. AI tahlil bu yerda
       // YOZILMAYDI — admin kerak bo'lsa "AI yaratish" (generate-ai) bilan
-      // keyin yozdiradi (har lead'da avtomatik DeepSeek xarajati bo'lmasin).
+      // keyin yozdiradi (har lead'da avtomatik Gemini xarajati bo'lmasin).
       await prisma.result.update({
         where: { id: result.id },
         data: {

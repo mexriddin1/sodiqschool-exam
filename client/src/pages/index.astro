@@ -27,7 +27,7 @@ const r = computeReport(student);
 import { adjustedSubtitle } from '../lib/adjusted-label';
 import { buildBloomBars } from '../lib/bloom-fill';
 const m = r.meta;
-const programs = buildPrograms(r);
+const programs = buildPrograms(r, me.aiRoadmap?.math);
 // "Rivojlanish yo'li" DOIMIY ochiq emas — publish yoki admin "ochish" paytidan
 // 20 daqiqagina (server hisoblaydi: me.roadmapOpen). "O'sish imkoniyati"
 // (sec12) esa doim ochiq — pastda locked={false}.

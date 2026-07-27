@@ -346,7 +346,7 @@ resultsRouter.post(
       await recomputeCohortRanks(result.examId);
       invalidateStats();
       // Kick off narrative generation in the background — publish response
-      // returns immediately, admin isn't blocked by the DeepSeek run.
+      // returns immediately, admin isn't blocked by the Gemini run.
       generateAndSaveNarrative(result.id).catch((e) =>
         console.error("[ai] create-time generation failed for", result.id, e),
       );
@@ -503,7 +503,7 @@ resultsRouter.post(
     invalidateStats();
     await audit(req.admin!.id, "publish", "Result", id, { status: result.status }, { status: "PUBLISHED" });
     // Fire-and-forget AI narrative generation. Publish returns immediately so
-    // the admin isn't blocked by a 30-second DeepSeek run; when the promise
+    // the admin isn't blocked by a 30-second Gemini run; when the promise
     // resolves the result gets aiNarrative + aiUsage rows.
     generateAndSaveNarrative(id).catch((e) =>
       console.error("[ai] publish-time generation failed for", id, e),
@@ -548,8 +548,8 @@ resultsRouter.post(
   }),
 );
 
-// Shared narrative generator: loads the result, calls DeepSeek, writes back
-// aiNarrative/aiUsage, and invalidates the stats cache so the dashboard's
+// Shared narrative generator: loads the result, calls Gemini, writes back
+// aiNarrative/aiRoadmap/aiUsage, and invalidates the stats cache so the dashboard's
 // token-usage widget refreshes.
 async function generateAndSaveNarrative(id: string) {
   const result = await prisma.result.findUnique({
@@ -591,6 +591,7 @@ async function generateAndSaveNarrative(id: string) {
     where: { id },
     data: {
       aiNarrative: out.narrative as unknown as Prisma.InputJsonValue,
+      aiRoadmap: out.roadmap as unknown as Prisma.InputJsonValue,
       aiUsage: out.usage as unknown as Prisma.InputJsonValue,
     },
   });

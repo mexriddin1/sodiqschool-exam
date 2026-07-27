@@ -9,6 +9,13 @@ import type { APIContext, AstroCookies } from "astro";
 export const SESSION_COOKIE = "sodiq_client_token";
 export const API_URL = import.meta.env.PUBLIC_API_URL ?? "http://localhost:4000";
 
+// AI-authored next-level (A→B) roadmap for one subject. Mirrors the backend
+// SubjectRoadmapAi shape (services/ai.ts).
+export interface SubjectRoadmapAi {
+  nextLevelTopics: { topic: string; description: string; rationale: string; order: number }[];
+  focusDescriptions?: { topic: string; description: string }[];
+}
+
 export function getSessionToken(cookies: AstroCookies): string | null {
   return cookies.get(SESSION_COOKIE)?.value ?? null;
 }
@@ -40,6 +47,14 @@ export interface PublicResultPayload {
     english?:           { diagnostika?: string; tahlil?: string; growth?: string; skills?: string; bloom?: string };
     criticalThinking?:  { diagnostika?: string; tahlil?: string; growth?: string; skills?: string; bloom?: string };
     summary?:           { crossCutting?: string; finalRecommendation?: string };
+  } | null;
+  // AI-authored roadmap delta (next-level A→B topics + optional polished
+  // weak-topic wording). Merged into the deterministic roadmap in programs.js.
+  // Null on old results → deterministic-only fallback.
+  aiRoadmap?: {
+    math?:             SubjectRoadmapAi;
+    english?:          SubjectRoadmapAi;
+    criticalThinking?: SubjectRoadmapAi;
   } | null;
   // Which report sections the parent has been granted access to. Overview
   // metrics are always shown; everything else is gated on this list.

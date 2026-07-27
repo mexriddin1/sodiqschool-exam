@@ -31,7 +31,7 @@ import { buildBloomBars } from '../lib/bloom-fill';
 import { aiParagraphs, hasAiText } from '../lib/ai-md';
 const aiSubj = me.aiNarrative?.english ?? null;
 const m = r.meta;
-const programs = buildEnglishPrograms(r);
+const programs = buildEnglishPrograms(r, me.aiRoadmap?.english);
 // "Rivojlanish yo'li" 20 daqiqalik oyna (me.roadmapOpen); "O'sish imkoniyati"
 // esa doim ochiq (pastda locked={false}).
 const gate = {

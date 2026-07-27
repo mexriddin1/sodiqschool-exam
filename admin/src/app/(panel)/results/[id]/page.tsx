@@ -254,7 +254,7 @@ export default function ResultDetailPage() {
           className="btn-secondary inline-flex items-center gap-2"
           disabled={pending || aiLoading}
           onClick={regenerateAi}
-          title="DeepSeek AI orqali §Diagnostika, §Tahlil, §Rivojlanish va §Umumiy manzara matnlarini qayta ishlab chiqarish. ~30 soniya davom etadi."
+          title="Gemini AI orqali §Diagnostika, §Tahlil, §Rivojlanish va §Umumiy manzara matnlarini qayta ishlab chiqarish. ~30 soniya davom etadi."
         >
           <Icon name="refresh" size={16} /> {aiLoading ? "Yaratilmoqda…" : (r.aiNarrative ? "AI matnini yangilash" : "AI matnini yaratish")}
         </button>
