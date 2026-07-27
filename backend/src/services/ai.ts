@@ -17,7 +17,10 @@ const COST_PER_1M_OUTPUT_USD = 2.5;
 
 const API_BASE = process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta";
 const API_KEY  = process.env.GEMINI_API_KEY ?? "";
-const MODEL    = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+// `gemini-flash-latest` alias self-heals when Google deprecates a pinned model
+// (2.5-flash became "not available to new users"); it currently resolves to a
+// thinking-capable flash model.
+const MODEL    = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
 
 const SUBJECT_LABEL: Record<SubjectKey, string> = {
   MATH: "matematika",
@@ -170,13 +173,17 @@ async function callGeminiJson<T>(
     throw new Error(`Gemini ${section} failed (${res.status}): ${body.slice(0, 400)}`);
   }
   const json = await res.json() as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
     promptFeedback?: { blockReason?: string };
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
   };
-  // Safety blocks / empty candidates yield no text — degrade to {} exactly like
-  // the previous parse-failure path so fire-and-forget generation never crashes.
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+  // Thinking models can split the reply into several parts (some flagged
+  // `thought`); join the non-thought text so we never grab an empty/thought
+  // first part. Safety blocks / empty candidates yield no text — degrade to {}
+  // exactly like the previous parse-failure path so fire-and-forget generation
+  // never crashes.
+  const parts = json.candidates?.[0]?.content?.parts ?? [];
+  const raw = parts.filter((p) => !p.thought).map((p) => p.text ?? "").join("").trim() || "{}";
   let obj: T;
   try { obj = JSON.parse(raw) as T; } catch { obj = {} as T; }
   return {
@@ -184,7 +191,10 @@ async function callGeminiJson<T>(
     telemetry: {
       section,
       promptTokens: json.usageMetadata?.promptTokenCount ?? 0,
-      completionTokens: json.usageMetadata?.candidatesTokenCount ?? 0,
+      // Thinking tokens are billed as output — include them so the cost widget
+      // doesn't under-count on reasoning models.
+      completionTokens:
+        (json.usageMetadata?.candidatesTokenCount ?? 0) + (json.usageMetadata?.thoughtsTokenCount ?? 0),
       ms: Date.now() - t0,
       ts: new Date().toISOString(),
     },
