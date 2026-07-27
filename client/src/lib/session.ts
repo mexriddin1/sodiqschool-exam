@@ -9,6 +9,16 @@ import type { APIContext, AstroCookies } from "astro";
 export const SESSION_COOKIE = "sodiq_client_token";
 export const API_URL = import.meta.env.PUBLIC_API_URL ?? "http://localhost:4000";
 
+// One learning resource in the admin-managed catalog. Mirrors the compute
+// `Resource` shape (roadmap-v2.ts) + the LearningResource DB row fields.
+export interface ResourceItem {
+  type: "video" | "platform" | "book" | "channel" | "app";
+  title: string;
+  provider?: string;
+  url?: string;
+  note?: string;
+}
+
 // AI-authored next-level (A→B) roadmap for one subject. Mirrors the backend
 // SubjectRoadmapAi shape (services/ai.ts).
 export interface SubjectRoadmapAi {
@@ -55,6 +65,15 @@ export interface PublicResultPayload {
     math?:             SubjectRoadmapAi;
     english?:          SubjectRoadmapAi;
     criticalThinking?: SubjectRoadmapAi;
+  } | null;
+  // Admin-managed learning-resource catalog (backend-assembled from the
+  // LearningResource table). subject → topic ("_default"/"_nextLevel") →
+  // { uz[], en[] }. Threaded into buildPrograms* for the roadmap render.
+  // Null/absent → compute falls back to its bundled resources.json.
+  resources?: {
+    MATH?:              Record<string, { uz?: ResourceItem[]; en?: ResourceItem[] }>;
+    ENGLISH?:           Record<string, { uz?: ResourceItem[]; en?: ResourceItem[] }>;
+    CRITICAL_THINKING?: Record<string, { uz?: ResourceItem[]; en?: ResourceItem[] }>;
   } | null;
   // Which report sections the parent has been granted access to. Overview
   // metrics are always shown; everything else is gated on this list.

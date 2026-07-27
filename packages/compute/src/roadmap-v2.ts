@@ -101,6 +101,14 @@ export interface RoadmapAiInput {
   focusDescriptions?: { topic: string; description: string }[];
 }
 
+// Admin-managed resource catalog (persisted in DB, assembled by the backend and
+// passed into the roadmap at render). Mirrors the bundled resources.json shape:
+// subject → topic ("_default"/"_nextLevel" reserved) → { uz[], en[] }. When
+// omitted, the engine falls back to the bundled JSON so compute stays pure.
+export type ResourcesCatalog = Partial<
+  Record<SubjectKey, Record<string, { uz?: Resource[]; en?: Resource[] }>>
+>;
+
 // Guardrail payload the backend feeds Gemini so the AI's next-level topics stay
 // grounded in this student's real gaps and month budget. Single source of truth
 // shared by backend prompt-building and (indirectly) client rendering.
@@ -136,8 +144,16 @@ function prereqsOf(subject: SubjectKey, canonicalTopic: string): string[] {
   return entry?.prereqs ?? [];
 }
 
-function resourcesFor(subject: SubjectKey, canonicalTopic: string): Resource[] {
-  const subjMap = RESOURCES[subject] as
+// Resources for a topic: 2 UZ + 2 EN, topic → subject "_default" fallback.
+// Uses the admin-managed `catalog` when provided (even if empty for this
+// subject/topic), otherwise the bundled resources.json — keeping compute pure.
+function resourcesFor(
+  subject: SubjectKey,
+  canonicalTopic: string,
+  catalog?: ResourcesCatalog,
+): Resource[] {
+  const source = catalog ?? (RESOURCES as ResourcesCatalog);
+  const subjMap = source[subject] as
     | Record<string, { uz?: Resource[]; en?: Resource[] }>
     | undefined;
   if (!subjMap) return [];
@@ -171,7 +187,7 @@ function rationaleFor(
 }
 
 // Build one FocusItem from a weak area + subject context.
-function buildFocusItem(subject: SubjectKey, w: WeakArea): FocusItem {
+function buildFocusItem(subject: SubjectKey, w: WeakArea, catalog?: ResourcesCatalog): FocusItem {
   const canonical = resolveAliases(subject, w.name);
   const prerequisites = prereqsOf(subject, canonical);
   return {
@@ -179,14 +195,14 @@ function buildFocusItem(subject: SubjectKey, w: WeakArea): FocusItem {
     canonicalTopic: canonical,
     prerequisites,
     rationale: rationaleFor(w, prerequisites, w.evidenceIds.length),
-    resources: resourcesFor(subject, canonical),
+    resources: resourcesFor(subject, canonical, catalog),
   };
 }
 
 // A placeholder next-level focus item. The client overlays the AI-authored
 // topic name / rationale (Result.aiRoadmap); until then this renders a generic
 // but sensible "next grade" card with default resources.
-function buildNextPlaceholder(subject: SubjectKey, index: number): FocusItem {
+function buildNextPlaceholder(subject: SubjectKey, index: number, catalog?: ResourcesCatalog): FocusItem {
   const name = `Keyingi daraja · mavzu ${index + 1}`;
   return {
     weak: {
@@ -205,7 +221,7 @@ function buildNextPlaceholder(subject: SubjectKey, index: number): FocusItem {
     prerequisites: [],
     rationale:
       `Bola joriy sinf dasturini to'liq o'zlashtirgach, keyingi darajaga (B) tayyorlaydigan mavzu. Aniq mavzu tavsiyasi AI tomonidan qo'shiladi.`,
-    resources: resourcesFor(subject, "_nextLevel"),
+    resources: resourcesFor(subject, "_nextLevel", catalog),
   };
 }
 
@@ -392,6 +408,7 @@ export function buildRoadmapV2(
   subject: SubjectKey,
   r: SubjectReport,
   ai?: RoadmapAiInput,
+  catalog?: ResourcesCatalog,
 ): RoadmapV2 {
   const alloc = allocateMonths(subject, r);
   const gf = r.growthForecast.map((g) => g.v);
@@ -399,7 +416,7 @@ export function buildRoadmapV2(
   const m12 = gf[3] ?? Math.min(100, r.percent + 24);
   const scoreAtMonth = (mo: number) => Math.round(m0 + (m12 - m0) * Math.min(1, mo / TOTAL_MONTHS));
 
-  const gapFocus = alloc.weak.map((w) => buildFocusItem(subject, w));
+  const gapFocus = alloc.weak.map((w) => buildFocusItem(subject, w, catalog));
   // Overlay AI-polished wording onto matching weak topics (never adds topics).
   const focusDesc = new Map(
     (ai?.focusDescriptions ?? []).map((d) => [d.topic.toLowerCase().trim(), d.description]),
@@ -446,7 +463,7 @@ export function buildRoadmapV2(
     const aiTopics = (ai?.nextLevelTopics ?? []).slice().sort((a, b) => a.order - b.order);
     let nextFocus: FocusItem[];
     if (aiTopics.length > 0) {
-      const baseRes = resourcesFor(subject, "_nextLevel");
+      const baseRes = resourcesFor(subject, "_nextLevel", catalog);
       nextFocus = aiTopics.map((t) => ({
         weak: {
           dimension: "topic" as const,
@@ -467,7 +484,7 @@ export function buildRoadmapV2(
       }));
     } else {
       const k = Math.min(6, Math.max(1, nextMonthsActual));
-      nextFocus = Array.from({ length: k }, (_, i) => buildNextPlaceholder(subject, i));
+      nextFocus = Array.from({ length: k }, (_, i) => buildNextPlaceholder(subject, i, catalog));
     }
     stageNum++;
     stages.push({

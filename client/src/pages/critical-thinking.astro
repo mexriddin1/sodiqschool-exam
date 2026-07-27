@@ -31,7 +31,7 @@ import { buildBloomBars } from '../lib/bloom-fill';
 import { aiParagraphs, hasAiText } from '../lib/ai-md';
 const aiSubj = me.aiNarrative?.criticalThinking ?? null;
 const m = r.meta;
-const programs = buildCtPrograms(r, me.aiRoadmap?.criticalThinking);
+const programs = buildCtPrograms(r, me.aiRoadmap?.criticalThinking, me.resources);
 // "Rivojlanish yo'li" 20 daqiqalik oyna (me.roadmapOpen); "O'sish imkoniyati"
 // esa doim ochiq (pastda locked={false}).
 const gate = {

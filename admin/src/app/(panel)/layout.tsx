@@ -17,6 +17,7 @@ const NAV = [
   { href: "/students", label: "O'quvchilar" },
   { href: "/leads", label: "Leadlar" },
   { href: "/subjects", label: "Fanlar" },
+  { href: "/resources", label: "Resurslar" },
   { href: "/exams", label: "Imtihonlar" },
   { href: "/test-templates", label: "Test shablonlari" },
   { href: "/tests", label: "Testlar" },

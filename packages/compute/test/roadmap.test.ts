@@ -81,6 +81,32 @@ test("buildRoadmapAiContext exposes the guardrail payload", () => {
   for (const w of ctx.weakTopics) assert.ok(w.percent < 100);
 });
 
+test("injected resource catalog overrides the bundled resources.json", () => {
+  const r = computeReport(load("student.json"));
+  const catalog = {
+    MATH: {
+      _default: {
+        uz: [
+          { type: "video" as const, title: "UZ-CATALOG-1" },
+          { type: "book" as const, title: "UZ-CATALOG-2" },
+        ],
+        en: [{ type: "platform" as const, title: "EN-CATALOG-1" }],
+      },
+    },
+  };
+  const road = buildRoadmapV2("MATH", r, undefined, catalog);
+  const titles = road.stages.flatMap((s) => s.focusItems.flatMap((f) => f.resources.map((x) => x.title)));
+  assert.ok(titles.length > 0, "roadmap has resources");
+  // Every resource comes from the catalog (topics fall back to catalog _default),
+  // never from the bundled JSON.
+  for (const t of titles) {
+    assert.ok(t.startsWith("UZ-CATALOG") || t.startsWith("EN-CATALOG"), `unexpected resource: ${t}`);
+  }
+  // No-catalog call still uses the bundled JSON (real provider titles).
+  const bundled = buildRoadmapV2("MATH", r).stages.flatMap((s) => s.focusItems.flatMap((f) => f.resources.map((x) => x.title)));
+  assert.ok(!bundled.some((t) => t.startsWith("UZ-CATALOG")), "bundled fallback is independent");
+});
+
 test("AI next-level topics are merged into the next stage when months remain", () => {
   const r = computeReport(load("student.json"));
   const alloc = allocateMonths("MATH", r);

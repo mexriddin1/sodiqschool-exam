@@ -21,6 +21,7 @@ import { attemptsRouter } from "./routes/admin.attempts.js";
 import { publicTestTakingRouter } from "./routes/public.testtaking.js";
 import { statsRouter } from "./routes/admin.stats.js";
 import { subjectsRouter } from "./routes/admin.subjects.js";
+import { resourcesRouter } from "./routes/admin.resources.js";
 import { settingsRouter } from "./routes/admin.settings.js";
 import { publicConfigRouter } from "./routes/public.config.js";
 
@@ -65,6 +66,7 @@ app.use("/api/admin/leads", leadsRouter);
 app.use("/api/admin/attempts", attemptsRouter);
 app.use("/api/admin/stats", statsRouter);
 app.use("/api/admin/subjects", subjectsRouter);
+app.use("/api/admin/resources", resourcesRouter);
 app.use("/api/admin/settings", settingsRouter);
 app.use("/api/result", publicResultRouter);
 app.use("/api/public", publicConfigRouter);

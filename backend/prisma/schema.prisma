@@ -41,6 +41,14 @@ enum StudentSex {
   FEMALE
 }
 
+enum ResourceType {
+  video
+  platform
+  book
+  channel
+  app
+}
+
 // New test-taking flow (natijalar.sodiqschool.uz). These enums support the
 // live student test experience — separate from the legacy TestTemplate which
 // only carries question STRUCTURE for admin-authored results.
@@ -135,6 +143,30 @@ model Subject {
   updatedAt DateTime @updatedAt
 
   @@index([active, order])
+}
+
+// Admin-managed roadmap learning resources. Replaces the hardcoded
+// packages/compute/src/data/resources.json (which stays as seed source +
+// compute fallback). `topic` holds a canonical topic name, or the reserved
+// keys "_default" (subject-wide) / "_nextLevel" (A→B next-level stage).
+// The backend assembles rows into subject→topic→{uz,en} and ships it on /me;
+// compute's resourcesFor() consumes that catalog at render.
+model LearningResource {
+  id        String       @id @default(uuid())
+  subject   SubjectKey
+  topic     String
+  lang      String // "uz" | "en"
+  type      ResourceType
+  title     String
+  provider  String?
+  url       String?
+  note      String?
+  order     Int          @default(0)
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([subject, topic, lang, active, order])
 }
 
 model Exam {

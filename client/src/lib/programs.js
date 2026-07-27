@@ -202,8 +202,8 @@ function stageToProgram(stage, idx, m0) {
 // programs-en.js / programs-ct.js wrappers for the other subjects. The
 // subject key determines which prereq graph and resource catalog the
 // roadmap-v2 engine looks in.
-export function buildProgramsFor(subject, r, aiRoadmap) {
-  const roadmap = buildRoadmapV2(subject, r, aiRoadmap);
+export function buildProgramsFor(subject, r, aiRoadmap, catalog) {
+  const roadmap = buildRoadmapV2(subject, r, aiRoadmap, catalog);
   // Drop stages with no actual work — a strong student shouldn't see three
   // empty roadmap cards. If every stage is empty (perfect score) the UI
   // hides the roadmap section entirely.
@@ -233,5 +233,5 @@ export function buildSkillGrowthFor(subject, r) {
 }
 
 // Backwards-compatible MATH-specific exports (index.astro calls these).
-export function buildPrograms(r, aiRoadmap) { return buildProgramsFor('MATH', r, aiRoadmap); }
+export function buildPrograms(r, aiRoadmap, catalog) { return buildProgramsFor('MATH', r, aiRoadmap, catalog); }
 export function buildSkillGrowth(r) { return buildSkillGrowthFor('MATH', r); }

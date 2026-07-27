@@ -17,6 +17,8 @@ import {
   SubjectInput,
 } from "@sodiq/compute";
 
+import { seedLearningResources } from "./seed-resources.js";
+
 const prisma = new PrismaClient();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLIENT_DATA = resolve(__dirname, "../../client/src/data");
@@ -71,6 +73,8 @@ async function main() {
         },
       });
   console.log(`✔ exam: ${exam.title}`);
+
+  await seedLearningResources(prisma);
 
   const math = loadSubject("student.json");
   const english = loadSubject("english.json");

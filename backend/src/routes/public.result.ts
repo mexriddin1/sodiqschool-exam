@@ -4,6 +4,7 @@ import { normalizePublicCode } from "@sodiq/compute";
 
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
+import { buildResourceCatalog } from "../services/resource-catalog.js";
 import { unauthorized, notFound } from "../lib/errors.js";
 import { resultLoginSchema } from "../lib/schemas.js";
 import {
@@ -190,7 +191,10 @@ publicResultRouter.get(
         throw unauthorized();
       }
     }
-    const result = await assertOwned(session, targetId);
+    const [result, resources] = await Promise.all([
+      assertOwned(session, targetId),
+      buildResourceCatalog(),
+    ]);
     ok(res, {
       student: {
         fullName: result.student.fullName,
@@ -218,6 +222,9 @@ publicResultRouter.get(
       calculatedSnapshot: result.calculatedSnapshot,
       aiNarrative: result.aiNarrative,
       aiRoadmap: result.aiRoadmap,
+      // Admin-managed learning-resource catalog (global). Threaded into the
+      // roadmap render; empty {} → compute uses its bundled resources.json.
+      resources,
       unlockedSections: result.unlockedSections ?? [],
       // "Rivojlanish yo'li" DOIMIY toggle emas — publish yoki admin "ochish"
       // paytidan 20 daqiqagina ochiq. O'sish ko'rsatkichi bundan mustaqil
