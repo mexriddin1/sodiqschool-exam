@@ -1,5 +1,31 @@
 # Security notes
 
+## ⚠️ 2026-08-01: hisobot amalda OCHIQ
+
+Ota-onalar kirish kodi va parolini yo'qotib qo'yishgani uchun client saytga
+**familya + ism + sinf** bilan kirish qo'shildi
+(`POST /api/result/auth/lookup`). Bu — qidiruv, autentifikatsiya emas: ism,
+familya va sinf sir emas, ya'ni **sinfdoshining ismini bilgan har kim uning
+to'liq diagnostika hisobotini ocha oladi.**
+
+Bu ataylab qabul qilingan qaror (foydalanuvchi tasdig'i bilan) — quyidagi
+"Threat model" endi faqat eski kod+parol yo'liga taalluqli. Amaldagi
+cheklovlar:
+
+- `authLimiter` — 10 daqiqada 30 ta **muvaffaqiyatsiz** urinish / IP. Faqat
+  xatolar sanaladi, chunki mobil CGNAT ortida yuzlab haqiqiy ota-ona bo'lishi
+  mumkin. Ismni taxmin qilib sanab chiqish shu bilan cheklanadi.
+- Natijasi yo'q o'quvchi qidiruvga umuman tushmaydi — mavjudligi oshkor
+  bo'lmaydi.
+- Sessiya faqat mos kelgan `studentId` lar bilan chegaralangan; begona
+  `?resultId=` bilan boshqa o'quvchining hisobotini ochib bo'lmaydi
+  (`assertOwned`, `public.result.ts`).
+
+Agar keyinchalik yopish kerak bo'lsa, eng arzon ikkinchi omil — **telefon
+oxirgi 4 raqami**: funnel orqali kelgan o'quvchilarda telefon E.164 formatda
+saqlanadi. CSV import qilingan eski o'quvchilarda telefon yo'q — ular uchun
+boshqa yechim kerak bo'ladi.
+
 ## Threat model
 
 - **Adversary:** an attacker who has guessed or scraped a `publicCode`, or who
@@ -20,15 +46,19 @@
   via DB retry).
 - Login returns a **generic** error for both invalid-code and
   invalid-password (no enumeration).
-- Public login is rate-limited to 6 attempts / 15 min / IP. Limiter does NOT
-  include the code in its key — that would let an attacker rotate codes to
-  reset the counter.
+- Public login (`/auth/login`) va ism qidiruvi (`/auth/lookup`) bitta
+  `authLimiter` ostida: 10 daqiqada 30 ta muvaffaqiyatsiz urinish / IP.
+  Limiter kalitida kod/ism YO'Q — aks holda hujumchi kodni almashtirib
+  hisoblagichni nolga tushirib turardi.
 
 ### Authorization
 
-- Public sessions are scoped to a single `resultId` (embedded in the JWT
-  `sub`). `/api/result/me` only reads the result identified by the session;
-  there is no path that accepts an arbitrary result ID from the client.
+- Public sessions are scoped to the student(s) resolved at login — the JWT
+  carries `kind: "student"` (bitta `studentId`) yoki `kind: "students"`
+  (`ids[]`, familya+ism qidiruvi bir nechta yozuvni topganda). Eski tokenlarda
+  `sub` = `resultId`. `/api/result/me` klientdan `?resultId=` qabul qiladi,
+  lekin `assertOwned` uni sessiyadagi ro'yxat bilan solishtiradi — begona
+  natija 404 qaytaradi.
 - Public client (Astro) never receives raw UUIDs. The Astro server holds the
   session token in its own `sodiq_client_token` cookie and forwards it as
   `Authorization: Bearer` to the backend.
@@ -83,5 +113,7 @@
    (`sodiq_client_token`). If the Astro server is multi-instance behind a load
    balancer, the cookie still works because the JWT is self-contained — no
    sticky sessions needed.
-6. **Rate limit on result code login.** 6/15-min per IP is forgiving for
-   shared NATs (schools, families). Tune for the deployment context.
+6. **Rate limit on result login.** 30 xato/10-min per IP; muvaffaqiyatli
+   so'rovlar sanalmaydi (CGNAT). Deployment kontekstiga qarab moslang.
+7. **Ism bo'yicha kirish — eng katta qoldiq risk.** Yuqoridagi ogohlantirishga
+   qarang: hisobot ism+familya+sinf bilan ochiladi.

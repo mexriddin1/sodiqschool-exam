@@ -247,6 +247,15 @@ export const resultLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Ota-ona kod/parolsiz, o'quvchining familya + ism + sinfi bilan kiradi.
+// Ismlar bazadagi yozuv bilan bayt-ma-bayt teng bo'lishi shart emas —
+// solishtirish `lib/name-match.ts` orqali normallashtirilgan holda ketadi.
+export const resultLookupSchema = z.object({
+  lastName: z.string().trim().min(1).max(80),
+  firstName: z.string().trim().min(1).max(80),
+  grade: z.coerce.number().int().min(5).max(11),
+});
+
 export type StudentCreate = z.infer<typeof studentCreateSchema>;
 export type ExamCreate = z.infer<typeof examCreateSchema>;
 export type ResultCreate = z.infer<typeof resultCreateSchema>;

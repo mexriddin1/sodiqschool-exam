@@ -132,6 +132,10 @@ export interface ResultListRow {
 
 export interface ResultListPayload {
   student: { fullName: string; grade: number };
+  // Familya+ism+sinf bilan kirganda bir xil ismli bir nechta o'quvchi topilgan
+  // bo'lishi mumkin. Shunda /select qatorlarni nashr sanasi bilan farqlaydi —
+  // aks holda ikkita bir xil imtihon qatori ajratib bo'lmas edi.
+  multipleStudents?: boolean;
   results: ResultListRow[];
 }
 

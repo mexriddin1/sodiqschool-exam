@@ -34,9 +34,33 @@ const m = {
 
     <img src="/logo-light.png" alt="Sodiq School" class="brand-logo" />
 
-    <form id="loginForm" class="login-card">
+    <form id="lookupForm" class="login-card">
       <h1>Natijaga kirish</h1>
-      <p class="hint">Ota-ona sifatida farzandingizning diagnostika hisobotini ko'rish uchun o'quvchining kirish kodi va parolini kiriting. Bir necha imtihon topshirgan bo'lsa, ular bitta hisob ostida turadi.</p>
+      <p class="hint">Ota-ona sifatida farzandingizning diagnostika hisobotini ko'rish uchun uning familyasi, ismi va sinfini kiriting. Bir necha imtihon topshirgan bo'lsa, hammasi ro'yxatda chiqadi.</p>
+
+      <label class="lbl" for="lastName">Familyasi</label>
+      <input id="lastName" name="lastName" type="text" required autocomplete="family-name" spellcheck="false" />
+
+      <label class="lbl" for="firstName">Ismi</label>
+      <input id="firstName" name="firstName" type="text" required autocomplete="given-name" spellcheck="false" />
+
+      <label class="lbl" for="gradeGroup">Sinfi</label>
+      <div class="grades" id="gradeGroup" role="group" aria-label="Sinf">
+        {[5, 6, 7, 8, 9, 10, 11].map((g) => (
+          <button type="button" class="grade-btn" data-grade={g} aria-pressed="false">{g}</button>
+        ))}
+      </div>
+      <p class="sub-hint">Imtihon topshirgan paytdagi sinfini tanlang.</p>
+
+      <p class="err" id="lookupErr" hidden></p>
+      <button type="submit" class="btn">Natijani ko'rish</button>
+
+      <button type="button" id="toCodeMode" class="link-alt">Kirish kodi bilan kirish</button>
+    </form>
+
+    <form id="loginForm" class="login-card" hidden>
+      <h1>Kirish kodi bilan</h1>
+      <p class="hint">Maktabdan olgan kirish kodi va parolingizni kiriting.</p>
 
       <label class="lbl" for="code">Kirish kodi</label>
       <input
@@ -69,6 +93,8 @@ const m = {
 
       <p class="err" id="err" hidden></p>
       <button type="submit" class="btn">Kirish</button>
+
+      <button type="button" id="toNameMode" class="link-alt">Familya va ism bilan kirish</button>
     </form>
   </main>
 </Layout>
@@ -127,6 +153,9 @@ const m = {
     animation: card-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
   @keyframes card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  /* `display: grid` brauzerning `[hidden] { display: none }` qoidasini bosib
+     ketadi — ikkinchi karta (kod bilan kirish) yashirin qolishi uchun shart. */
+  .login-card[hidden] { display: none; }
 
   /* Standalone brand logo sitting above the card — no container/pill. */
   .brand-logo {
@@ -146,6 +175,42 @@ const m = {
     background: white; color: #0F1629; box-sizing: border-box; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; }
   input:focus { border-color: #06113C; box-shadow: 0 0 0 3px rgba(6, 17, 60, 0.15); }
   .code-input { text-transform: uppercase; letter-spacing: 0.05em; font-family: "SF Mono", Consolas, Menlo, monospace; font-weight: 600; }
+  .sub-hint { color: #6B7385; font-size: 0.78rem; margin: -6px 0 0; }
+
+  /* ---- Sinf tanlash ---- */
+  .grades { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .grade-btn {
+    padding: 10px 0;
+    border: 1.5px solid #d8dbe4;
+    border-radius: 10px;
+    background: white;
+    color: #0F1629;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 0;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .grade-btn:hover { border-color: #06113C88; }
+  .grade-btn[aria-pressed='true'] {
+    background: #06113C;
+    border-color: #06113C;
+    color: white;
+  }
+  @media (max-width: 400px) { .grades { gap: 4px; } .grade-btn { padding: 9px 0; font-size: 0.9rem; } }
+
+  /* Rejimni almashtirish havolasi — tugma, lekin havolaga o'xshaydi. */
+  .link-alt {
+    background: none;
+    border: 0;
+    color: #4A5060;
+    font: inherit;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 6px 0 0;
+  }
+  .link-alt:hover { color: #06113C; }
 
   /* ---- OTP grid ---- */
   /* `minmax(0, 1fr)` stops the tracks from ballooning past their flex share
@@ -222,7 +287,79 @@ const m = {
   codeInput.addEventListener('input', () => {
     codeInput.value = codeInput.value.toUpperCase().replace(/\s+/g, '');
   });
-  codeInput.focus();
+
+  // ---- Familya + ism + sinf rejimi (asosiy) ----
+  const lookupForm = document.getElementById('lookupForm') as HTMLFormElement;
+  const lookupErr = document.getElementById('lookupErr') as HTMLParagraphElement;
+  const lastName = document.getElementById('lastName') as HTMLInputElement;
+  const firstName = document.getElementById('firstName') as HTMLInputElement;
+  const gradeBtns = Array.from(
+    document.querySelectorAll('.grade-btn'),
+  ) as HTMLButtonElement[];
+  const toCodeMode = document.getElementById('toCodeMode') as HTMLButtonElement;
+  const toNameMode = document.getElementById('toNameMode') as HTMLButtonElement;
+
+  let grade = 0;
+  for (const b of gradeBtns) {
+    b.addEventListener('click', () => {
+      grade = Number(b.dataset.grade);
+      for (const other of gradeBtns) other.setAttribute('aria-pressed', String(other === b));
+    });
+  }
+
+  toCodeMode.addEventListener('click', () => {
+    lookupForm.hidden = true;
+    form.hidden = false;
+    codeInput.focus();
+  });
+  toNameMode.addEventListener('click', () => {
+    form.hidden = true;
+    lookupForm.hidden = false;
+    lastName.focus();
+  });
+
+  lastName.focus();
+
+  lookupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lookupErr.hidden = true;
+
+    const ln = lastName.value.trim();
+    const fn = firstName.value.trim();
+    if (!ln || !fn) {
+      lookupErr.textContent = 'Familya va ismni kiriting';
+      lookupErr.hidden = false;
+      return;
+    }
+    if (!grade) {
+      lookupErr.textContent = 'Sinfni tanlang';
+      lookupErr.hidden = false;
+      return;
+    }
+    const btn = lookupForm.querySelector('button[type=submit]') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/lookup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lastName: ln, firstName: fn, grade }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        lookupErr.textContent =
+          res.status === 429
+            ? "Juda ko'p urinish. Bir necha daqiqadan so'ng qayta urinib ko'ring."
+            : (j.error ?? "O'quvchi topilmadi");
+        lookupErr.hidden = false;
+        return;
+      }
+      // Yangi kirish — /summary'dagi tabrik animatsiyasi qayta ishlasin.
+      sessionStorage.removeItem('sodiq-celebration-seen');
+      window.location.href = '/select';
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   // Password show/hide
   pwToggle.addEventListener('click', () => {
@@ -260,7 +397,10 @@ const m = {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        err.textContent = j.error ?? "Kod yoki parol noto'g'ri";
+        err.textContent =
+          res.status === 429
+            ? "Juda ko'p urinish. Bir necha daqiqadan so'ng qayta urinib ko'ring."
+            : (j.error ?? "Kod yoki parol noto'g'ri");
         // Fall through to `return` — no cleanup needed on failure.
         err.hidden = false;
         return;

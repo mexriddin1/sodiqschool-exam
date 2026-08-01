@@ -64,7 +64,9 @@ if (data.results.length === 1) {
           <>
             <h1>Natijalar</h1>
             <p class="hint">
-              Sizga {data.results.length} ta imtihon natijasi biriktirilgan. Ko'rmoqchi bo'lganingizni tanlang.
+              {data.multipleStudents
+                ? `Bu ism-familya va sinf bo'yicha ${data.results.length} ta natija topildi. Ko'rmoqchi bo'lganingizni tanlang.`
+                : `Sizga ${data.results.length} ta imtihon natijasi biriktirilgan. Ko'rmoqchi bo'lganingizni tanlang.`}
             </p>
             <ul class="results">
               {data.results.map((r) => (
@@ -76,6 +78,12 @@ if (data.results.length === 1) {
                         {new Date(r.exam.examDate).toLocaleDateString()}
                         {r.exam.academicYear ? ` · ${r.exam.academicYear}` : ''}
                         {` · ${r.exam.grade}-sinf`}
+                        {/* Bir xil ismli bir nechta o'quvchi topilganda ikkita
+                            qator ayni bir imtihonga tegishli bo'lishi mumkin —
+                            nashr sanasi ularni farqlab turadi. */}
+                        {data.multipleStudents && r.publishedAt
+                          ? ` · e'lon: ${new Date(r.publishedAt).toLocaleDateString()}`
+                          : ''}
                       </div>
                     </div>
                     <div class="rr-score">

@@ -14,20 +14,27 @@ export interface AdminAuthPayload {
 // with tokens issued by the old per-Result auth (they carry the Result id
 // as `sub` and the Result publicCode as `code`). Middleware detects which
 // era the token belongs to and populates the session accordingly.
+//
+// 2026-08-01: `kind: "students"` qo'shildi — ota-ona familya+ism+sinf bilan
+// kirganda bir nechta Student yozuvi mos kelishi mumkin (bir xil ismli
+// o'quvchilar yoki funnel yaratgan takroriy yozuvlar). Bunday tokenda hamma
+// mos kelgan id `ids` da turadi.
 export interface ResultAuthPayload {
   sub: string;   // student id (new) OR result id (legacy)
   code: string;  // student loginCode (new) OR result publicCode (legacy)
-  kind?: "student" | "result"; // omitted on legacy tokens
+  kind?: "student" | "students" | "result"; // omitted on legacy tokens
+  ids?: string[]; // faqat kind === "students" da
 }
 
 declare module "express-serve-static-core" {
   interface Request {
     admin?: { id: string; role: AdminRole; fullName: string; email: string };
-    // resultId qoladi (legacy) — yangi tokenlarda studentId ham to'ldiriladi.
+    // resultId qoladi (legacy) — yangi tokenlarda studentIds to'ldiriladi
+    // (odatda bitta element, familya+ism bo'yicha kirishda bir nechta).
     // Har ikkisi ham optional bo'lgani sababli chaqiruvchilar mavjudini
     // tekshirib olishlari kerak.
     resultSession?: {
-      studentId?: string;
+      studentIds?: string[];
       resultId?: string;
       publicCode: string;
     };
@@ -92,11 +99,16 @@ export async function requireResultSession(
     const token = cookieToken ?? bearerToken;
     if (!token) throw unauthorized();
     const decoded = jwt.verify(token, config.resultJwtSecret) as ResultAuthPayload;
-    // Yangi token: kind = "student", sub = studentId. Eski token: kind yo'q,
-    // sub = resultId. Ikkalasi ham ishlaydi — eski link'lar buzilmasligi
-    // uchun legacy shape'ni ham qo'llab-quvvatlaymiz.
-    if (decoded.kind === "student") {
-      req.resultSession = { studentId: decoded.sub, publicCode: decoded.code };
+    // Yangi token: kind = "student" (sub = studentId) yoki "students"
+    // (ids = mos kelgan studentId'lar). Eski token: kind yo'q, sub = resultId.
+    // Uchalasi ham ishlaydi — eski link'lar buzilmasligi uchun legacy shape'ni
+    // ham qo'llab-quvvatlaymiz.
+    if (decoded.kind === "students") {
+      const ids = Array.isArray(decoded.ids) ? decoded.ids.filter((x) => typeof x === "string") : [];
+      if (ids.length === 0) throw unauthorized();
+      req.resultSession = { studentIds: ids, publicCode: decoded.code };
+    } else if (decoded.kind === "student") {
+      req.resultSession = { studentIds: [decoded.sub], publicCode: decoded.code };
     } else {
       req.resultSession = { resultId: decoded.sub, publicCode: decoded.code };
     }
