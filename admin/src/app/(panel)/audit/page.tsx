@@ -25,6 +25,7 @@ const PAGE_TAKE = 20;
 export default function AuditLogPage() {
   const [items, setItems] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<Record<string, number>>({});
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -42,8 +43,11 @@ export default function AuditLogPage() {
     qs.set("page", String(page));
     qs.set("take", String(PAGE_TAKE));
     setLoading(true);
-    api<Paginated<AuditEntry>>(`/api/admin/audit-logs?${qs}`)
-      .then((d) => { setItems(d.items); setTotal(d.total); setPages(d.pages); })
+    api<Paginated<AuditEntry> & { counts?: Record<string, number> }>(`/api/admin/audit-logs?${qs}`)
+      .then((d) => {
+        setItems(d.items); setTotal(d.total); setPages(d.pages);
+        if (d.counts) setStats(d.counts);
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }
@@ -51,11 +55,7 @@ export default function AuditLogPage() {
   useEffect(() => { setPage(1); }, [entityType, action, q]);
   useEffect(refresh, [entityType, action, q, page]);
 
-  const stats = useMemo(() => {
-    const byAction: Record<string, number> = {};
-    for (const r of items) byAction[r.action] = (byAction[r.action] ?? 0) + 1;
-    return byAction;
-  }, [items]);
+  // Amal kesimi serverdan — ilgari faqat ko'rinib turgan sahifadan sanalardi.
 
   const anyFilter = !!(entityType || action || q);
   function resetFilters() { setEntityType(""); setAction(""); setQ(""); }

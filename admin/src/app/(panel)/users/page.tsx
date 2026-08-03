@@ -21,6 +21,7 @@ const PAGE_TAKE = 10;
 export default function AdminUsersPage() {
   const [list, setList] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ admins: 0, editors: 0, active: 0, inactive: 0 });
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -44,8 +45,11 @@ export default function AdminUsersPage() {
     qs.set("page", String(page));
     qs.set("take", String(PAGE_TAKE));
     setLoading(true);
-    api<Paginated<AdminUser>>(`/api/admin/users?${qs}`)
-      .then((d) => { setList(d.items); setTotal(d.total); setPages(d.pages); })
+    api<Paginated<AdminUser> & { counts?: { admins: number; editors: number; active: number; inactive: number } }>(`/api/admin/users?${qs}`)
+      .then((d) => {
+        setList(d.items); setTotal(d.total); setPages(d.pages);
+        if (d.counts) setStats(d.counts);
+      })
       .catch((e) => {
         if (e instanceof ApiException && e.status === 403) {
           setError("Faqat ADMIN roli boshqaruvchilarni boshqara oladi");
@@ -66,14 +70,7 @@ export default function AdminUsersPage() {
     });
   }, [list, sort]);
 
-  const stats = useMemo(() => {
-    let admins = 0, editors = 0, activeN = 0, inactive = 0;
-    for (const u of filtered) {
-      if (u.role === "ADMIN") admins++; else editors++;
-      if (u.isActive) activeN++; else inactive++;
-    }
-    return { admins, editors, active: activeN, inactive };
-  }, [filtered]);
+  // Rol/faollik kesimi serverdan — ilgari ko'rinib turgan sahifadan sanalardi.
 
   const anyFilter = !!(q || role || active || sort !== "created-desc");
   function resetFilters() { setQ(""); setRole(""); setActive(""); setSort("created-desc"); }

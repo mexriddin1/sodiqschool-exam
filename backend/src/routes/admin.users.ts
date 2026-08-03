@@ -56,11 +56,21 @@ adminUsersRouter.get(
       }),
     };
     const p = parsePagination(req, { defaultTake: 10, maxTake: 200 });
-    const [rows, total] = await Promise.all([
+    // Rol/faollik kesimi bazadan — sahifadagi qatorlardan emas (2026-08-03).
+    const { role: _r, isActive: _a, ...whereNoRoleActive } = where;
+    const [rows, total, byRole, byActive] = await Promise.all([
       prisma.adminUser.findMany({ where, select: publicShape, orderBy: { createdAt: "desc" }, skip: p.skip, take: p.take }),
       prisma.adminUser.count({ where }),
+      prisma.adminUser.groupBy({ by: ["role"], where: whereNoRoleActive, _count: { _all: true } }),
+      prisma.adminUser.groupBy({ by: ["isActive"], where: whereNoRoleActive, _count: { _all: true } }),
     ]);
-    ok(res, wrapPaginated(rows, total, p));
+    const counts = {
+      admins: byRole.find((r) => r.role === "ADMIN")?._count._all ?? 0,
+      editors: byRole.find((r) => r.role === "EDITOR")?._count._all ?? 0,
+      active: byActive.find((r) => r.isActive === true)?._count._all ?? 0,
+      inactive: byActive.find((r) => r.isActive === false)?._count._all ?? 0,
+    };
+    ok(res, { ...wrapPaginated(rows, total, p), counts });
   }),
 );
 

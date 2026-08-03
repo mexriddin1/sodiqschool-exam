@@ -34,7 +34,9 @@ auditRouter.get(
       }),
     };
     const p = parsePagination(req, { defaultTake: 20, maxTake: 200 });
-    const [rows, total] = await Promise.all([
+    // Amal kesimi bazadan — sahifadagi qatorlardan emas (2026-08-03 xatosi).
+    const { action: _ignoredAction, ...whereNoAction } = where;
+    const [rows, total, byAction] = await Promise.all([
       prisma.auditLog.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -43,7 +45,10 @@ auditRouter.get(
         include: { adminUser: { select: { id: true, fullName: true, email: true } } },
       }),
       prisma.auditLog.count({ where }),
+      prisma.auditLog.groupBy({ by: ["action"], where: whereNoAction, _count: { _all: true } }),
     ]);
-    ok(res, wrapPaginated(rows, total, p));
+    const counts: Record<string, number> = {};
+    for (const row of byAction) counts[row.action] = row._count._all;
+    ok(res, { ...wrapPaginated(rows, total, p), counts });
   }),
 );

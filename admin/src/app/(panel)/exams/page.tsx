@@ -47,6 +47,7 @@ export default function ExamsPage() {
   const router = useRouter();
   const [list, setList] = useState<Exam[]>([]);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ DRAFT: 0, ACTIVE: 0, ARCHIVED: 0 });
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
@@ -94,8 +95,11 @@ export default function ExamsPage() {
     qs.set("page", String(page));
     qs.set("take", String(PAGE_TAKE));
     setLoading(true);
-    api<Paginated<Exam>>(`/api/admin/exams?${qs}`)
-      .then((d) => { setList(d.items); setTotal(d.total); setPages(d.pages); })
+    api<Paginated<Exam> & { counts?: { DRAFT: number; ACTIVE: number; ARCHIVED: number } }>(`/api/admin/exams?${qs}`)
+      .then((d) => {
+        setList(d.items); setTotal(d.total); setPages(d.pages);
+        if (d.counts) setStats(d.counts);
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }
@@ -115,11 +119,7 @@ export default function ExamsPage() {
     });
   }, [list, sort]);
 
-  const stats = useMemo(() => {
-    const byStatus = { DRAFT: 0, ACTIVE: 0, ARCHIVED: 0 };
-    for (const e of filtered) byStatus[e.status]++;
-    return byStatus;
-  }, [filtered]);
+  // Status kesimi serverdan — ilgari faqat ko'rinib turgan sahifadan sanalardi.
 
   const years = useMemo(() => {
     const set = new Set<string>();

@@ -23,6 +23,15 @@ interface Student {
   sex?: "MALE" | "FEMALE" | null;
 }
 
+// Sinf/jins kesimi — serverdan, hozirgi qidiruv bo'yicha. Sinf va jins
+// filtrlariga bo'ysunmaydi, ya'ni nishonlar hamisha to'liq manzarani beradi.
+interface StudentCounts {
+  byGrade: Record<string, number>;
+  male: number;
+  female: number;
+  unknownSex: number;
+}
+
 const GRADES = [5, 6, 7, 8, 9, 10, 11];
 
 const PAGE_TAKE = 10;
@@ -31,6 +40,8 @@ export default function StudentsPage() {
   const router = useRouter();
   const [list, setList] = useState<Student[]>([]);
   const [total, setTotal] = useState(0);
+  // Sinf/jins kesimi serverdan keladi — ko'rinib turgan sahifadan sanalmaydi.
+  const [stats, setStats] = useState<StudentCounts>({ byGrade: {}, male: 0, female: 0, unknownSex: 0 });
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
@@ -52,8 +63,11 @@ export default function StudentsPage() {
     qs.set("page", String(page));
     qs.set("take", String(PAGE_TAKE));
     setLoading(true);
-    api<Paginated<Student>>(`/api/admin/students?${qs}`)
-      .then((d) => { setList(d.items); setTotal(d.total); setPages(d.pages); })
+    api<Paginated<Student> & { counts?: StudentCounts }>(`/api/admin/students?${qs}`)
+      .then((d) => {
+        setList(d.items); setTotal(d.total); setPages(d.pages);
+        if (d.counts) setStats(d.counts);
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }
@@ -61,16 +75,6 @@ export default function StudentsPage() {
   useEffect(() => { setPage(1); }, [q, grade, sex, sort]);
   useEffect(refresh, [q, grade, sex, sort, page]);
 
-  const stats = useMemo(() => {
-    const byGrade: Record<number, number> = {};
-    let male = 0, female = 0;
-    for (const s of list) {
-      byGrade[s.grade] = (byGrade[s.grade] ?? 0) + 1;
-      if (s.sex === "MALE") male++;
-      if (s.sex === "FEMALE") female++;
-    }
-    return { byGrade, male, female };
-  }, [list]);
 
   const anyFilter = q || grade || sex || sort !== "created-desc";
   function resetFilters() {
@@ -323,6 +327,7 @@ export default function StudentsPage() {
             ))}
             {stats.male > 0 && <StatBadge variant="good">O'g'il: {stats.male}</StatBadge>}
             {stats.female > 0 && <StatBadge variant="orange">Qiz: {stats.female}</StatBadge>}
+            {stats.unknownSex > 0 && <StatBadge>Jinsi ko'rsatilmagan: {stats.unknownSex}</StatBadge>}
           </>
         }
       >

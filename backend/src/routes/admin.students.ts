@@ -41,11 +41,27 @@ studentsRouter.get(
     // Combobox use-case can pass ?take=1000 to grab the full roster in one hit;
     // regular list views default to 10 rows per page.
     const p = parsePagination(req, { defaultTake: 10, maxTake: 1000 });
-    const [rows, total] = await Promise.all([
+    // Sinf va jins kesimi BAZADAN sanaladi. Ro'yxat sahifasi ilgari nishonlarni
+    // ko'rinib turgan 10 qatordan hisoblardi, ya'ni "O'g'il: 6, 5-sinf: 10"
+    // kabi raqamlar sahifa hajmidan oshmasdi (2026-08-03 xatosi).
+    // Kesim o'zi bo'linayotgan o'lchov (grade/sex) filtriga bo'ysunmaydi —
+    // shunda nishonlar hamisha to'liq manzarani beradi.
+    const { grade: _g, sex: _s, ...whereNoGradeSex } = where;
+    const [rows, total, byGrade, bySex] = await Promise.all([
       prisma.student.findMany({ where, orderBy, skip: p.skip, take: p.take }),
       prisma.student.count({ where }),
+      prisma.student.groupBy({ by: ["grade"], where: whereNoGradeSex, _count: { _all: true } }),
+      prisma.student.groupBy({ by: ["sex"], where: whereNoGradeSex, _count: { _all: true } }),
     ]);
-    ok(res, wrapPaginated(rows, total, p));
+    const counts = {
+      byGrade: Object.fromEntries(byGrade.map((r) => [r.grade, r._count._all])) as Record<string, number>,
+      male: bySex.find((r) => r.sex === "MALE")?._count._all ?? 0,
+      female: bySex.find((r) => r.sex === "FEMALE")?._count._all ?? 0,
+      // Jinsi kiritilmagan o'quvchilar — o'g'il+qiz yig'indisi jamiga teng
+      // chiqmasa, farq shu yerda ekani ko'rinib tursin.
+      unknownSex: bySex.find((r) => r.sex === null)?._count._all ?? 0,
+    };
+    ok(res, { ...wrapPaginated(rows, total, p), counts });
   }),
 );
 

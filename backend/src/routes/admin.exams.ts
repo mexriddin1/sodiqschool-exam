@@ -34,7 +34,9 @@ examsRouter.get(
       }),
     };
     const p = parsePagination(req, { defaultTake: 10, maxTake: 500 });
-    const [rows, total] = await Promise.all([
+    // Status kesimi bazadan — sahifadagi qatorlardan emas (2026-08-03 xatosi).
+    const { status: _ignoredStatus, ...whereNoStatus } = where;
+    const [rows, total, byStatus] = await Promise.all([
       prisma.exam.findMany({
         where,
         orderBy: { examDate: "desc" },
@@ -43,8 +45,11 @@ examsRouter.get(
         take: p.take,
       }),
       prisma.exam.count({ where }),
+      prisma.exam.groupBy({ by: ["status"], where: whereNoStatus, _count: { _all: true } }),
     ]);
-    ok(res, wrapPaginated(rows, total, p));
+    const counts = { DRAFT: 0, ACTIVE: 0, ARCHIVED: 0 };
+    for (const row of byStatus) counts[row.status] = row._count._all;
+    ok(res, { ...wrapPaginated(rows, total, p), counts });
   }),
 );
 
