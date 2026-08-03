@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiException, API_BASE } from "@/lib/api";
@@ -27,6 +27,9 @@ interface PagedResponse {
   page: number;
   take: number;
   pages: number;
+  // Status kesimi — BAZADAN, hozirgi filtr bo'yicha (status filtridan
+  // qat'i nazar). Ko'rinib turgan sahifadagi qatorlardan sanamaydi.
+  counts?: { DRAFT: number; PUBLISHED: number; ARCHIVED: number };
 }
 
 const PAGE_TAKE = 10;
@@ -35,6 +38,7 @@ export default function ResultsPage() {
   const router = useRouter();
   const [list, setList] = useState<ResultRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState({ DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 });
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [q, setQ] = useState("");
@@ -111,7 +115,10 @@ export default function ResultsPage() {
     }
     setLoading(true);
     api<PagedResponse>(`/api/admin/results?${qs}`)
-      .then((d) => { setList(d.items); setTotal(d.total); setPages(d.pages); })
+      .then((d) => {
+        setList(d.items); setTotal(d.total); setPages(d.pages);
+        if (d.counts) setCounts(d.counts);
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }
@@ -119,11 +126,10 @@ export default function ResultsPage() {
   useEffect(() => { setPage(1); }, [q, status, examId, grade, sort, scope]);
   useEffect(refresh, [q, status, examId, grade, sort, scope, page]);
 
-  const stats = useMemo(() => {
-    const out = { DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 };
-    for (const r of list) out[r.status]++;
-    return out;
-  }, [list]);
+  // `counts` serverdan keladi (butun kesim bo'yicha). Ilgari bu yer `list` dan
+  // — ya'ni faqat ko'rinib turgan sahifadan — sanardi va "Nashr etilgan: 10"
+  // deb ko'rsatardi.
+  const stats = counts;
 
   const anyFilter = !!(q || status || grade || examId || sort !== "created-desc");
   function resetFilters() {

@@ -107,9 +107,12 @@ resultsRouter.get(
       : sort === "code-asc" ? { publicCode: "asc" }
       : { createdAt: "desc" };
     const p = parsePagination(req);
-    // Two queries in parallel: page slice + total-count so the client can render
-    // pagination controls without a second round-trip.
-    const [rows, total] = await Promise.all([
+    // Status kesimi — sahifadagi qatorlardan EMAS, bazadan sanaladi. Ro'yxat
+    // sahifasi ilgari nishonlarni ko'rinib turgan 10-20 qatordan hisoblardi va
+    // "Nashr etilgan: 10" deb ko'rsatardi (2026-08-03 xatosi). Status filtri
+    // hisobga olinmaydi, ya'ni nishonlar hamisha to'liq kesimni beradi.
+    const { status: _ignoredStatus, ...whereNoStatus } = where;
+    const [rows, total, byStatus] = await Promise.all([
       prisma.result.findMany({
         where,
         orderBy,
@@ -124,8 +127,11 @@ resultsRouter.get(
         take: p.take,
       }),
       prisma.result.count({ where }),
+      prisma.result.groupBy({ by: ["status"], where: whereNoStatus, _count: { _all: true } }),
     ]);
-    ok(res, wrapPaginated(rows, total, p));
+    const counts = { DRAFT: 0, PUBLISHED: 0, ARCHIVED: 0 };
+    for (const row of byStatus) counts[row.status] = row._count._all;
+    ok(res, { ...wrapPaginated(rows, total, p), counts });
   }),
 );
 
