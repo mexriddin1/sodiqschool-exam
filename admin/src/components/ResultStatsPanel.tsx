@@ -15,7 +15,9 @@ const VERDICT_COLORS: Record<VerdictLabel, string> = {
   "ZAXIRA QABUL": "#FF8A32",
   "TAYYOR EMAS": "#D2503F",
   "STRONG ADMIT": "#2F9E6B",
-  "ADMIT": "#2F9E6B",
+  // Eski inglizcha yorliq "ADMIT" = "QABUL QILINSIN", ya'ni KO'K. Bu yerda
+  // yashil turgani xato edi (dashboard'da to'g'ri ko'k).
+  "ADMIT": "#3266C9",
   "CONDITIONAL ADMIT": "#C98A12",
   "WAITLIST": "#FF8A32",
   "NOT YET READY": "#D2503F",
@@ -239,8 +241,9 @@ export default function ResultStatsPanel({ subjects, grade, admissionThresholds,
         </div>
 
         {!composite.gateAllPassed && (
-          <div className="mt-2 text-xs text-bad">
-            Bir yoki bir nechta fan minimal chegaradan past — qabul qarori "TAYYOR EMAS".
+          <div className="mt-2 text-xs text-warn">
+            Diqqat: bir yoki bir nechta fan minimal chegaradan past. Qabul qarori
+            faqat umumiy ball bo'yicha beriladi — bu belgi qarorni o'zgartirmaydi.
           </div>
         )}
       </div>

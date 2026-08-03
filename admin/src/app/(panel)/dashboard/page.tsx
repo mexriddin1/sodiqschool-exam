@@ -73,7 +73,9 @@ const VERDICT_COLORS: Record<string, string> = {
   "QABUL TAVSIYA ETILADI": "#2F9E6B",
   "QABUL QILINSIN": "#3266C9",
   "SHARTLI QABUL": "#C98A12",
-  "ZAXIRA QABUL": "#E37A2C",
+  // BAND_COLORS.orange bilan bir xil bo'lishi shart — ilgari bu yerda #E37A2C
+  // turardi va dashboard'dagi nishon hisobot sahifasidagidan boshqacha edi.
+  "ZAXIRA QABUL": "#FF8A32",
   "TAYYOR EMAS": "#D2503F",
   // Legacy English labels — keep so old published snapshots still render in
   // colour until they get regenerated.

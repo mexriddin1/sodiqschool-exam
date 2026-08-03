@@ -184,7 +184,25 @@ export interface SubjectOverrides {
   narrative: SubjectNarrative;
 }
 
-export type VerdictLabel = "STRONG ADMIT" | "ADMIT" | "CONDITIONAL ADMIT" | "WAITLIST" | "NOT YET READY";
+// Admin qo'lda qo'yadigan qaror yorlig'i. O'zbekcha yorliqlar — hozirgi
+// admin dropdown'i aynan shularni yozadi (backend enum: lib/schemas.ts).
+// Inglizchalari eski yozuvlar uchun qoldirilgan.
+//
+// 2026-08-03: o'zbekcha yorliqlar SHU RO'YXATDA YO'Q edi, ya'ni admin qaror
+// qo'yganda quyidagi jadvallardan `undefined` qaytardi va nishon rangsiz
+// chiqardi.
+export type VerdictLabel =
+  | "QABUL TAVSIYA ETILADI"
+  | "QABUL QILINSIN"
+  | "SHARTLI QABUL"
+  | "ZAXIRA QABUL"
+  | "NAVBATDA"
+  | "TAYYOR EMAS"
+  | "STRONG ADMIT"
+  | "ADMIT"
+  | "CONDITIONAL ADMIT"
+  | "WAITLIST"
+  | "NOT YET READY";
 
 export interface VerdictOverride {
   label: VerdictLabel;
@@ -206,15 +224,29 @@ export interface SummaryOverrides {
   verdictOverride: VerdictOverride | null;
 }
 
+// Ranglar @sodiq/compute BAND_COLORS bilan bir xil bo'lishi shart — aks holda
+// qo'lda qo'yilgan qaror nishoni ball rangidan boshqacha chiqadi.
 const VERDICT_COLORS: Record<VerdictLabel, string> = {
+  "QABUL TAVSIYA ETILADI": "#2F9E6B",
+  "QABUL QILINSIN": "#3266C9",
+  "SHARTLI QABUL": "#C98A12",
+  "ZAXIRA QABUL": "#FF8A32",
+  "NAVBATDA": "#FF8A32",
+  "TAYYOR EMAS": "#D2503F",
   "STRONG ADMIT": "#2F9E6B",
-  "ADMIT": "#2F9E6B",
+  "ADMIT": "#3266C9",
   "CONDITIONAL ADMIT": "#C98A12",
   "WAITLIST": "#FF8A32",
   "NOT YET READY": "#D2503F",
 };
 
 const VERDICT_SUBS: Record<VerdictLabel, string> = {
+  "QABUL TAVSIYA ETILADI": "Yuqori daraja — maktabga qabul tavsiya etiladi",
+  "QABUL QILINSIN": "Ishonchli daraja — qabul tavsiya etiladi",
+  "SHARTLI QABUL": "Rivojlanayotgan daraja — shartli qabul",
+  "ZAXIRA QABUL": "Shakllanayotgan daraja — zaxira qabul",
+  "NAVBATDA": "Shakllanayotgan daraja — navbatda",
+  "TAYYOR EMAS": "Tamal bosqich — avval tayyorgarlik kerak",
   "STRONG ADMIT": "Yuqori daraja — maktabga qabul tavsiya etiladi",
   "ADMIT": "Ishonchli daraja — qabul tavsiya etiladi",
   "CONDITIONAL ADMIT": "Rivojlanayotgan daraja — shartli qabul",

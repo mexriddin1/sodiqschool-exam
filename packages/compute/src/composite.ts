@@ -107,52 +107,27 @@ function thresholdFor(key: SubjectKey, grade: number, thresholds: AdmissionThres
   return row.ct;
 }
 
-// Verdict from a candidate's potential (what they can achieve after
-// eliminating technical errors) — NOT their raw score. Thresholds match the
-// official 5-band scale: 83+ Juda yuqori, 66+ Yaxshi, 49+ O'rtacha, 34+ Zaif,
-// else Sayoz. Callers holding subject gates must apply GATE_FAILED_VERDICT
-// themselves; this function only maps a number onto the band.
-export function verdictFor(potential: number): { label: string; sub: string; color: string } {
-  if (potential > 83)
-    return {
-      label: "QABUL TAVSIYA ETILADI",
-      sub: "Yuqori daraja — maktabga qabul tavsiya etiladi",
-      color: BAND_COLORS.good,
-    };
-  if (potential > 66)
-    return {
-      label: "QABUL QILINSIN",
-      sub: "Ishonchli daraja — qabul tavsiya etiladi",
-      color: BAND_COLORS.blue,
-    };
-  if (potential > 49)
-    return {
-      label: "SHARTLI QABUL",
-      sub: "Rivojlanayotgan daraja — shartli qabul",
-      color: BAND_COLORS.ok,
-    };
-  if (potential > 34)
-    return {
-      label: "ZAXIRA QABUL",
-      sub: "Shakllanayotgan daraja — zaxira qabul",
-      color: BAND_COLORS.orange,
-    };
-  return {
-    label: "TAYYOR EMAS",
-    sub: "Tamal bosqich — avval tayyorgarlik kerak",
-    color: BAND_COLORS.bad,
-  };
-}
-
-// Falling below ANY subject's minimum demotes the verdict outright, however
-// strong the average — per docs/calculation-rules.md ("Bir yoki bir nechta fan
-// minimal chegaradan past"). Kept separate from verdictFor()'s band scale
-// because it is a gate, not a band.
-export const GATE_FAILED_VERDICT: { label: string; sub: string; color: string } = {
-  label: "TAYYOR EMAS",
-  sub: "Bir yoki bir nechta fan minimal chegaradan past",
-  color: BAND_COLORS.bad,
+// Qaror BALL bo'yicha beriladi — ekranda ko'rinayotgan o'sha raqam bo'yicha.
+//
+// 2026-08-03: qaror `scoreBand()` ustiga qurildi, ya'ni bandning O'ZI rang va
+// chegara manbai. Ilgari bu funksiya o'z chegaralari va ranglarini takrorlab
+// yozardi va `computeComposite` unga `composite` emas, `compPotential` ni
+// uzatardi — natijada ekranda 80 ball KO'K rangda, yonidagi qaror esa 84 dan
+// kelib chiqib YASHIL bo'lib turardi. Endi ikkalasi bitta raqamdan va bitta
+// jadvaldan oziqlanadi, ya'ni rang hech qachon ajralib keta olmaydi.
+const VERDICT_BY_BAND: Record<string, { label: string; sub: string }> = {
+  yuqori: { label: "QABUL TAVSIYA ETILADI", sub: "Yuqori daraja — maktabga qabul tavsiya etiladi" },
+  ishonchli: { label: "QABUL QILINSIN", sub: "Ishonchli daraja — qabul tavsiya etiladi" },
+  rivojlanayotgan: { label: "SHARTLI QABUL", sub: "Rivojlanayotgan daraja — shartli qabul" },
+  shakllanayotgan: { label: "ZAXIRA QABUL", sub: "Shakllanayotgan daraja — zaxira qabul" },
+  tamal: { label: "TAYYOR EMAS", sub: "Tamal bosqich — avval tayyorgarlik kerak" },
 };
+
+export function verdictFor(score: number): { label: string; sub: string; color: string } {
+  const band = scoreBand(score);
+  const v = (band.key ? VERDICT_BY_BAND[band.key] : undefined) ?? VERDICT_BY_BAND.tamal!;
+  return { label: v.label, sub: v.sub, color: band.color };
+}
 
 export function computeComposite(input: CompositeInput): CompositeReport {
   const keys: SubjectKey[] = ["MATH", "ENGLISH", "CRITICAL_THINKING"];
@@ -175,6 +150,9 @@ export function computeComposite(input: CompositeInput): CompositeReport {
   const topSubject = { key: sorted[0]!.key, percent: sorted[0]!.report.percent };
   const lowSubject = { key: sorted[sorted.length - 1]!.key, percent: sorted[sorted.length - 1]!.report.percent };
 
+  // Fan-minimal chegaralari endi FAQAT ma'lumot uchun hisoblanadi — admin
+  // panelida "qaysi fan chegaradan past" ko'rinib tursin. Qarorni ular
+  // pasaytirmaydi (2026-08-03 qarori, quyidagi izohga qarang).
   const perSubjectGate = {} as CompositeReport["perSubjectGate"];
   let gateAllPassed = true;
   for (const { key, report } of reps) {
@@ -192,11 +170,14 @@ export function computeComposite(input: CompositeInput): CompositeReport {
     avgTechPct,
     topSubject,
     lowSubject,
-    // compPotential, not composite: a candidate is judged on their ceiling
-    // once technical errors are stripped out. Passing `composite` here (from
-    // b599564 until 2026-07-15) silently contradicted both this file's own
-    // comment and docs/calculation-rules.md.
-    verdict: gateAllPassed ? verdictFor(compPotential) : GATE_FAILED_VERDICT,
+    // BALL bo'yicha — ekranda ko'rsatilayotgan `composite` raqamidan.
+    //
+    // 2026-08-03: ilgari bu yer `compPotential` dan hisoblanardi va fan-minimal
+    // gate qarorni "TAYYOR EMAS" ga tushirib yuborardi. Ikkovi ham imtihon
+    // kunida ochiq xatoga olib keldi: 80 ball ko'k rangda turib qarori yashil
+    // chiqardi, 63 ball esa "TAYYOR EMAS" bo'lardi. Maktab qarori: butun
+    // saytda status FAQAT ball bo'yicha berilsin.
+    verdict: verdictFor(composite),
     perSubjectGate,
     gateAllPassed,
     weights,

@@ -72,19 +72,15 @@ const adjustedBand = scoreBand(compAdjusted);
 const avgTechPct = avg(subjects.map((s) => s.techPct));
 const topSubj = [...subjects].sort((a, b) => b.percent - a.percent)[0];
 const lowSubj = [...subjects].sort((a, b) => a.percent - b.percent)[0];
-// Verdict — read from the frozen snapshot, which is the single source of
-// truth: it is the only place the subject-gate demotion exists, because
-// /api/result/me deliberately never ships admissionThresholds to the client.
-// Recomputing it here (as this page did until 2026-07-15) silently disagreed
-// with what admin published. Fall back to the band only if a published result
-// somehow has no snapshot; that path cannot apply the gate.
-const snapshotVerdict = (me.calculatedSnapshot as any)?.composite?.verdict as
-  | { label: string; sub: string; color: string }
-  | undefined;
-const verdict = resolveVerdict(
-  snapshotVerdict ?? verdictFor(compPotential),
-  overrides.summary.verdictOverride,
-);
+// Qaror — yonidagi BALLdan (`composite`) hisoblanadi, ya'ni rangi va darajasi
+// ekrandagi raqam bilan doim bir xil bo'ladi.
+//
+// 2026-08-03: ilgari bu yer avval snapshotdagi qarorni olardi. Snapshot esa
+// muzlatilgan: eski natijalarda u `compPotential` dan va fan-minimal gate
+// bilan yozilgan, shuning uchun ball bilan mos kelmasdi. Snapshotni o'qimaymiz
+// — shu bilan eski natijalar ham qayta nashr qilinmasdan to'g'ri ko'rinadi.
+// Admin qo'lda qo'ygan override esa avvalgidek ustun turadi.
+const verdict = resolveVerdict(verdictFor(composite), overrides.summary.verdictOverride);
 
 // Summary-level overrides (overallRank/overallPct/crossStrength/gradeLabel).
 const sumOv = overrides.summary;

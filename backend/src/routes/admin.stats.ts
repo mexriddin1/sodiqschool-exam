@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { verdictFor } from "@sodiq/compute/composite";
 
 import { prisma } from "../db.js";
 import { asyncHandler, ok } from "../lib/response.js";
@@ -137,7 +138,11 @@ statsRouter.get(
         const bk = bandOf(c);
         bandCounts[bk] = (bandCounts[bk] ?? 0) + 1;
       }
-      const v = snap.composite?.verdict?.label;
+      // Qaror BALLdan qayta hisoblanadi, snapshotdan o'qilmaydi. Snapshot
+      // muzlatilgan: 2026-08-03 gacha yozilganlarida qaror `compPotential` dan
+      // va fan-minimal gate bilan turibdi, ya'ni ustundagi ball bilan mos
+      // kelmaydi. Shu bilan eski natijalar qayta nashr qilinmasdan to'g'rilanadi.
+      const v = typeof c === "number" ? verdictFor(c).label : null;
       if (v) verdictCounts[v] = (verdictCounts[v] ?? 0) + 1;
 
       const g = r.student?.grade;
@@ -170,8 +175,8 @@ statsRouter.get(
         ct: typeof per.CRITICAL_THINKING?.percent === "number" ? per.CRITICAL_THINKING!.percent! : null,
         composite: typeof c === "number" ? c : null,
         band: typeof c === "number" ? bandOf(c) : null,
-        verdict: snap.composite?.verdict?.label ?? null,
-        verdictSub: snap.composite?.verdict?.sub ?? null,
+        verdict: v,
+        verdictSub: typeof c === "number" ? verdictFor(c).sub : null,
         passed: typeof snap.composite?.gateAllPassed === "boolean" ? snap.composite!.gateAllPassed! : null,
         publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
       });

@@ -140,11 +140,13 @@ test("computeComposite verdict + admission gate", () => {
     ["QABUL TAVSIYA ETILADI", "QABUL QILINSIN", "SHARTLI QABUL", "ZAXIRA QABUL", "TAYYOR EMAS"]
       .includes(comp.verdict.label),
   );
-  // Verdict tracks the potential ceiling, not the raw score.
-  assert.equal(comp.verdict.label, verdictFor(comp.compPotential).label);
+  // Qaror ekrandagi BALLdan olinadi (2026-08-03).
+  assert.equal(comp.verdict.label, verdictFor(comp.composite).label);
+  // Rang ham o'sha balldan — ball va qaror rangi hech qachon ajralmasin.
+  assert.equal(comp.verdict.color, comp.compBand.color);
 });
 
-test("computeComposite admission gate fails when one subject below threshold", () => {
+test("fan-minimal chegara qarorni PASAYTIRMAYDI — status faqat ball bo'yicha", () => {
   const reports: Record<SubjectKey, SubjectReport> = {
     MATH: computeReport(load("student.json")),
     ENGLISH: computeReport(load("english.json")),
@@ -155,11 +157,25 @@ test("computeComposite admission gate fails when one subject below threshold", (
     grade: 5,
     thresholds: { "5": { math: 99, ct: 99, en: 99 } },
   });
+  // Chegara hisoblanadi va admin panelida ko'rinadi...
   assert.equal(comp.gateAllPassed, false);
-  // Below any subject minimum -> demoted outright, whatever the average. Label
-  // localised from "NOT YET READY"; the contract itself is unchanged.
-  assert.equal(comp.verdict.label, "TAYYOR EMAS");
-  assert.equal(comp.verdict.sub, "Bir yoki bir nechta fan minimal chegaradan past");
+  // ...lekin qarorga tegmaydi: u faqat balldan kelib chiqadi. Imtihon kunida
+  // 63 ballli nomzod aynan shu sabab "TAYYOR EMAS" bo'lib chiqqan edi.
+  assert.equal(comp.verdict.label, verdictFor(comp.composite).label);
+  assert.equal(comp.verdict.color, comp.compBand.color);
+});
+
+test("63 ball -> SHARTLI QABUL (imtihon kunidagi xato)", () => {
+  assert.equal(verdictFor(63).label, "SHARTLI QABUL");
+  assert.equal(verdictFor(84).label, "QABUL TAVSIYA ETILADI");
+  assert.equal(verdictFor(79).label, "QABUL QILINSIN");
+});
+
+test("har bir ball uchun qaror rangi band rangi bilan bir xil", () => {
+  // Chegaralarning har ikki tomonini ham qamrab olamiz.
+  for (let p = 0; p <= 100; p++) {
+    assert.equal(verdictFor(p).color, scoreBand(p).color, `${p} ball`);
+  }
 });
 
 test("generatePublicCode is 6 chars and excludes O/0/I/1", () => {

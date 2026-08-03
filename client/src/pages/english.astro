@@ -143,9 +143,10 @@ const reasonHelp = ov.glossary.reasonHelp?.length ? ov.glossary.reasonHelp : REA
 const coverTitle = ov.narrative.coverTitle ?? `${m.subject} imtihoni diagnostikasi`;
 const coverSubtitle = ov.narrative.coverSubtitle ?? '';
 const adminStory = ov.narrative.story && ov.narrative.story.length > 0 ? ov.narrative.story : null;
-// Verdict — auto from potential, or admin override. Uses the same
-// verdictFor() as the admin snapshot so label/sub/color are identical.
-const verdict = resolveVerdict(verdictFor(r.potential), overrides.summary.verdictOverride);
+// Qaror — sahifada ko'rsatilayotgan BALLdan (`r.percent`), ya'ni rangi
+// yonidagi raqamning rangi bilan doim bir xil. 2026-08-03 gacha `r.potential`
+// dan hisoblanardi va band chegarasini kesib o'tganda rang teskari chiqardi.
+const verdict = resolveVerdict(verdictFor(r.percent), overrides.summary.verdictOverride);
 const adjustedBand = scoreBand(r.adjusted);   // band for the adjusted score (tuzatilgan)
 
 

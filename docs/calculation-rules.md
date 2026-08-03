@@ -209,41 +209,54 @@ From `resource/result.text`. Per-grade, per-subject minimum percent:
 gateAllPassed = ∀ subject: report.percent ≥ threshold[grade][subject]
 ```
 
+⚠️ 2026-08-03 dan bu **faqat ma'lumot** — qabul qaroriga ta'sir qilmaydi.
+Quyidagi "Verdict" bo'limiga qarang.
+
 ### Verdict
 
-Per `result.text`: **the verdict is only shown on the composite, not per
-subject.**
-
-The input is **`compPotential`, not `composite`** — a candidate is judged on
-the ceiling they reach once technical errors are stripped out, not on their
-raw score.
+**Qaror faqat BALL bo'yicha beriladi** — ekranda ko'rsatilayotgan o'sha
+raqamdan. Butun saytda: client hisoboti, fan sahifalari, admin paneli,
+dashboard va CSV eksport.
 
 ```
-if NOT gateAllPassed:
-  → TAYYOR EMAS ("Bir yoki bir nechta fan minimal chegaradan past")
+verdictFor(score) = VERDICT_BY_BAND[ scoreBand(score).key ]
 
-else:
-  compPotential > 83 → QABUL TAVSIYA ETILADI ("Yuqori daraja — maktabga qabul tavsiya etiladi")
-  compPotential > 66 → QABUL QILINSIN       ("Ishonchli daraja — qabul tavsiya etiladi")
-  compPotential > 49 → SHARTLI QABUL        ("Rivojlanayotgan daraja — shartli qabul")
-  compPotential > 34 → ZAXIRA QABUL         ("Shakllanayotgan daraja — zaxira qabul")
-  else               → TAYYOR EMAS          ("Tamal bosqich — avval tayyorgarlik kerak")
+score > 83 → QABUL TAVSIYA ETILADI  (yashil  #2F9E6B)
+score > 66 → QABUL QILINSIN         (ko'k    #3266C9)
+score > 49 → SHARTLI QABUL          (sariq   #C98A12)
+score > 34 → ZAXIRA QABUL           (to'q sariq #FF8A32)
+else       → TAYYOR EMAS            (qizil   #D2503F)
 ```
 
-`perSubjectGate` is exposed for diagnostics but not displayed as a verdict
-badge per subject. Failing a gate still demotes the **composite** verdict.
+Qaysi ball ishlatiladi:
 
-Implemented in `computeComposite` (`packages/compute/src/composite.ts`).
-`verdictFor()` only maps a number onto the band — the gate demotion is applied
-by the caller, via `GATE_FAILED_VERDICT`.
+| Ekran | Ball |
+| ----- | ---- |
+| Umumiy xulosa (`summary.astro`) | `composite` |
+| Fan sahifalari (matematika/ingliz/tanqidiy) | o'sha fanning `percent` i |
+| Admin `ResultStatsPanel` | `composite` (jonli hisoblanadi) |
+| Dashboard / CSV (`admin.stats.ts`) | `composite` (snapshotdan EMAS) |
 
-> **History.** Labels were localised on 2026-07-03 (`TAYYORGARLIK` →
-> `TAYYOR EMAS`) and the band cutoffs became 83/66/49/34; this doc lagged
-> behind. Commit `b599564` then changed the verdict input from `compPotential`
-> to `composite` and dropped the gate demotion entirely — while adding a
-> comment claiming `compPotential`. Restored 2026-07-15. Snapshots published
-> before that date are frozen with the old composite-based verdict and are
-> deliberately not backfilled.
+`verdictFor()` rangni `scoreBand()` dan oladi, ya'ni **ball rangi va qaror
+rangi tuzilmaviy ravishda bir xil** — ular ajralib keta olmaydi.
+
+`perSubjectGate` va `gateAllPassed` hisoblanadi va admin panelida ma'lumot
+sifatida ko'rsatiladi, lekin **qarorga ta'sir qilmaydi**.
+
+> **History.** 2026-07-03 da yorliqlar lokalizatsiya qilindi va chegaralar
+> 83/66/49/34 bo'ldi. `b599564` qaror manbasini `compPotential` dan
+> `composite` ga o'zgartirib, gate'ni olib tashlagan edi; 2026-07-15 da u
+> "tuzatildi" — ya'ni `compPotential` + gate qaytarildi.
+>
+> **2026-08-03: ikkalasi ham olib tashlandi.** 1-avgust imtihon kunida
+> diagnostika ustozlar va mehmonlar oldida ochiq xato ko'rsatdi: 80 ball ko'k
+> rangda turib qarori yashil chiqdi (chunki `compPotential` 84 edi), 63 ballli
+> nomzod esa fan-minimal gate sababli "TAYYOR EMAS" bo'ldi. Maktab qarori:
+> status butun saytda faqat ball bo'yicha berilsin.
+>
+> Muzlatilgan eski snapshotlardagi `composite.verdict` endi HECH QAYERDA
+> o'qilmaydi — hamma ekran qarorni balldan qayta hisoblaydi, shuning uchun eski
+> natijalar qayta nashr qilinmasdan to'g'ri ko'rinadi.
 
 ---
 

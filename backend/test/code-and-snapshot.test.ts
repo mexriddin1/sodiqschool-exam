@@ -73,17 +73,14 @@ test("calculateResult publish-gate fails with stricter thresholds", () => {
       { subject: "CRITICAL_THINKING", meta: { ...meta("Tanqidiy fikrlash", 5), totalQuestions: ct.meta.totalQuestions, totalMarks: ct.meta.totalMarks }, questions: ct.questions },
     ],
   });
+  // Chegara ma'lumot uchun hisoblanadi...
   assert.equal(out.composite.gateAllPassed, false);
-  // Failing a subject minimum demotes the verdict regardless of score. This
-  // assertion is the original contract from docs/calculation-rules.md; only
-  // the label changed ("TAYYORGARLIK" -> "TAYYOR EMAS"). It was red from that
-  // rename onward, which hid b599564 dropping the demotion entirely — nobody
-  // noticed because `tsx` was never installed, so this suite never ran.
-  assert.equal(out.composite.verdict.label, "TAYYOR EMAS");
-  assert.equal(out.composite.verdict.sub, "Bir yoki bir nechta fan minimal chegaradan past");
+  // ...lekin 2026-08-03 dan qarorni pasaytirmaydi: maktab qarori — status
+  // butun saytda faqat umumiy ball bo'yicha berilsin.
+  assert.equal(out.composite.verdict.label, verdictFor(out.composite.composite).label);
 });
 
-test("verdict reads off compPotential, not composite", () => {
+test("qaror BALLdan hisoblanadi (compPotential dan emas)", () => {
   const math = load("student.json");
   const en = load("english.json");
   const ct = load("critical-thinking.json");
@@ -96,14 +93,17 @@ test("verdict reads off compPotential, not composite", () => {
       { subject: "CRITICAL_THINKING", meta: { ...meta("Tanqidiy fikrlash", 5), totalQuestions: ct.meta.totalQuestions, totalMarks: ct.meta.totalMarks }, questions: ct.questions },
     ],
   });
-  const { composite, compPotential, gateAllPassed, verdict } = out.composite;
+  const { composite, compPotential, compBand, gateAllPassed, verdict } = out.composite;
 
   assert.equal(gateAllPassed, true, "sample data should clear the default gates");
-  // The sample data straddles a band boundary (composite 80 -> "QABUL
-  // QILINSIN", compPotential 84 -> "QABUL TAVSIYA ETILADI"), so the two
-  // inputs give different verdicts and this test can tell them apart.
+  // Namuna ma'lumot band chegarasini kesib o'tadi (composite 80 -> "QABUL
+  // QILINSIN", compPotential 84 -> "QABUL TAVSIYA ETILADI"), ya'ni bu test
+  // ikkalasini ajrata oladi. Aynan shu farq imtihon kunida "ko'k ball, yashil
+  // qaror" bo'lib ko'rinib qolgan edi.
   assert.notEqual(verdictFor(composite).label, verdictFor(compPotential).label);
-  assert.equal(verdict.label, verdictFor(compPotential).label);
+  assert.equal(verdict.label, verdictFor(composite).label);
+  // Qaror rangi ekrandagi ball rangi bilan bir xil bo'lishi SHART.
+  assert.equal(verdict.color, compBand.color);
 });
 
 test("public code: unique sample of 1000 has very low collision rate", () => {
