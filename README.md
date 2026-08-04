@@ -122,7 +122,10 @@ npm test --workspace e2e               # 1 happy-path scenario
 
 - `docs/result-field-map.md` — every UI field, classified AUTO / DERIVED / MANUAL / STATIC / CONFIG / PLACEHOLDER.
 - `docs/calculation-rules.md` — every formula (KDI, mastery, adjusted, potential, gap zones, growth, admission gate).
-- `docs/api.md` — endpoint reference.
+- `docs/api.md` — API conventions (envelope, auth, pagination, rate limits).
+- `docs/api-swagger.md` — OpenAPI spec: where it lives, how to keep it current.
+  Live Swagger UI: <https://api.natija.sodiqschool.uz/api/docs>
+  (locally <http://localhost:4000/api/docs>; raw spec `docs/openapi.json`).
 - `docs/security-notes.md` — threat model + controls + residual risks.
 - `docs/implementation-plan.md` — phased plan (already executed Phase 1–5).
 - `docs/implementation-notes.md` — decisions, assumptions, known gaps for the next iteration.

@@ -14,6 +14,7 @@
     "seed": "tsx prisma/seed.ts",
     "seed:resources": "tsx prisma/seed-resources.ts",
     "seed:mock": "tsx prisma/mock-data.ts",
+    "openapi:dump": "tsx scripts/dump-openapi.ts",
     "test": "node --test --import tsx test/*.test.ts",
     "pg": "node scripts/start-pg.mjs"
   },
@@ -30,6 +31,7 @@
     "jsonwebtoken": "^9.0.2",
     "pdf-lib": "^1.17.1",
     "playwright": "^1.61.1",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -39,6 +41,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",
+    "@types/swagger-ui-express": "^4.1.8",
     "embedded-postgres": "^18.4.0-beta.17",
     "mammoth": "^1.12.0",
     "prisma": "^5.22.0",

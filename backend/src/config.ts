@@ -16,6 +16,9 @@ export const config = {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
+  // Swagger UI + OpenAPI hujjati (`/api/docs`). Standart — YOQILGAN.
+  // Spec'da sir yo'q, lekin kerak bo'lsa bitta o'zgaruvchi bilan o'chiriladi.
+  docsEnabled: process.env.DOCS_ENABLED !== "false",
   adminTokenTtl: "7d",
   resultTokenTtl: "1d",
   bcryptCost: Number(process.env.BCRYPT_COST ?? 12),

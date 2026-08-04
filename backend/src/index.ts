@@ -24,6 +24,7 @@ import { subjectsRouter } from "./routes/admin.subjects.js";
 import { resourcesRouter } from "./routes/admin.resources.js";
 import { settingsRouter } from "./routes/admin.settings.js";
 import { publicConfigRouter } from "./routes/public.config.js";
+import { docsRouter } from "./routes/docs.js";
 
 const app = express();
 
@@ -32,6 +33,15 @@ const app = express();
 // address instead of 127.0.0.1. Without this, express-rate-limit throws
 // ERR_ERL_UNEXPECTED_X_FORWARDED_FOR and every login gets rejected.
 app.set("trust proxy", 1);
+
+// Swagger UI helmet'dan OLDIN turadi va o'zining yumshoq konfigi bilan
+// ishlaydi. Tartib muhim: helmet header'ni allaqachon yozib bo'lgan bo'lsa,
+// keyingi helmet uni o'CHIRA OLMAYDI — natijada standart CSP inline uslub va
+// skriptlarni bloklab, sahifa bo'm-bo'sh chiqardi. Bu yengillik faqat
+// `/api/docs` ga tegadi; qolgan hamma narsa quyidagi to'liq helmet ostida.
+if (config.docsEnabled) {
+  app.use("/api/docs", helmet({ contentSecurityPolicy: false }), docsRouter);
+}
 
 app.use(helmet());
 app.use(
