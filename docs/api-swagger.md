@@ -78,6 +78,22 @@ Bu faqat **yo'l darajasidagi** qamrov: so'rov yoki javob shakli o'zgarsa test
 sezmaydi. Eng ko'p uchraydigan drift ("endpoint qo'shildi, hujjat unutildi")
 esa shu yerda to'xtaydi.
 
+## Spec nega URL orqali beriladi
+
+`swaggerUi.setup()` ga spec obyektini BERMANG — u `swaggerUrl: "openapi.json"`
+bilan chaqiriladi va sahifa spec'ni alohida so'rov bilan oladi.
+
+Sabab: swagger-ui-express `swagger-ui-init.js` ni shablonga
+`String.replace()` bilan yig'adi, `replace` esa almashtiruvchi matndagi `$`
+naqshlarini maxsus deb biladi — ``$` `` moslikdan oldingi butun matnga, `$'`
+keyingisiga, `$1` guruhga aylanadi. Tavsiflarda markdown kod bo'laklari bor
+(masalan "matematik qismlar `` `$...$` `` ichida"), ya'ni singdirilgan spec
+generatsiya qilingan JS faylni buzadi: brauzer `SyntaxError` beradi va sahifa
+**oq** qoladi. Aynan shu 2026-08-04 da bo'lib o'tdi.
+
+`backend/test/docs-route.test.ts` init faylini `new Function()` bilan
+kompilyatsiya qilib ko'radi — spec yana singdirilsa test yiqiladi.
+
 ## Swagger UI va helmet
 
 `backend/src/index.ts` da docs router **`app.use(helmet())` dan oldin**,
