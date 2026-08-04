@@ -97,6 +97,16 @@ test("spec has no paths that no longer exist in code", () => {
   assert.deepEqual(stale, [], `Kodda yo'q, lekin spec'da turgan yo'llar:\n  ${stale.join("\n  ")}`);
 });
 
+// Versiya `backend/package.json` dan yuqoriga qarab qidirib topiladi, chunki
+// manba va build chiqishi har xil chuqurlikda turadi. Qat'iy yo'l bilan bu
+// prodda jimgina "0.0.0" berardi va spec versiyasiz chiqardi.
+test("info.version comes from backend/package.json", () => {
+  const pkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as { version: string };
+  const doc = buildOpenApiDocument() as { info: { version: string } };
+  assert.equal(doc.info.version, pkg.version);
+  assert.notEqual(doc.info.version, "0.0.0", "package.json topilmadi — zaxira qiymat qaytdi");
+});
+
 test("every $ref points at a schema that exists", () => {
   const doc = buildOpenApiDocument() as {
     components: { schemas: Record<string, unknown>; parameters: Record<string, unknown>; responses: Record<string, unknown> };

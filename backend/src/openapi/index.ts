@@ -17,18 +17,35 @@ const here = dirname(fileURLToPath(import.meta.url));
 /**
  * Versiyani `backend/package.json` dan o'qiydi.
  *
- * Yo'l `src/openapi/` va `dist/openapi/` uchun bir xil ishlaydi (ikkalasidan
- * ham ikki pog'ona yuqorida `backend/` turadi). JSON import qilmadik — ESM'da
- * u import atributlarini talab qiladi va tsc/tsx/node o'rtasida turlicha
- * yo'l tutadi.
+ * Yuqoriga qarab qidiradi, chunki manba va build chiqishi HAR XIL chuqurlikda
+ * turadi: `src/openapi/` dan ikki pog'ona, `dist/src/openapi/` dan uch pog'ona
+ * (tsconfig `prisma/` ni ham qamragani uchun rootDir `backend/` bo'lib qoladi
+ * va chiqish `dist/src/...` ga tushadi). Qat'iy yo'l ikkalasida ham to'g'ri
+ * bo'lolmaydi — prodda u jimgina "0.0.0" berardi.
+ *
+ * Nomni ham tekshiramiz: yo'lda `dist/package.json` yoki repo ildizidagi
+ * `package.json` uchrab qolsa, noto'g'ri versiya olinmasin.
+ *
+ * JSON import qilmadik — ESM'da u import atributlarini talab qiladi va
+ * tsc/tsx/node o'rtasida turlicha yo'l tutadi.
  */
 function packageVersion(): string {
-  try {
-    const raw = readFileSync(resolve(here, "../../package.json"), "utf8");
-    return (JSON.parse(raw) as { version?: string }).version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
+  let dir = here;
+  for (let i = 0; i < 6; i++) {
+    try {
+      const pkg = JSON.parse(readFileSync(resolve(dir, "package.json"), "utf8")) as {
+        name?: string;
+        version?: string;
+      };
+      if (pkg.name === "backend") return pkg.version ?? "0.0.0";
+    } catch {
+      // Bu pog'onada package.json yo'q — yuqoriga davom etamiz.
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
+  return "0.0.0";
 }
 
 const DESCRIPTION = `
